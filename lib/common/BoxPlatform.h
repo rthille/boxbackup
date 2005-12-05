@@ -195,20 +195,24 @@
 
 #ifdef WIN32
 
+	#ifdef __MINGW32__
+		#include <basetyps.h>
+	#endif
+
 	typedef __int8  int8_t;
 	typedef __int16 int16_t;
 	typedef __int32 int32_t;
 	typedef __int64 int64_t;
 
-	typedef unsigned int8_t  u_int8_t;
-	typedef unsigned int16_t u_int16_t;
-	typedef unsigned int32_t u_int32_t;
-	typedef unsigned int64_t u_int64_t;
+	typedef unsigned __int8  u_int8_t;
+	typedef unsigned __int16 u_int16_t;
+	typedef unsigned __int32 u_int32_t;
+	typedef unsigned __int64 u_int64_t;
 
-	typedef u_int8_t  uint8_t;
-	typedef u_int16_t uint16_t;
-	typedef u_int32_t uint32_t;
-	typedef u_int64_t uint64_t;
+	typedef unsigned __int8  uint8_t;
+	typedef unsigned __int16 uint16_t;
+	typedef unsigned __int32 uint32_t;
+	typedef unsigned __int64 uint64_t;
 	
 	typedef unsigned int uid_t;
 	typedef unsigned int gid_t;
