@@ -27,6 +27,8 @@ my $old_version_of_openssl_ok = 0;
 # do command line arguments
 my $compile_line_extra = $platform_compile_line_extra;
 my $link_line_extra = $platform_link_line_extra;
+my $win32_cross = 0;
+
 for(@ARGV)
 {
 	if($_ eq 'allow-old-openssl')
@@ -49,6 +51,10 @@ for(@ARGV)
 		chop $v if ($v =~ /\/$/);
 		$compile_line_extra = "-I$v/include $compile_line_extra"; 
 		$link_line_extra    = "-L$v/lib $link_line_extra";
+	}
+	elsif ($k eq 'win32-cross')
+	{
+		$win32_cross = 1;
 	}
 	else
 	{
@@ -741,17 +747,37 @@ __E
 #    do not edit!
 #
 #
+__E
+
+	if ($win32_cross)
+	{
+		print MAKE <<__E;
+CXX = i386-mingw32-g++
+AR = i386-mingw32-ar
+RANLIB = i386-mingw32-ranlib
+CXXFLAGS = -DWIN32 -I../../lib/win32
+__E
+	}
+	else
+	{
+		print MAKE <<__E;
 CXX = g++
 AR = ar
 RANLIB = ranlib
+CXXFLAGS = -D$platform_define$extra_platform_defines
+__E
+	}
+
+	print MAKE <<__E;
+
 .ifdef RELEASE
-CXXFLAGS = -DNDEBUG -O2 -Wall $include_paths -D$platform_define$extra_platform_defines -DBOX_VERSION="\\"$product_version\\""
+CXXFLAGS += -DNDEBUG -O2 -Wall $include_paths -DBOX_VERSION="\\"$product_version\\""
 OUTBASE = ../../release
 OUTDIR = ../../release/$mod
 DEPENDMAKEFLAGS = -D RELEASE
 VARIENT = RELEASE
 .else
-CXXFLAGS = -g -Wall $include_paths -D$platform_define$extra_platform_defines -DBOX_VERSION="\\"$product_version\\""
+CXXFLAGS += -g -Wall $include_paths -D$platform_define$extra_platform_defines -DBOX_VERSION="\\"$product_version\\""
 OUTBASE = ../../debug
 OUTDIR = ../../debug/$mod
 DEPENDMAKEFLAGS =
