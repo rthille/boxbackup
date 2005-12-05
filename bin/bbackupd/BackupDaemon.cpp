@@ -156,8 +156,9 @@ const ConfigurationVerify *BackupDaemon::GetConfigVerify() const
 //
 // Function
 //		Name:    BackupDaemon::SetupInInitialProcess()
-//		Purpose: Platforms with non-checkable credientals on local sockets only.
-//				 Prints a warning if the command socket is used.
+//		Purpose: Platforms with non-checkable credentials on 
+//			local sockets only.
+//			Prints a warning if the command socket is used.
 //		Created: 25/2/04
 //
 // --------------------------------------------------------------------------
@@ -1078,6 +1079,7 @@ void BackupDaemon::CloseCommandConnection()
 	try
 	{
 		TRACE0("Closing command connection\n");
+		
 #ifdef WIN32
 		FlushFileBuffers(mpCommandSocketInfo->mListeningSocket); 
 		DisconnectNamedPipe(mpCommandSocketInfo->mListeningSocket); 
@@ -1580,7 +1582,7 @@ void BackupDaemon::CommitIDMapsAfterSync()
 		
 		// Try to rename
 #ifdef WIN32
-		//win32 remove doesn't overwrite
+		// win32 rename doesn't overwrite existing files
 		::remove(target.c_str());
 #endif
 		if(::rename(newmap.c_str(), target.c_str()) != 0)
