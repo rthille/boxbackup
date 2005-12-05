@@ -216,7 +216,7 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 				break;
 			}
 		}
-#endif
+#endif // ! WIN32
 
 		// open the log
 		::openlog(DaemonName(), LOG_PID, LOG_LOCAL6);
