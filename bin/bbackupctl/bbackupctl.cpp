@@ -12,6 +12,10 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#ifndef WIN32
+#include <syslog.h>
+#endif
+
 #include "MainHelper.h"
 #include "BoxPortsAndFiles.h"
 #include "BackupDaemonConfigVerify.h"
