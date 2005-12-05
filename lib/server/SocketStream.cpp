@@ -369,11 +369,7 @@ bool SocketStream::StreamClosed()
 //		Created: 2003/08/06
 //
 // --------------------------------------------------------------------------
-#ifdef WIN32
-SOCKET SocketStream::GetSocketHandle()
-#else
-int SocketStream::GetSocketHandle()
-#endif
+tOSSocketHandle SocketStream::GetSocketHandle()
 {
 	if(mSocketHandle == -1) {THROW_EXCEPTION(ServerException, BadSocketHandle)}
 	return mSocketHandle;
