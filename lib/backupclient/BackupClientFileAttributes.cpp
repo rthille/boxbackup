@@ -271,8 +271,10 @@ bool BackupClientFileAttributes::Compare(const BackupClientFileAttributes &rAttr
 //		Created: 2003/10/07
 //
 // --------------------------------------------------------------------------
-void BackupClientFileAttributes::ReadAttributes(const char *Filename, bool ZeroModificationTimes, box_time_t *pModTime,
-	box_time_t *pAttrModTime, int64_t *pFileSize, InodeRefType *pInodeNumber, bool *pHasMultipleLinks)
+void BackupClientFileAttributes::ReadAttributes(const char *Filename, 
+	bool ZeroModificationTimes, box_time_t *pModTime,
+	box_time_t *pAttrModTime, int64_t *pFileSize, 
+	InodeRefType *pInodeNumber, bool *pHasMultipleLinks)
 {
 	StreamableMemBlock *pnewAttr = 0;
 	try
