@@ -23,7 +23,7 @@
 
 #include <string>
 
-#include "boxplatform.h"
+#include "BoxPlatform.h"
 
 #define gmtime_r( _clock, _result ) \
 	( *(_result) = *gmtime( (_clock) ), \
@@ -145,7 +145,7 @@ extern char *optarg;
 //optind looks like an index into the string - how far we have moved along
 extern int optind;
 extern char nextchar;
-inline size_t getopt(int count, char * const * args, char * tolookfor)
+inline int getopt(int count, char * const * args, char * tolookfor)
 {
 	if ( optind >= count ) return -1;
 
@@ -174,8 +174,8 @@ inline size_t getopt(int count, char * const * args, char * tolookfor)
 
 		optind ++;
 		str = args[optind];
-
-	}while ( ( opttolookfor = interestin.find(opt)) == -1 );
+	}
+	while ( ( opttolookfor = interestin.find(opt)) == -1 );
 
 	if ( interestin[opttolookfor+1] == ':' ) 
 	{
@@ -185,7 +185,7 @@ inline size_t getopt(int count, char * const * args, char * tolookfor)
 		optind ++;
 	}
 
-	//inidcate we have finished
+	//indicate we have finished
 	return opt[0];
 }
 
