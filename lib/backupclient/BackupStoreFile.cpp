@@ -13,7 +13,6 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <new>
-#include <string.h>
 #ifndef BOX_DISABLE_BACKWARDS_COMPATIBILITY_BACKUPSTOREFILE
 	#include <syslog.h>
 	#include <stdio.h>
@@ -366,7 +365,7 @@ BackupStoreFile::DecodedStream::~DecodedStream()
 	}
 	if(mpEncodedData)
 	{
-		BackupStoreFile::CodingChunkFree(mpEncodedData);
+		::free(mpEncodedData);
 	}
 	if(mpClearData)
 	{
@@ -531,7 +530,7 @@ void BackupStoreFile::DecodedStream::Setup(const BackupClientFileAttributes *pAl
 		}
 		
 		// Allocate those blocks!
-		mpEncodedData = (uint8_t*)BackupStoreFile::CodingChunkAlloc(maxEncodedDataSize + 32);
+		mpEncodedData = (uint8_t*)::malloc(maxEncodedDataSize + 32);
 
 		// Allocate the block for the clear data, using the hint from the header.
 		// If this is wrong, things will exception neatly later on, so it can't be used
@@ -913,24 +912,21 @@ int BackupStoreFile::MaxBlockSizeForChunkSize(int ChunkSize)
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupStoreFile::EncodeChunk(const void *, int, BackupStoreFile::EncodingBuffer &)
-//		Purpose: Encodes a chunk (encryption, possible compressed beforehand)
+//		Name:    BackupStoreFile::EncodeChunk(const void *, int, void *, int)
+//		Purpose: Encodes a chunk (encryption, possible encrypted beforehand)
 //		Created: 8/12/03
 //
 // --------------------------------------------------------------------------
-int BackupStoreFile::EncodeChunk(const void *Chunk, int ChunkSize, BackupStoreFile::EncodingBuffer &rOutput)
+int BackupStoreFile::EncodeChunk(const void *Chunk, int ChunkSize, void *Output, int OutputSize)
 {
 	ASSERT(spEncrypt != 0);
 
-	// Check there's some space in the output block
-	if(rOutput.mBufferSize < 256)
+	// Check there's enough space in the output block
+	if(OutputSize < MaxBlockSizeForChunkSize(ChunkSize))
 	{
-		rOutput.Reallocate(256);
+		THROW_EXCEPTION(BackupStoreException, OutputSizeTooSmallForChunk)
 	}
 	
-	// Check alignment of the block
-	ASSERT((((uint32_t)rOutput.mpBuffer) % BACKUPSTOREFILE_CODING_BLOCKSIZE) == BACKUPSTOREFILE_CODING_OFFSET);
-
 	// Want to compress it?
 	bool compressChunk = (ChunkSize >= BACKUP_FILE_MIN_COMPRESSED_CHUNK_SIZE);
 
@@ -939,25 +935,18 @@ int BackupStoreFile::EncodeChunk(const void *Chunk, int ChunkSize, BackupStoreFi
 	if(compressChunk) header |= HEADER_CHUNK_IS_COMPRESSED;
 
 	// Store header
-	rOutput.mpBuffer[0] = header;
+	uint8_t *output = (uint8_t*)Output;
+	output[0] = header;
 	int outOffset = 1;
 
 	// Setup cipher, and store the IV
 	int ivLen = 0;
 	const void *iv = spEncrypt->SetRandomIV(ivLen);
-	::memcpy(rOutput.mpBuffer + outOffset, iv, ivLen);
+	::memcpy(output + outOffset, iv, ivLen);
 	outOffset += ivLen;
 	
 	// Start encryption process
 	spEncrypt->Begin();
-	
-	#define ENCODECHUNK_CHECK_SPACE(ToEncryptSize) \
-	{ \
-		if((rOutput.mBufferSize - outOffset) < ((ToEncryptSize) + 128)) \
-		{ \
-			rOutput.Reallocate(rOutput.mBufferSize + (ToEncryptSize) + 128); \
-		} \
-	}
 	
 	// Encode the chunk
 	if(compressChunk)
@@ -976,8 +965,7 @@ int BackupStoreFile::EncodeChunk(const void *Chunk, int ChunkSize, BackupStoreFi
 			int s = compress.Output(buffer, sizeof(buffer));
 			if(s > 0)
 			{
-				ENCODECHUNK_CHECK_SPACE(s)
-				outOffset += spEncrypt->Transform(rOutput.mpBuffer + outOffset, rOutput.mBufferSize - outOffset, buffer, s);				
+				outOffset += spEncrypt->Transform(output + outOffset, OutputSize - outOffset, buffer, s);				
 			}
 			else
 			{
@@ -986,19 +974,16 @@ int BackupStoreFile::EncodeChunk(const void *Chunk, int ChunkSize, BackupStoreFi
 				THROW_EXCEPTION(BackupStoreException, Internal)
 			}
 		}
-		ENCODECHUNK_CHECK_SPACE(16)
-		outOffset += spEncrypt->Final(rOutput.mpBuffer + outOffset, rOutput.mBufferSize - outOffset);
+		outOffset += spEncrypt->Final(output + outOffset, OutputSize - outOffset);
 	}
 	else
 	{
 		// Straight encryption
-		ENCODECHUNK_CHECK_SPACE(ChunkSize)
-		outOffset += spEncrypt->Transform(rOutput.mpBuffer + outOffset, rOutput.mBufferSize - outOffset, Chunk, ChunkSize);
-		ENCODECHUNK_CHECK_SPACE(16)
-		outOffset += spEncrypt->Final(rOutput.mpBuffer + outOffset, rOutput.mBufferSize - outOffset);
+		outOffset += spEncrypt->Transform(output + outOffset, OutputSize - outOffset, Chunk, ChunkSize);
+		outOffset += spEncrypt->Final(output + outOffset, OutputSize - outOffset);
 	}
 	
-	ASSERT(outOffset < rOutput.mBufferSize);		// first check should have sorted this -- merely logic check
+	ASSERT(outOffset < OutputSize);		// first check should have sorted this -- merely logic check
 
 	return outOffset;
 }
@@ -1009,16 +994,11 @@ int BackupStoreFile::EncodeChunk(const void *Chunk, int ChunkSize, BackupStoreFi
 //		Name:    BackupStoreFile::DecodeChunk(const void *, int, void *, int)
 //		Purpose: Decode an encoded chunk -- use OutputBufferSizeForKnownOutputSize() to find
 //				 the extra output buffer size needed before calling.
-//				 See notes in EncodeChunk() for notes re alignment of the 
-//				 encoded data.
 //		Created: 8/12/03
 //
 // --------------------------------------------------------------------------
 int BackupStoreFile::DecodeChunk(const void *Encoded, int EncodedSize, void *Output, int OutputSize)
 {
-	// Check alignment of the encoded block
-	ASSERT((((uint32_t)Encoded) % BACKUPSTOREFILE_CODING_BLOCKSIZE) == BACKUPSTOREFILE_CODING_OFFSET);
-
 	// First check
 	if(EncodedSize < 1)
 	{
@@ -1411,89 +1391,4 @@ bool BackupStoreFile::CompareFileContentsAgainstBlockIndex(const char *Filename,
 	
 	return matches;
 }
-
-
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    BackupStoreFile::EncodingBuffer::EncodingBuffer()
-//		Purpose: Constructor
-//		Created: 25/11/04
-//
-// --------------------------------------------------------------------------
-BackupStoreFile::EncodingBuffer::EncodingBuffer()
-	: mpBuffer(0),
-	  mBufferSize(0)
-{
-}
-
-
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    BackupStoreFile::EncodingBuffer::~EncodingBuffer()
-//		Purpose: Destructor
-//		Created: 25/11/04
-//
-// --------------------------------------------------------------------------
-BackupStoreFile::EncodingBuffer::~EncodingBuffer()
-{
-	if(mpBuffer != 0)
-	{
-		BackupStoreFile::CodingChunkFree(mpBuffer);
-		mpBuffer = 0;
-	}
-}
-
-
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    BackupStoreFile::EncodingBuffer::Allocate(int)
-//		Purpose: Do initial allocation of block
-//		Created: 25/11/04
-//
-// --------------------------------------------------------------------------
-void BackupStoreFile::EncodingBuffer::Allocate(int Size)
-{
-	ASSERT(mpBuffer == 0);
-	uint8_t *buffer = (uint8_t*)BackupStoreFile::CodingChunkAlloc(Size);
-	if(buffer == 0)
-	{
-		throw std::bad_alloc();
-	}
-	mpBuffer = buffer;
-	mBufferSize = Size;
-}
-
-
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    BackupStoreFile::EncodingBuffer::Reallocate(int)
-//		Purpose: Reallocate the block. Try not to call this, it has to copy
-//				 the entire contents as the block can't be reallocated straight.
-//		Created: 25/11/04
-//
-// --------------------------------------------------------------------------
-void BackupStoreFile::EncodingBuffer::Reallocate(int NewSize)
-{
-	TRACE2("Reallocating EncodingBuffer from %d to %d\n", mBufferSize, NewSize);
-	ASSERT(mpBuffer != 0);
-	uint8_t *buffer = (uint8_t*)BackupStoreFile::CodingChunkAlloc(NewSize);
-	if(buffer == 0)
-	{
-		throw std::bad_alloc();
-	}
-	// Copy data
-	::memcpy(buffer, mpBuffer, (NewSize > mBufferSize)?mBufferSize:NewSize);
-	
-	// Free old
-	BackupStoreFile::CodingChunkFree(mpBuffer);
-	
-	// Store new buffer
-	mpBuffer = buffer;
-	mBufferSize = NewSize;
-}
-
 

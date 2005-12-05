@@ -140,11 +140,6 @@
 
 	#define PLATFORM_RANDOM_DEVICE	"/dev/urandom"
 
-	// If large file support is on, can't do the intercepts in the test/raidfile
-	#if _FILE_OFFSET_BITS == 64
-		#define PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
-	#endif
-
 #endif // PLATFORM_LINUX
 
 #ifdef PLATFORM_CYGWIN
@@ -220,12 +215,12 @@
 	typedef u_int64_t InodeRefType;
 
 	#define WIN32_LEAN_AND_MEAN
-	#define PLATFORM_BERKELEY_DB_NOT_SUPPORTED
 	//#define BERKELY_V4
 	//any prefs? - to be changed in the future
 	#define COMMAND_PORT 9035
-	//#define PLATFORM_REGEX_NOT_SUPPORTED
 
+	#define PLATFORM_BERKELEY_DB_NOT_SUPPORTED
+	#define PLATFORM_REGEX_NOT_SUPPORTED
 	#define PLATFORM_KQUEUE_NOT_SUPPORTED
 	#define PLATFORM_dirent_BROKEN_d_type
 	#define PLATFORM_stat_SHORT_mtime

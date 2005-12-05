@@ -1,6 +1,5 @@
 #!/usr/bin/perl
 use strict;
-use Symbol;
 
 my @modules;
 my %module_dependency;
@@ -329,7 +328,7 @@ print "done\n\n";
 
 # seed autogen code
 print "Seeding autogen code...\n";
-open FINDAUTOGEN,"find . -follow -name Makefile.extra |" or die "Can't use find for locating files";
+open FINDAUTOGEN,"find . -name Makefile.extra |" or die "Can't use find for locating files";
 while(<FINDAUTOGEN>)
 {
 	chomp;
@@ -402,80 +401,21 @@ close FL;
 my $extra_platform_defines = '';
 $extra_platform_defines .= ' -DPLATFORM_GCC3' if $gcc_v3;
 
-# read in module definitions file, and any files it includes
-my @modules_files;
-sub read_modules_file
-{
-	my ($mf) = @_;
-	my $f = gensym;
-	open $f,$mf or die "Can't open modules file '$mf'\n";
-	while(<$f>)
-	{
-		if(m/\AINCLUDE\s+(\S+)\Z/)
-		{
-			# include another file
-			read_modules_file($1)
-		}
-		else
-		{
-			push @modules_files,$_
-		}
-	}
-	close $f;
-}
-read_modules_file('modules.txt');
+# read in module definitions file and prepare directories
+open MODULES,"modules.txt" or die "Can't open modules file\n";
 
 # prepare directories...
 mkdir "release",0755;
 mkdir "debug",0755;
 
-# is the library code in another directory?
-my $external_lib = readlink('lib');
-if($external_lib ne '')
-{
-	# adjust to root of the library distribution
-	$external_lib =~ s!/lib\Z!!;
-	$external_lib = '../'.$external_lib;
-	# make symlinks
-	make_obj_symlink('debug');
-	make_obj_symlink('release');
-}
-sub make_obj_symlink
-{
-	my $m = $_[0];
-	my $target = $external_lib."/$m/lib/";
-	my $link = "$m/lib";
-	# check link
-	if(-e $link)
-	{
-		if(-l $link)
-		{
-			if(readlink($link) ne $target)
-			{
-				print "Warning: replacing $link with new link to $target\n";
-				unlink $link;
-			}
-		}
-		else
-		{
-			die "$link already exists, but it isn't a symbolic link"
-		}
-	}
-	if(!-e $link)
-	{
-		symlink $target,$link or die "Can't make $m/lib symlink";
-	}
-}
-
 print "Scanning code...\n";
 
 my $modules_omitted = 0;
 
-# process lines in flattened modules files
-for(@modules_files)
+while(<MODULES>)
 {
 	# clean up line
-	chomp; s/\A\s+//; s/#.*\Z//; s/\s+\Z//; s/\s+/ /g;
+	chomp; s/\A\s+//; s/#.+\Z//; s/\s+\Z//; s/\s+/ /g;
 	next unless m/\S/;
 	
 	# omit bits on some platforms?
@@ -549,16 +489,14 @@ for(@modules_files)
 	$module_dependency{$mod} = [$implicit_dep,@md];
 	$module_library_link_opts{$mod} = [@lo];
 	
-	# make directories, but not if we're using an external library and this a library module
+	# make directories
 	my ($s,$d) = split /\//,$mod;
-	if($s ne 'lib' || $external_lib eq '')
-	{
-		mkdir "release/$s",0755;
-		mkdir "release/$s/$d",0755;
-		mkdir "debug/$s",0755;
-		mkdir "debug/$s/$d",0755;
-	}
+	mkdir "release/$s",0755;
+	mkdir "release/$s/$d",0755;
+	mkdir "debug/$s",0755;
+	mkdir "debug/$s/$d",0755;
 }
+close MODULES;
 
 # make dirs for implicit dep
 mkdir "release/$implicit_dep",0755;
@@ -777,7 +715,7 @@ OUTDIR = ../../release/$mod
 DEPENDMAKEFLAGS = -D RELEASE
 VARIENT = RELEASE
 .else
-CXXFLAGS += -g -Wall $include_paths -D$platform_define$extra_platform_defines -DBOX_VERSION="\\"$product_version\\""
+CXXFLAGS += -g -Wall $include_paths -DBOX_VERSION="\\"$product_version\\""
 OUTBASE = ../../debug
 OUTDIR = ../../debug/$mod
 DEPENDMAKEFLAGS =
@@ -1098,12 +1036,7 @@ sub do_test
 		# success
 		if(exists $t{'SuccessFlags'})
 		{
-			for(@{$t{'SuccessFlags'}})
-			{
-				my ($k,$v) = split /=>/,$_;
-				$v = 1 if $v eq '';
-				$env_flags{$k} = $v
-			}
+			$env_flags{$_} = 1 for(@{$t{'SuccessFlags'}})
 		}
 		$compile_line_extra .= $t{'SuccessCompileFlags'}.' ' if exists $t{'SuccessCompileFlags'};
 		$link_line_extra .= $t{'SuccessLinkFlags'}.' ' if exists $t{'SuccessLinkFlags'};
@@ -1121,18 +1054,12 @@ sub do_test
 		# failure
 		if(exists $t{'FailureFlags'})
 		{
-			for(@{$t{'FailureFlags'}})
-			{
-				my ($k,$v) = split /=>/,$_;
-				$v = 1 if $v eq '';
-				$env_flags{$k} = $v
-			}
+			$env_flags{$_} = 1 for(@{$t{'FailureFlags'}})
 		}
 		$compile_line_extra .= $t{'FailureCompileFlags'}.' ' if exists $t{'FailureCompileFlags'};
 		$link_line_extra .= $t{'FailureLinkFlags'}.' ' if exists $t{'FailureLinkFlags'};
 		$test_failure_text .= $t{'FailureText'} if exists $t{'FailureText'};
 	}
-	$result
 }
 
 

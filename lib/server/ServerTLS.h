@@ -46,8 +46,7 @@ public:
 	{
 		// First, set up the SSL context.
 		// Get parameters from the configuration
-		// this-> in next line required to build under some gcc versions
-		const Configuration &conf(this->GetConfiguration());
+		const Configuration &conf(GetConfiguration());
 		const Configuration &serverconf(conf.GetSubConfiguration("Server"));
 		std::string certFile(serverconf.GetKeyValue("CertificateFile"));
 		std::string keyFile(serverconf.GetKeyValue("PrivateKeyFile"));
@@ -61,8 +60,7 @@ public:
 	virtual void HandleConnection(SocketStreamTLS &rStream)
 	{
 		rStream.Handshake(mContext, true /* is server */);
-		// this-> in next line required to build under some gcc versions
-		this->Connection(rStream);
+		Connection(rStream);
 	}
 	
 private:

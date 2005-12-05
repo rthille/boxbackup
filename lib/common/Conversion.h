@@ -86,12 +86,6 @@ namespace BoxConvert
 		return r;
 	}
 	
-	// Specialise for bool -> string
-	template<>
-	inline std::string Convert<std::string, bool>(bool From)
-	{
-		return std::string(From?"true":"false");
-	}
 };
 
 #endif // CONVERSION__H

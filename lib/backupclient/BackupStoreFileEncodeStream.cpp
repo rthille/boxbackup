@@ -50,6 +50,7 @@ BackupStoreFileEncodeStream::BackupStoreFileEncodeStream()
 	  mBlockSize(BACKUP_FILE_MIN_BLOCK_SIZE),
 	  mLastBlockSize(0),
 	  mpRawBuffer(0),
+	  mpEncodedBuffer(0),
 	  mAllocatedBufferSize(0),
 	  mEntryIVBase(0)
 {
@@ -70,6 +71,11 @@ BackupStoreFileEncodeStream::~BackupStoreFileEncodeStream()
 	{
 		::free(mpRawBuffer);
 		mpRawBuffer = 0;
+	}
+	if(mpEncodedBuffer)
+	{
+		::free(mpEncodedBuffer);
+		mpEncodedBuffer = 0;
 	}
 	
 	// Close the file, which we might have open
@@ -205,16 +211,11 @@ void BackupStoreFileEncodeStream::Setup(const char *Filename, BackupStoreFileEnc
 			
 			// Then allocate two blocks of this size
 			mpRawBuffer = (uint8_t*)::malloc(mAllocatedBufferSize);
-			if(mpRawBuffer == 0)
+			mpEncodedBuffer = (uint8_t*)::malloc(mAllocatedBufferSize);
+			if(mpRawBuffer == 0 || mpEncodedBuffer == 0)
 			{
 				throw std::bad_alloc();
 			}
-#ifndef NDEBUG
-			// In debug builds, make sure that the reallocation code is exercised.
-			mEncodedBuffer.Allocate(mAllocatedBufferSize / 4);
-#else
-			mEncodedBuffer.Allocate(mAllocatedBufferSize);
-#endif
 		}
 		else
 		{
@@ -410,7 +411,7 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 				if(s > bytesToRead) s = bytesToRead;
 				
 				// Copy it in
-				::memcpy(buffer, mEncodedBuffer.mpBuffer + mPositionInCurrentBlock, s);
+				::memcpy(buffer, mpEncodedBuffer + mPositionInCurrentBlock, s);
 				
 				// Update variables
 				bytesToRead -= s;
@@ -533,7 +534,7 @@ void BackupStoreFileEncodeStream::EncodeCurrentBlock()
 	}
 	
 	// Encode it
-	mCurrentBlockEncodedSize = BackupStoreFile::EncodeChunk(mpRawBuffer, blockRawSize, mEncodedBuffer);
+	mCurrentBlockEncodedSize = BackupStoreFile::EncodeChunk(mpRawBuffer, blockRawSize, mpEncodedBuffer, mAllocatedBufferSize);
 	
 	//TRACE2("Encode: Encoded size of block %d is %d\n", (int32_t)mCurrentBlock, (int32_t)mCurrentBlockEncodedSize);
 	

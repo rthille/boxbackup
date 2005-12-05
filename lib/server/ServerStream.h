@@ -120,8 +120,7 @@ public:
 			// BLOCK
 			{
 				// Get the address we need to bind to
-				// this-> in next line required to build under some gcc versions
-				const Configuration &config(this->GetConfiguration());
+				const Configuration &config(GetConfiguration());
 				const Configuration &server(config.GetSubConfiguration("Server"));
 				std::string addrs = server.GetKeyValue("ListenAddresses");
 	

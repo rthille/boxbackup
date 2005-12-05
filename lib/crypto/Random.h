@@ -10,13 +10,10 @@
 #ifndef RANDOM__H
 #define RANDOM__H
 
-#include <string>
-
 namespace Random
 {
 	void Initialise();
 	void Generate(void *pOutput, int Length);
-	std::string GenerateHex(int Length);
 	uint32_t RandomInt(uint32_t MaxValue);
 };
 
