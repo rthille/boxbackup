@@ -26,7 +26,6 @@
 #include "BackupStoreException.h"
 #include "BackupDaemon.h"
 #include "autogen_BackupProtocolClient.h"
-#include "BackupStoreFile.h"
 
 #include "MemLeakFindOn.h"
 
@@ -53,8 +52,7 @@ BackupClientContext::BackupClientContext(BackupDaemon &rDaemon, TLSContext &rTLS
 	  mpNewIDMap(0),
 	  mStorageLimitExceeded(false),
 	  mpExcludeFiles(0),
-	  mpExcludeDirs(0),
-	  mbIsManaged(false)
+	  mpExcludeDirs(0)
 {
 }
 
@@ -458,6 +456,10 @@ bool BackupClientContext::FindFilename(int64_t ObjectID, int64_t ContainingDirec
 	return true;
 }
 
+//
+//
+//
+
 // maximum time to spend diffing
 static int sMaximumDiffTime = 10;
 // maximum time of SSL inactivity (keep-alive interval)
@@ -535,6 +537,9 @@ void BackupClientContext::ManageDiffProcess()
 	struct itimerval timeout;
 	memset(&timeout, 0, sizeof(timeout));
 
+	//
+	//
+	//
 	if (sMaximumDiffTime <= 0 && sKeepAliveTime <= 0)
 	{
 		TRACE0("Diff control not requested - letting things run wild\n");

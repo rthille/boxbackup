@@ -22,7 +22,6 @@
 	typedef int regex_t;
 #endif
 #endif
-#include "Archive.h"
 
 // --------------------------------------------------------------------------
 //
@@ -37,9 +36,6 @@ class ExcludeList
 public:
 	ExcludeList();
 	~ExcludeList();
-
-	void Deserialize(Archive & rArchive);
-	void Serialize(Archive & rArchive) const;
 
 	void AddDefiniteEntries(const std::string &rEntries);
 	void AddRegexEntries(const std::string &rEntries);
@@ -67,15 +63,9 @@ public:
 private:
 	std::set<std::string> mDefinite;
 
-#ifdef WIN32
-	std::vector<boost::regex> mRegex;
-	std::vector<std::string> mRegexStr;
-#else
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 	std::vector<regex_t *> mRegex;
-	std::vector<std::string> mRegexStr;	// save original regular expression string-based source for Serialize
-#endif
-#endif
+#endif // PLATFORM_REGEX_NOT_SUPPORTED
 
 	// For exceptions to the excludes
 	ExcludeList *mpAlwaysInclude;

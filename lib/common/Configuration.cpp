@@ -19,8 +19,6 @@
 
 #include "MemLeakFindOn.h"
 
-#include "FileModificationTime.h"
-
 // utility whitespace function
 inline bool iw(int c)
 {
@@ -33,18 +31,21 @@ static const bool sValueBooleanValue[] = {true, true, false, false};
 
 
 
+
+
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    Configuration::Configuration(const std::string &, box_time_t)
+//		Name:    Configuration::Configuration(const std::string &)
 //		Purpose: Constructor
 //		Created: 2003/07/23
 //
 // --------------------------------------------------------------------------
-Configuration::Configuration(const std::string &rName, box_time_t configModTime)
-	: mName(rName), mConfigModTime(configModTime)
+Configuration::Configuration(const std::string &rName)
+	: mName(rName)
 {
 }
+
 
 
 // --------------------------------------------------------------------------
@@ -58,8 +59,7 @@ Configuration::Configuration(const std::string &rName, box_time_t configModTime)
 Configuration::Configuration(const Configuration &rToCopy)
 	: mName(rToCopy.mName),
 	  mSubConfigurations(rToCopy.mSubConfigurations),
-	  mKeys(rToCopy.mKeys),
-	  mConfigModTime(rToCopy.mConfigModTime)
+	  mKeys(rToCopy.mKeys)
 {
 }
 
@@ -97,13 +97,6 @@ std::auto_ptr<Configuration> Configuration::LoadAndVerify(const char *Filename, 
 	// Just to make sure
 	rErrorMsg.erase();
 	
-	// Save modification time to be able to distinguish across configuration sets
-	struct stat st;
-	if(::stat(Filename, &st) != 0)
-	{
-		THROW_EXCEPTION(CommonException, OSFileError)
-	}
-
 	// Open the file
 	FileHandleGuard<O_RDONLY> file(Filename);
 	
@@ -111,8 +104,7 @@ std::auto_ptr<Configuration> Configuration::LoadAndVerify(const char *Filename, 
 	FdGetLine getline(file);
 	
 	// Object to create
-	Configuration *pconfig = new Configuration(std::string("<root>"), 
-		FileModificationTime(st));
+	Configuration *pconfig = new Configuration(std::string("<root>"));
 	
 	try
 	{
@@ -187,8 +179,7 @@ bool Configuration::LoadInto(Configuration &rConfig, FdGetLine &rGetLine, std::s
 			if(startBlockExpected)
 			{
 				// New config object
-				Configuration config(blockName, 
-					rConfig.mConfigModTime);
+				Configuration config(blockName);
 				
 				// Continue processing into this block
 				if(!LoadInto(config, rGetLine, rErrorMsg, false))
