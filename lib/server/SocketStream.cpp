@@ -297,7 +297,7 @@ void SocketStream::Close()
 	if(mSocketHandle == -1) {THROW_EXCEPTION(ServerException, BadSocketHandle)}
 #ifdef WIN32
 	if(::closesocket(mSocketHandle) == -1)
-#elif
+#else
 	if(::close(mSocketHandle) == -1)
 #endif
 	{
