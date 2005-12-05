@@ -12,10 +12,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#ifndef WIN32
-#include <syslog.h>
-#endif
-
 #include "MainHelper.h"
 #include "BoxPortsAndFiles.h"
 #include "BackupDaemonConfigVerify.h"
@@ -41,7 +37,10 @@ void PrintUsageAndExit()
 int main(int argc, const char *argv[])
 {
 	int returnCode = 0;
+
+#if defined WIN32 && ! defined NDEBUG
 	::openlog("Box Backup", 0, 0);
+#endif
 
 	MAINHELPER_SETUP_MEMORY_LEAK_EXIT_REPORT("bbackupctl.memleaks", "bbackupctl")
 
@@ -127,7 +126,11 @@ int main(int argc, const char *argv[])
 			"  * Another bbackupctl process is communicating with the daemon\n"	\
 			"  * Daemon is waiting to recover from an error\n"
 		);
+
+#if defined WIN32 && ! defined NDEBUG
 		syslog(LOG_ERR,"Failed to connect to the command socket");
+#endif
+
 		return 1;
 	}
 	
@@ -143,7 +146,11 @@ int main(int argc, const char *argv[])
 	if(!getLine.GetLine(configSummary))
 	{
 		printf("Failed to receive configuration summary from daemon\n");
+
+#if defined WIN32 && ! defined NDEBUG
 		syslog(LOG_ERR,"Failed to receive configuration summary from daemon");
+#endif
+
 		return 1;
 	}
 
@@ -233,7 +240,10 @@ int main(int argc, const char *argv[])
 	}
 
 	MAINHELPER_END
+
+#if defined WIN32 && ! defined NDEBUG
 	closelog();
+#endif
 	
 	return returnCode;
 }
