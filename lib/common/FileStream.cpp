@@ -52,11 +52,7 @@ FileStream::FileStream(const char *Filename, int flags, int mode)
 //		Created: 2003/08/28
 //
 // --------------------------------------------------------------------------
-#ifdef WIN32
-FileStream::FileStream(HANDLE FileDescriptor)
-#else
-FileStream::FileStream(int FileDescriptor)
-#endif
+FileStream::FileStream(tOSFileHandle FileDescriptor)
 	: mOSFileHandle(FileDescriptor),
 	  mIsEOF(false)
 {
@@ -67,7 +63,7 @@ FileStream::FileStream(int FileDescriptor)
 	}
 }
 
-
+#if 0
 // --------------------------------------------------------------------------
 //
 // Function
@@ -76,7 +72,6 @@ FileStream::FileStream(int FileDescriptor)
 //		Created: 2003/07/31
 //
 // --------------------------------------------------------------------------
-#ifndef WIN32
 FileStream::FileStream(const FileStream &rToCopy)
 	: mOSFileHandle(::dup(rToCopy.mOSFileHandle)),
 	  mIsEOF(rToCopy.mIsEOF)
@@ -87,7 +82,7 @@ FileStream::FileStream(const FileStream &rToCopy)
 		THROW_EXCEPTION(CommonException, OSFileOpenError)
 	}
 }
-#endif // WIN32
+#endif // 0
 
 // --------------------------------------------------------------------------
 //
@@ -99,7 +94,7 @@ FileStream::FileStream(const FileStream &rToCopy)
 // --------------------------------------------------------------------------
 FileStream::~FileStream()
 {
-	if(mOSFileHandle >= 0)
+	if(mOSFileHandle != INVALID_FILE)
 	{
 		Close();
 	}
@@ -219,8 +214,12 @@ void FileStream::Write(const void *pBuffer, int NBytes)
 // --------------------------------------------------------------------------
 IOStream::pos_type FileStream::GetPosition() const
 {
-#ifdef WIN32
+	if(mOSFileHandle == INVALID_FILE) 
+	{
+		THROW_EXCEPTION(CommonException, FileClosed)
+	}
 
+#ifdef WIN32
 	LARGE_INTEGER conv;
 
 	conv.HighPart = 0;
@@ -229,14 +228,7 @@ IOStream::pos_type FileStream::GetPosition() const
 	conv.LowPart = SetFilePointer(this->mOSFileHandle, 0, &conv.HighPart, FILE_CURRENT);
 
 	return (IOStream::pos_type)conv.QuadPart;
-
 #else // ! WIN32
-	
-	if(mOSFileHandle == INVALID_FILE) 
-	{
-		THROW_EXCEPTION(CommonException, FileClosed)
-	}
-
 	off_t p = ::lseek(mOSFileHandle, 0, SEEK_CUR);
 	if(p == -1)
 	{
@@ -244,7 +236,6 @@ IOStream::pos_type FileStream::GetPosition() const
 	}
 	
 	return (IOStream::pos_type)p;
-	
 #endif // WIN32
 }
 
