@@ -139,6 +139,7 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 		
 		// Let the derived class have a go at setting up stuff in the initial process
 		SetupInInitialProcess();
+		
 #ifndef WIN32		
 		// Set signal handler
 		if(::signal(SIGHUP, SignalHandler) == SIG_ERR || ::signal(SIGTERM, SignalHandler) == SIG_ERR)
@@ -249,7 +250,7 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 			::close(0);
 			::close(1);
 			::close(2);
-		
+			
 			// Open and redirect them into /dev/null
 			int devnull = ::open(PLATFORM_DEV_NULL, O_RDWR, 0);
 			if(devnull == -1)
@@ -265,8 +266,9 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 			{
 				::close(devnull);
 			}
-#endif			
-			// And definately don't try and send anything to those file descriptors
+#endif // ! WIN32
+
+			// And definitely don't try and send anything to those file descriptors
 			// -- this has in the past sent text to something which isn't expecting it.
 			TRACE_TO_STDOUT(false);
 		}		

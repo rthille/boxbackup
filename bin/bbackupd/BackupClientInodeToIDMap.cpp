@@ -73,7 +73,7 @@ BackupClientInodeToIDMap::~BackupClientInodeToIDMap()
 	{
 #ifdef BERKELY_V4
 		dbp->close(0);
-#elif
+#else
 		dbp->close(dbp);
 #endif
 	}
@@ -105,7 +105,7 @@ void BackupClientInodeToIDMap::Open(const char *Filename, bool ReadOnly, bool Cr
 	dbp->set_pagesize(1024);		/* Page size: 1K. */
 	dbp->set_cachesize(0, 32 * 1024, 0);
 	dbp->open(NULL, Filename, NULL, DB_HASH, DB_CREATE, 0664);
-#elif
+#else
 	dbp = dbopen(Filename, (CreateNew?O_CREAT:0) | (ReadOnly?O_RDONLY:O_RDWR), S_IRUSR | S_IWUSR | S_IRGRP, TABLE_DATABASE_TYPE, NULL);
 #endif
 	if(dbp == NULL)
@@ -154,7 +154,7 @@ void BackupClientInodeToIDMap::Close()
 	{
 #ifdef BERKELY_V4
 		if(dbp->close(0) != 0)
-#elif
+#else
 		if(dbp->close(dbp) != 0)
 #endif
 		{
@@ -201,7 +201,7 @@ void BackupClientInodeToIDMap::AddToMap(InodeRefType InodeRef, int64_t ObjectID,
 	if (dbp->put(0, &key, &data, 0) != 0) {
 		THROW_EXCEPTION(BackupStoreException, BerkelyDBFailure);
 	}
-#elif
+#else
 	
 	DBT key;
 	key.data = &InodeRef;
@@ -255,11 +255,12 @@ bool BackupClientInodeToIDMap::Lookup(InodeRefType InodeRef, int64_t &rObjectIDO
 	{
 		THROW_EXCEPTION(BackupStoreException, InodeMapNotOpen);
 	}
+
 #ifdef BERKELY_V4
 	Dbt key(&InodeRef, sizeof(InodeRef));
 	Dbt data(0, 0);
 	switch(dbp->get(NULL, &key, &data, 0))
-#elif
+#else
 	DBT key;
 	key.data = &InodeRef;
 	key.size = sizeof(InodeRef);
@@ -270,6 +271,7 @@ bool BackupClientInodeToIDMap::Lookup(InodeRefType InodeRef, int64_t &rObjectIDO
 
 	switch(dbp->get(dbp, &key, &data, 0))
 #endif
+	
 	{
 	case 1:	// key not in file
 		return false;
@@ -294,13 +296,12 @@ bool BackupClientInodeToIDMap::Lookup(InodeRefType InodeRef, int64_t &rObjectIDO
 		return false;
 	}
 
-	// Data alignment isn't guarentted to be on a suitable bounday
+	// Data alignment isn't guaranteed to be on a suitable boundary
 	IDBRecord rec;
 
 	::memcpy(&rec, data.get_data(), sizeof(rec));
-#elif
+#else
 	if(key.data == 0 || data.size != sizeof(IDBRecord))
-
 	{
 		// Assert in debug version
 		ASSERT(key.data == 0 || data.size != sizeof(IDBRecord));
@@ -308,7 +309,7 @@ bool BackupClientInodeToIDMap::Lookup(InodeRefType InodeRef, int64_t &rObjectIDO
 		// Invalid entries mean it wasn't found
 		return false;
 	}
-
+	
 	// Data alignment isn't guarentted to be on a suitable bounday
 	IDBRecord rec;
 

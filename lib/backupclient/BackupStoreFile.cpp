@@ -951,13 +951,13 @@ int BackupStoreFile::EncodeChunk(const void *Chunk, int ChunkSize, BackupStoreFi
 	// Start encryption process
 	spEncrypt->Begin();
 	
-	#define ENCODECHUNK_CHECK_SPACE(ToEncryptSize)									\
-		{																			\
-			if((rOutput.mBufferSize - outOffset) < ((ToEncryptSize) + 128))			\
-			{																		\
-				rOutput.Reallocate(rOutput.mBufferSize + (ToEncryptSize) + 128);	\
-			}																		\
-		}
+	#define ENCODECHUNK_CHECK_SPACE(ToEncryptSize) \
+	{ \
+		if((rOutput.mBufferSize - outOffset) < ((ToEncryptSize) + 128)) \
+		{ \
+			rOutput.Reallocate(rOutput.mBufferSize + (ToEncryptSize) + 128); \
+		} \
+	}
 	
 	// Encode the chunk
 	if(compressChunk)

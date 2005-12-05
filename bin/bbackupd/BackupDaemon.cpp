@@ -14,14 +14,12 @@
 #ifndef WIN32
 #include <sys/param.h>
 #include <sys/mount.h>
-
-
 #include <signal.h>
 #ifdef PLATFORM_USES_MTAB_FILE_FOR_MOUNTS
 	#include <mntent.h>
-#endif
+#endif // PLATFORM_USES_MTAB_FILE_FOR_MOUNTS
 #include <sys/wait.h>
-#endif
+#endif // ! WIN32
 
 #include "Configuration.h"
 #include "IOStream.h"
@@ -383,25 +381,23 @@ void BackupDaemon::Run()
 {
 #ifdef WIN32
 
-	// Yes, create a local inet socket
-	//mpCommandSocketInfo = new CommandSocketInfo;
-	//mpCommandSocketInfo->mListeningSocket.Listen(Socket::TypeINET, "127.0.0.1", COMMAND_PORT);
+	// Create a local inet socket
 	HANDLE hThread;
 	DWORD dwThreadId;
 
-    hThread = CreateThread( 
-        NULL,                        // default security attributes 
-        0,                           // use default stack size  
-        HelperThread,                  // thread function 
-        this,                        // argument to thread function 
-        0,                           // use default creation flags 
-        &dwThreadId);                // returns the thread identifier 
+	hThread = CreateThread( 
+        	NULL,                        // default security attributes 
+        	0,                           // use default stack size  
+        	HelperThread,                // thread function 
+        	this,                        // argument to thread function 
+        	0,                           // use default creation flags 
+        	&dwThreadId);                // returns the thread identifier 
 
-	//init our own timer - for the timeoputs in calculating
-	//diffs in files
+	// init our own timer for file diff timeouts
 	initTimer();
 
-#else
+#else // ! WIN32
+
 	// Ignore SIGPIPE (so that if a command connection is broken, the daemon doesn't terminate)
 	::signal(SIGPIPE, SIG_IGN);
 
@@ -415,7 +411,9 @@ void BackupDaemon::Run()
 		::unlink(socketName);
 		mpCommandSocketInfo->mListeningSocket.Listen(Socket::TypeUNIX, socketName);
 	}
-#endif
+	
+#endif // WIN32
+
 	// Handle things nicely on exceptions
 	try
 	{
@@ -438,6 +436,7 @@ void BackupDaemon::Run()
 		delete mpCommandSocketInfo;
 		mpCommandSocketInfo = 0;
 	}
+
 #ifdef WIN32
 	//clean up windows specific stuff.
 	finiTimer();
@@ -496,6 +495,8 @@ void BackupDaemon::Run2()
 
 	// When the last sync started (only updated if the store was not full when the sync ended)
 	box_time_t lastSyncTime = 0;
+
+	// --------------------------------------------------------------------------------------------
 	
 	// And what's the current client store marker?
 	int64_t clientStoreMarker = BackupClientContext::ClientStoreMarker_NotKnown;		// haven't contacted the store yet
@@ -870,8 +871,8 @@ int BackupDaemon::UseScriptToSeeIfSyncAllowed()
 void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFlagOut, bool &SyncIsForcedOut)
 {
 #ifdef WIN32
-	//Really could use some interprocess protection, mutex etc
-	//any side effect should be too bad???? :)
+	// Really could use some interprocess protection, mutex etc
+	// any side effect should be too bad???? :)
 	DWORD timeout = BoxTimeToMilliSeconds(RequiredDelay);
 
 	while ( this->mReceivedCommandConn == false )
@@ -891,7 +892,7 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 	SyncIsForcedOut = this->mSyncIsForcedOut;
 
 	return;
-#else
+#else // ! WIN32
 	ASSERT(mpCommandSocketInfo != 0);
 	if(mpCommandSocketInfo == 0) {::sleep(1); return;} // failure case isn't too bad
 	
@@ -940,9 +941,9 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 						}
 					}
 				}
-#endif
+#endif // WIN32
 				
-				// Is this an acceptible connection?
+				// Is this an acceptable connection?
 				if(!uidOK)
 				{
 					// Dump the connection
@@ -1060,7 +1061,7 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 			CloseCommandConnection();
 		}
 	}
-#endif
+#endif // WIN32
 }
 
 
@@ -1610,8 +1611,8 @@ void BackupDaemon::DeleteIDMapVector(std::vector<BackupClientInodeToIDMap *> &rV
 		rVector.pop_back();
 		
 		// Close and delete
-			toDel->Close();
-			delete toDel;
+		toDel->Close();
+		delete toDel;
 	}
 	ASSERT(rVector.size() == 0);
 }

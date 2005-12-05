@@ -458,10 +458,6 @@ bool BackupClientContext::FindFilename(int64_t ObjectID, int64_t ContainingDirec
 	return true;
 }
 
-//
-//
-//
-
 // maximum time to spend diffing
 static int sMaximumDiffTime = 10;
 // maximum time of SSL inactivity (keep-alive interval)
@@ -534,14 +530,11 @@ void BackupClientContext::ManageDiffProcess()
 #else
 	::signal(SIGVTALRM, TimerSigHandler);
 #endif // PLATFORM_CYGWIN
-#endif
+#endif // WIN32
 
 	struct itimerval timeout;
 	memset(&timeout, 0, sizeof(timeout));
 
-	//
-	//
-	//
 	if (sMaximumDiffTime <= 0 && sKeepAliveTime <= 0)
 	{
 		TRACE0("Diff control not requested - letting things run wild\n");

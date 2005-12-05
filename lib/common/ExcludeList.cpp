@@ -8,14 +8,15 @@
 // --------------------------------------------------------------------------
 
 #include "Box.h"
+
 #ifdef WIN32
     #include <boost/regex.hpp>
 #else
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 	#include <regex.h>
 	#define EXCLUDELIST_IMPLEMENTATION_REGEX_T_DEFINED
-#endif
-#endif
+#endif // PLATFORM_REGEX_NOT_SUPPORTED
+#endif // WIN32
 
 #include "ExcludeList.h"
 #include "Utils.h"
@@ -48,8 +49,9 @@ ExcludeList::ExcludeList()
 ExcludeList::~ExcludeList()
 {
 #ifdef WIN32
-	//under win32 and boost - we didn't use pointers so all should aotu distruct.
-#else
+	// under win32 and boost - 
+	// we didn't use pointers so all should auto destruct.
+#else // ! WIN32
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 	// free regex memory
 	while(mRegex.size() > 0)
@@ -60,8 +62,8 @@ ExcludeList::~ExcludeList()
 		::regfree(pregex);
 		delete pregex;
 	}
-#endif
-#endif
+#endif // ! PLATFORM_REGEX_NOT_SUPPORTED
+#endif // WIN32
 
 	// Clean up exceptions list
 	if(mpAlwaysInclude != 0)
@@ -137,7 +139,8 @@ void ExcludeList::AddRegexEntries(const std::string &rEntries)
 			}
 		}
 	}
-#else
+
+#else // ! WIN32
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 
 	// Split strings up
@@ -173,10 +176,10 @@ void ExcludeList::AddRegexEntries(const std::string &rEntries)
 		}
 	}
 
-#else
+#else // PLATFORM_REGEX_NOT_SUPPORTED
 	THROW_EXCEPTION(CommonException, RegexNotSupportedOnThisPlatform)
-#endif
-#endif
+#endif // ! PLATFORM_REGEX_NOT_SUPPORTED
+#endif // WIN32
 }
 
 
@@ -227,7 +230,7 @@ bool ExcludeList::IsExcluded(const std::string &rTest) const
 			//just continue of no match
 		}
 	}
-#else
+#else // ! WIN32
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 	for(std::vector<regex_t *>::const_iterator i(mRegex.begin()); i != mRegex.end(); ++i)
 	{
@@ -239,8 +242,8 @@ bool ExcludeList::IsExcluded(const std::string &rTest) const
 		}
 		// In all other cases, including an error, just continue to the next expression
 	}
-#endif
-#endif
+#endif // PLATFORM_REGEX_NOT_SUPPORTED
+#endif // WIN32
 
 	return false;
 }
@@ -286,7 +289,8 @@ void ExcludeList::Deserialize(Archive & rArchive)
 	mDefinite.clear();
 
 #ifdef WIN32
-	//under win32 and boost - we didn't use pointers so all should aotu distruct.
+	// under win32 and boost - 
+	// we didn't use pointers so all should auto destruct.
 #else
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 	// free regex memory
@@ -300,8 +304,8 @@ void ExcludeList::Deserialize(Archive & rArchive)
 	}
 
 	mRegexStr.clear();
-#endif
-#endif
+#endif // ! PLATFORM_REGEX_NOT_SUPPORTED
+#endif // WIN32
 
 	// Clean up exceptions list
 	if(mpAlwaysInclude != 0)
@@ -352,7 +356,7 @@ void ExcludeList::Deserialize(Archive & rArchive)
 			{
 				THROW_EXCEPTION(CommonException, BadRegularExpression)
 			}
-#else
+#else // ! WIN32
 			// Allocate memory
 			regex_t* pregex = new regex_t;
 			
@@ -374,7 +378,7 @@ void ExcludeList::Deserialize(Archive & rArchive)
 				delete pregex;
 				throw;
 			}
-#endif
+#endif // WIN32
 		}
 	}
 #endif // PLATFORM_REGEX_NOT_SUPPORTED

@@ -3,14 +3,12 @@
 // and Windows 2000"
 // by Marshall Brain
 // Published by Prentice Hall
+// Copyright 1995 Prentice Hall.
 //
-// Copyright 1995, by Prentice Hall.
-//
-// This code implements the simplest possible service.
-// It beeps every 2 seconds, or at a user specified
-// interval.
+// This code implements the Windows API Service interface 
+// for the Box Backup for Windows native port.
+// Adapted for Box Backup by Nick Knight.
 //***************************************************************
-
 
 #include <windows.h>
 #include <stdio.h>
@@ -30,7 +28,8 @@ HANDLE stopServiceEvent = 0;
 
 void ErrorHandler(char *s, DWORD err)
 {
-	MessageBox(0, s, "Error", MB_OK | MB_SETFOREGROUND | MB_DEFAULT_DESKTOP_ONLY);
+	MessageBox(0, s, "Error", 
+			MB_OK | MB_SETFOREGROUND | MB_DEFAULT_DESKTOP_ONLY);
 	ExitProcess(err);
 }
 
@@ -70,8 +69,6 @@ void WINAPI ServiceControlHandler( DWORD controlCode )
 	SetServiceStatus( serviceStatusHandle, &serviceStatus );
 }
 
-
-
 // ServiceMain is called when the SCM wants to
 // start the service. When it returns, the service
 // has stopped. It therefore waits on an event
@@ -79,6 +76,7 @@ void WINAPI ServiceControlHandler( DWORD controlCode )
 // that event gets set when it is time to stop. 
 // It also returns on any error because the
 // service cannot start if there is an eror.
+
 VOID ServiceMain(DWORD argc, LPTSTR *argv) 
 {
    // initialise service status
@@ -195,5 +193,4 @@ void removeService(void)
 
 	CloseServiceHandle(service);
 	CloseServiceHandle(scm);
-
 }

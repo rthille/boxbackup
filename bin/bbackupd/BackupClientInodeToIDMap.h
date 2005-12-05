@@ -24,8 +24,7 @@
 #ifndef BACKIPCLIENTINODETOIDMAP_IMPLEMENTATION
 #ifdef BERKELY_V4
 	class Db;
-#endif
-#ifndef BERKELY_V4
+#else
 	class DB;
 #endif
 #endif
@@ -63,10 +62,10 @@ private:
 	bool mEmpty;
 #ifdef BERKELY_V4
 	Db *dbp;	// c++ style implimentation
-#elif
+#else
 	DB *dbp;	// C style interface, use notation from documentation
-#endif
-#endif
+#endif // BERKELY_V4
+#endif // BACKIPCLIENTINODETOIDMAP_IN_MEMORY_IMPLEMENTATION
 };
 
 #endif // BACKUPCLIENTINODETOIDMAP__H

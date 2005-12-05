@@ -31,6 +31,8 @@ inline bool iw(int c)
 static const char *sValueBooleanStrings[] = {"yes", "true", "no", "false", 0};
 static const bool sValueBooleanValue[] = {true, true, false, false};
 
+
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -43,6 +45,7 @@ Configuration::Configuration(const std::string &rName, box_time_t configModTime)
 	: mName(rName), mConfigModTime(configModTime)
 {
 }
+
 
 // --------------------------------------------------------------------------
 //
@@ -108,7 +111,8 @@ std::auto_ptr<Configuration> Configuration::LoadAndVerify(const char *Filename, 
 	FdGetLine getline(file);
 	
 	// Object to create
-	Configuration *pconfig = new Configuration(std::string("<root>"), FileModificationTime(st));
+	Configuration *pconfig = new Configuration(std::string("<root>"), 
+		FileModificationTime(st));
 	
 	try
 	{
@@ -183,7 +187,8 @@ bool Configuration::LoadInto(Configuration &rConfig, FdGetLine &rGetLine, std::s
 			if(startBlockExpected)
 			{
 				// New config object
-				Configuration config(blockName, rConfig.mConfigModTime);
+				Configuration config(blockName, 
+					rConfig.mConfigModTime);
 				
 				// Continue processing into this block
 				if(!LoadInto(config, rGetLine, rErrorMsg, false))

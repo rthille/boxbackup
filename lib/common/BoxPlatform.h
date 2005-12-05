@@ -30,6 +30,7 @@
 //  #define PLATFORM_REGEX_NOT_SUPPORTED
 //	  -- regex support not available on this platform
 
+
 #ifdef PLATFORM_OPENBSD
 
 	#include <sys/types.h>
@@ -194,22 +195,26 @@
 
 #ifdef WIN32
 
-	typedef unsigned __int16 u_int16_t;
-	typedef unsigned __int64 u_int64_t;
-	typedef unsigned __int64 uint64_t;
-	typedef __int64 int64_t;
-	typedef unsigned __int32 uint32_t;
-	typedef unsigned __int32 u_int32_t;
-	typedef __int32 int32_t;
-	typedef unsigned __int16 uint16_t;
+	typedef __int8  int8_t;
 	typedef __int16 int16_t;
-	typedef unsigned __int8 uint8_t;
-	typedef __int8 int8_t;
+	typedef __int32 int32_t;
+	typedef __int64 int64_t;
 
+	typedef unsigned int8_t  u_int8_t;
+	typedef unsigned int16_t u_int16_t;
+	typedef unsigned int32_t u_int32_t;
+	typedef unsigned int64_t u_int64_t;
+
+	typedef u_int8_t  uint8_t;
+	typedef u_int16_t uint16_t;
+	typedef u_int32_t uint32_t;
+	typedef u_int64_t uint64_t;
+	
 	typedef unsigned int uid_t;
 	typedef unsigned int gid_t;
 	typedef int pid_t;
-	
+	typedef u_int64_t InodeRefType;
+
 	#define WIN32_LEAN_AND_MEAN
 	#define PLATFORM_BERKELEY_DB_NOT_SUPPORTED
 	//#define BERKELY_V4
@@ -221,12 +226,10 @@
 	#define PLATFORM_dirent_BROKEN_d_type
 	#define PLATFORM_stat_SHORT_mtime
 	#define PLATFORM_stat_NO_st_flags
-	//#define PLATFORM_USES_MTAB_FILE_FOR_MOUNTS
-	//#define PLATFORM_open_NO_O_EXLOCK
 	#define PLATFORM_sockaddr_NO_len
 	#define PLATFORM_NO_BUILT_IN_SWAP64
 
-    #define PLATFORM_STATIC_TEMP_DIRECTORY_NAME	"c:\\tmp"
+	#define PLATFORM_STATIC_TEMP_DIRECTORY_NAME	"c:\\tmp"
 
 	#define PLATFORM_READLINE_NOT_SUPPORTED
 	#define PLATFORM_LCHOWN_NOT_SUPPORTED
@@ -242,22 +245,18 @@
 	#define __need_FILE
 
 	// Extra includes
-    #include "emu.h"
-	//#include <stdint.h>
+	#include "emu.h"
 	#include <stdlib.h>
-	//#include <netinet/in.h>
-	//#include <sys/socket.h>
-    #include <winsock2.h>
+	#include <winsock2.h>
 	#include <sys/stat.h>
 	#include <sys/types.h>
-	//#include <dirent.h>
 	#include <stdio.h>
-	//#include <paths.h>
-    #include <time.h>
+	#include <time.h>
 
 	// No easy random entropy source
 	#define PLATFORM_RANDOM_DEVICE_NONE
-
+#else // ! WIN32
+	typedef ino_t InodeRefType;
 #endif // WIN32
 
 // Find out if credentials on UNIX sockets can be obtained
@@ -300,14 +299,7 @@
 	compiler not supported!
 #endif
 
-//sorry ben I thought the best place was here
-//there was a function referencing ino_t which
-//is a short on win32 - broke it...
-#ifdef WIN32
-typedef u_int64_t InodeRefType;
-#else
-typedef ino_t InodeRefType;
-#endif
+
 
 #endif // BOXPLATFORM__H
 

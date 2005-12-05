@@ -102,7 +102,6 @@ std::auto_ptr<IOStream> LocalProcessStream(const char *CommandLine, pid_t &rPidO
 	std::auto_ptr<IOStream> stream;
 	return stream;
 #endif
-
 }
 
 

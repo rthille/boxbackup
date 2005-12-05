@@ -87,7 +87,8 @@ FileStream::FileStream(const FileStream &rToCopy)
 		THROW_EXCEPTION(CommonException, OSFileOpenError)
 	}
 }
-#endif
+#endif // WIN32
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -129,7 +130,7 @@ int FileStream::Read(void *pBuffer, int NBytes, int Timeout)
 
 	if ( valid )
 	{
-        r = numBytesRead;
+		r = numBytesRead;
 	}
 	else
 	{
@@ -219,6 +220,7 @@ void FileStream::Write(const void *pBuffer, int NBytes)
 IOStream::pos_type FileStream::GetPosition() const
 {
 #ifdef WIN32
+
 	LARGE_INTEGER conv;
 
 	conv.HighPart = 0;
@@ -228,8 +230,13 @@ IOStream::pos_type FileStream::GetPosition() const
 
 	return (IOStream::pos_type)conv.QuadPart;
 
-#else
-	if(mOSFileHandle == INVALID_FILE) {THROW_EXCEPTION(CommonException, FileClosed)}
+#else // ! WIN32
+	
+	if(mOSFileHandle == INVALID_FILE) 
+	{
+		THROW_EXCEPTION(CommonException, FileClosed)
+	}
+
 	off_t p = ::lseek(mOSFileHandle, 0, SEEK_CUR);
 	if(p == -1)
 	{
@@ -237,7 +244,8 @@ IOStream::pos_type FileStream::GetPosition() const
 	}
 	
 	return (IOStream::pos_type)p;
-#endif
+	
+#endif // WIN32
 }
 
 
@@ -251,7 +259,10 @@ IOStream::pos_type FileStream::GetPosition() const
 // --------------------------------------------------------------------------
 void FileStream::Seek(IOStream::pos_type Offset, int SeekType)
 {
-	if(mOSFileHandle == INVALID_FILE) {THROW_EXCEPTION(CommonException, FileClosed)}
+	if(mOSFileHandle == INVALID_FILE) 
+	{
+		THROW_EXCEPTION(CommonException, FileClosed)
+	}
 
 #ifdef WIN32
 	LARGE_INTEGER conv;
@@ -263,12 +274,13 @@ void FileStream::Seek(IOStream::pos_type Offset, int SeekType)
 	{
 		THROW_EXCEPTION(CommonException, OSFileError)
 	}
-#else
+#else // ! WIN32
 	if(::lseek(mOSFileHandle, Offset, ConvertSeekTypeToOSWhence(SeekType)) == -1)
 	{
 		THROW_EXCEPTION(CommonException, OSFileError)
 	}
-#endif
+#endif // WIN32
+
 	// Not end of file any more!
 	mIsEOF = false;
 }
@@ -303,7 +315,6 @@ void FileStream::Close()
 	mOSFileHandle = -1;
 	mIsEOF = true;
 #endif
-	
 }
 
 

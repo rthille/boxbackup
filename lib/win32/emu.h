@@ -189,22 +189,11 @@ inline size_t getopt(int count, char * const * args, char * tolookfor)
 	return opt[0];
 }
 
-//this isn't needed becuase winoze doesn't have symbolic links
-//both of these functions should perhaps log just to ensure they 
-//are never called.
-inline int readlink(const char *pathname, char *, int)
-{
-	return 1;
-}
-inline symlink(char *, const char *)
-{
-	return 0;
-}
-
 #define timespec timeval
 
 //not available in win32
-struct itimerval{
+struct itimerval
+{
 	timeval 	it_interval;
 	timeval 	it_value;
 };
@@ -386,21 +375,20 @@ inline time_t convertFileTimetoTime_t(FILETIME *fileTime)
     SYSTEMTIME stUTC;
 	struct tm timeinfo;
 
-    // Convert the last-write time to local time.
-    FileTimeToSystemTime(fileTime, &stUTC);
-//    SystemTimeToTzSpecificLocalTime(NULL, &stUTC, &stLocal);
-
+	// Convert the last-write time to local time.
+	FileTimeToSystemTime(fileTime, &stUTC);
+	// SystemTimeToTzSpecificLocalTime(NULL, &stUTC, &stLocal);
+	
 	timeinfo.tm_sec = stUTC.wSecond;
 	timeinfo.tm_min = stUTC.wMinute;
 	timeinfo.tm_hour = stUTC.wHour;
 	timeinfo.tm_mday = stUTC.wDay;
 	timeinfo.tm_wday = stUTC.wDayOfWeek;
 	timeinfo.tm_mon = stUTC.wMonth - 1;
-//	timeinfo.tm_yday = ...;
+	// timeinfo.tm_yday = ...;
 	timeinfo.tm_year = stUTC.wYear - 1900;
 
 	time_t retVal = mktime(&timeinfo);
-	//struct tm *test = localtime (&retVal);
 	return retVal;
 }
 

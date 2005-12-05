@@ -99,14 +99,13 @@ int main(int argc, const char *argv[])
 		printf("Daemon isn't using a control socket, could not execute command.\nAdd a CommandSocket declaration to the bbackupd.conf file.\n");
 		return 1;
 	}
-
+	
 	// Connect to socket
 	SocketStream connection;
-#else
+#else /* WIN32 */
 	WinNamedPipe connection;
-#endif
+#endif /* ! WIN32 */
 	
-
 	try
 	{
 #ifdef WIN32	

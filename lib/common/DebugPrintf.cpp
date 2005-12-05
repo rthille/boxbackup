@@ -59,12 +59,10 @@ int BoxDebugTrace(const char *format, ...)
 		// Remove trailing '\n', if it's there
 		if(r > 0 && text[r-1] == '\n')
 		{
-
 			text[r-1] = '\0';
 #else
 		if(r > 0 && text[r] == '\n')
 		{
-
 			text[r] = '\0';
 #endif
 			--r;

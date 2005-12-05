@@ -52,12 +52,17 @@ int main(int argc, const char *argv[])
 
 #ifdef WIN32
 	WSADATA info;
-	//First off initialize sockets - which we have to do under Win32
-    if (WSAStartup(MAKELONG(1, 1), &info) == SOCKET_ERROR) {
-        //throw error?    perhaps give it its own id in the furture
-        THROW_EXCEPTION(BackupStoreException, Internal)
-    }
+	
+	// Under Win32 we must initialise the Winsock library
+	// before using it.
+	
+	if (WSAStartup(MAKELONG(1, 1), &info) == SOCKET_ERROR) 
+	{
+		// throw error?    perhaps give it its own id in the furture
+		THROW_EXCEPTION(BackupStoreException, Internal)
+	}
 #endif
+
 	// Really don't want trace statements happening, even in debug mode
 	#ifndef NDEBUG
 		BoxDebugTraceOn = false;
@@ -246,12 +251,10 @@ int main(int argc, const char *argv[])
 	MAINHELPER_END
 	
 #ifdef WIN32
-	//Clean up our sockets
-    WSACleanup();
-#else
-
-	exit(returnCode);
+	// Clean up our sockets
+	WSACleanup();
 #endif
+
 	return returnCode;
 }
 

@@ -102,14 +102,17 @@ void HousekeepStoreAccount::DoHousekeeping()
 	}
 
 	// Scan the directory for potential things to delete
-	// This will also remove elegiable items marked with RemoveASAP
+	// This will also remove eligible items marked with RemoveASAP
 	bool continueHousekeeping = ScanDirectory(BACKUPSTORE_ROOT_DIRECTORY_ID);
 
-	// If scan directory stopped for some reason, probably parent instructed to teminate, stop now.
+	// If scan directory stopped for some reason, probably parent 
+	// instructed us terminate, stop now.
 	if(!continueHousekeeping)
 	{
-		// If any files were marked "delete now", then update the size of the store.
-		if(mBlocksUsedDelta != 0 || mBlocksInOldFilesDelta != 0 || mBlocksInDeletedFilesDelta != 0)
+		// If any files were marked "delete now", then update 
+		// the size of the store.
+		if(mBlocksUsedDelta != 0 || mBlocksInOldFilesDelta != 0 
+				|| mBlocksInDeletedFilesDelta != 0)
 		{
 			info->ChangeBlocksUsed(mBlocksUsedDelta);
 			info->ChangeBlocksInOldFiles(mBlocksInOldFilesDelta);

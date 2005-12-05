@@ -15,38 +15,50 @@
 #include "MemLeakFindOn.h"
 
 #ifdef WIN32
-#include "bbwinservice.h"
-#include "ServiceBackupDaemon.h"
+	#include "bbwinservice.h"
+	#include "ServiceBackupDaemon.h"
 
-extern ServiceBackupDaemon daemonService;
+	extern ServiceBackupDaemon daemonService;
 #endif
 
 int main(int argc, const char *argv[])
 {
 	MAINHELPER_START
+
 #ifdef WIN32
+
 	if(argc == 3 && ::strcmp(argv[1], "-c") == 0)
 	{
+		// Under win32 we must initialise the Winsock library
+		// before using sockets
+		
 		WSADATA info;
-		//First off initialize sockets - which we have to do under Win32
-		if (WSAStartup(MAKELONG(1, 1), &info) == SOCKET_ERROR) {
-			//throw error?    perhaps give it its own id in the furture
-			//THROW_EXCEPTION(BackupStoreException, Internal)
+
+		if (WSAStartup(MAKELONG(1, 1), &info) == SOCKET_ERROR) 
+		{
+			// box backup will not run without sockets
+			THROW_EXCEPTION(BackupStoreException, Internal)
 		}
 
 		EnableBackupRights();
 
-		return daemonService.Main(BOX_FILE_BBACKUPD_DEFAULT_CONFIG, argc, argv);
+		int ExitCode = daemonService.Main(
+			BOX_FILE_BBACKUPD_DEFAULT_CONFIG, 
+			argc, argv);
 
-		//Clean up our sockets
+		// Clean up our sockets
 		WSACleanup();
+
+		return ExitCode;
 	}
 	
-	//openlog("BOX Backup",0,0);
-	if(argc == 2 && ::strcmp(argv[1], "--help") == 0)
+	if(argc == 2 &&
+		(::strcmp(argv[1], "--help") == 0 ||
+		 ::strcmp(argv[1], "-h") == 0))
 	{
-		printf("-h help, -i install service, -r remove service -c app mode supply config file");
-		return 0;
+		printf("-h help, -i install service, -r remove service,\n"
+			"-c <config file> start daemon now");
+		return 2;
 	}
 	if(argc == 2 && ::strcmp(argv[1], "-r") == 0)
 	{
@@ -66,14 +78,13 @@ int main(int argc, const char *argv[])
 	ourService();
 		
 	return 0;
-	
 
-#else
+#else // ! WIN32
+
 	BackupDaemon daemon;
 	return daemon.Main(BOX_FILE_BBACKUPD_DEFAULT_CONFIG, argc, argv);
-
 	
-#endif
+#endif // WIN32
 
 	MAINHELPER_END
 }

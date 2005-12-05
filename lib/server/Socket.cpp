@@ -73,7 +73,7 @@ void Socket::NameLookupToSockAddr(SocketAllAddr &addr, int &sockDomain, int Type
 			}
 		}
 		break;
-
+	
 #ifndef WIN32
 	case TypeUNIX:
 		sockDomain = AF_UNIX;
@@ -93,7 +93,7 @@ void Socket::NameLookupToSockAddr(SocketAllAddr &addr, int &sockDomain, int Type
 		}
 		break;
 #endif
-
+	
 	default:
 		THROW_EXCEPTION(CommonException, BadArguments)
 		break;

@@ -92,8 +92,10 @@ public:
 	SubConfigListType mSubConfigurations;
 	// Order of keys, not preserved
 	std::map<std::string, std::string> mKeys;
+	
 protected:
 	box_time_t mConfigModTime;
+
 private:
 	static bool LoadInto(Configuration &rConfig, FdGetLine &rGetLine, std::string &rErrorMsg, bool RootLevel);
 	static bool Verify(Configuration &rConfig, const ConfigurationVerify &rVerify, const std::string &rLevel, std::string &rErrorMsg);

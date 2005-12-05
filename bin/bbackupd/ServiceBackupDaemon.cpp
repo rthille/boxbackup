@@ -1,3 +1,4 @@
+// Win32 service functions for Box Backup, by Nick Knight
 
 #include "Box.h"
 #include "BackupDaemon.h"
@@ -17,6 +18,7 @@ DWORD WINAPI runService(LPVOID lpParameter)
 	SetEvent( stopServiceEvent );
 	return retVal;
 }
+
 void terminateService(void)
 {
 	daemonService.SetTerminateWanted();
@@ -24,14 +26,16 @@ void terminateService(void)
 
 DWORD ServiceBackupDaemon::WinService(void)
 {
-	
-
 	WSADATA info;
-	//First off initialize sockets - which we have to do under Win32
-    if (WSAStartup(MAKELONG(1, 1), &info) == SOCKET_ERROR) {
-        //throw error?    perhaps give it its own id in the furture
-        //THROW_EXCEPTION(BackupStoreException, Internal)
-    }
+	
+	// Under Win32 we must initialise the Winsock library
+	// before using it.
+	
+	if (WSAStartup(MAKELONG(1, 1), &info) == SOCKET_ERROR) 
+	{
+		// throw error?    perhaps give it its own id in the furture
+		THROW_EXCEPTION(BackupStoreException, Internal)
+	}
 
 	int argc = 2;
 	//first off get the path name for the default 
@@ -40,15 +44,17 @@ DWORD ServiceBackupDaemon::WinService(void)
 	GetModuleFileName(NULL, buf, sizeof(buf));
 	std::string buffer(buf);
 	std::string conf( "-c");
-	std::string cfile(buffer.substr(0,(buffer.find("bbackupd.exe"))) + "bbackupd.conf");
+	std::string cfile(buffer.substr(0,(buffer.find("bbackupd.exe"))) 
+			+ "bbackupd.conf");
 
 	const char *argv[] = {conf.c_str(), cfile.c_str()};
 
 	MAINHELPER_START
 	return this->Main(BOX_FILE_BBACKUPD_DEFAULT_CONFIG, argc, argv);
 
-	//Clean up our sockets
-    WSACleanup();
+	// Clean up our sockets
+	WSACleanup();
 
 	MAINHELPER_END
 }
+

@@ -1,4 +1,4 @@
-
+// Box Backup Win32 native port by Nick Knight
 
 #include "Box.h"
 #include "emu.h"
