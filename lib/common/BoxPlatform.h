@@ -13,10 +13,10 @@
 
 #ifdef WIN32
 #define DIRECTORY_SEPARATOR			"\\"
-#define DIRECTORY_SEPARATOR_ASCHAR	'\\'
+#define DIRECTORY_SEPARATOR_ASCHAR		'\\'
 #else
 #define DIRECTORY_SEPARATOR			"/"
-#define DIRECTORY_SEPARATOR_ASCHAR	'/'
+#define DIRECTORY_SEPARATOR_ASCHAR		'/'
 #endif
 
 #define PLATFORM_DEV_NULL			"/dev/null"
@@ -298,7 +298,6 @@
 #else
 	compiler not supported!
 #endif
-
 
 
 #endif // BOXPLATFORM__H
