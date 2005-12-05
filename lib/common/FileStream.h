@@ -28,7 +28,13 @@
 class FileStream : public IOStream
 {
 public:
-	FileStream(const char *Filename, int flags = (O_RDONLY | O_BINARY), int mode = (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
+	FileStream(const char *Filename, 
+#ifdef WIN32
+		int flags = (O_RDONLY | O_BINARY),
+#else
+		int flags = O_RDONLY,
+#endif
+		int mode = (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
 	FileStream(tOSFileHandle FileDescriptor);
 	
 	virtual ~FileStream();
