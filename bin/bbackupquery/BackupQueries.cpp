@@ -156,7 +156,7 @@ void BackupQueries::DoCommand(const char *Command)
 	
 	// Data about commands
 	static const char *commandNames[] = {"quit", "exit", "list",	 "pwd", "cd", "lcd",	"sh", "getobject", "get", "compare", "restore", "help", "usage", "undelete", 0};
-	static const char *validOptions[] = {"",	 "",	 "rodIFtsh", "",	   "od", "",	"",	  "",		   "i",   "alcqE",   "dri",     "",     "",      "",		 0};
+	static const char *validOptions[] = {"",	 "",	 "rodIFtsh", "",	   "od", "",	"",	  "",		   "i",   "alcqE",   "dr",      "",     "",      "",		 0};
 	#define COMMAND_Quit		0
 	#define COMMAND_Exit		1
 	#define COMMAND_List		2
@@ -1246,7 +1246,7 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 		for(std::set<std::pair<std::string, BackupStoreDirectory::Entry *> >::const_iterator i = storeFiles.begin(); i != storeFiles.end(); ++i)
 		{
 			// Does the file exist locally?
-			std::set<std::string>::iterator local(localFiles.find(i->first));
+			std::set<std::string>::const_iterator local(localFiles.find(i->first));
 			if(local == localFiles.end())
 			{
 				// Not found -- report
@@ -1451,7 +1451,7 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 		for(std::set<std::pair<std::string, BackupStoreDirectory::Entry *> >::const_iterator i = storeDirs.begin(); i != storeDirs.end(); ++i)
 		{
 			// Does the directory exist locally?
-			std::set<std::string>::iterator local(localDirs.find(i->first));
+			std::set<std::string>::const_iterator local(localDirs.find(i->first));
 			if(local == localDirs.end())
 			{
 				// Not found -- report
@@ -1510,7 +1510,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	// Check arguments
 	if(args.size() != 2)
 	{
-		printf("Incorrect usage.\nrestore [-d] [-r] [-i] <directory-name> <local-directory-name>\n");
+		printf("Incorrect usage.\nrestore [-d] <directory-name> <local-directory-name>\n");
 		return;
 	}
 
@@ -1518,22 +1518,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	bool restoreDeleted = opts['d'];
 
 	// Get directory ID
-	int64_t dirID = 0;
-	if(opts['i'])
-	{
-		// Specified as ID. 
-		dirID = ::strtoll(args[0].c_str(), 0, 16);
-		if(dirID == LLONG_MIN || dirID == LLONG_MAX || dirID == 0)
-		{
-			printf("Not a valid object ID (specified in hex)\n");
-			return;
-		}
-	}
-	else
-	{
-		// Look up directory ID
-		dirID = FindDirectoryObjectID(args[0], false /* no old versions */, restoreDeleted /* find deleted dirs */);
-	}
+	int64_t dirID = FindDirectoryObjectID(args[0], false /* no old versions */, restoreDeleted /* find deleted dirs */);
 	
 	// Allowable?
 	if(dirID == 0)
