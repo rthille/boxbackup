@@ -30,7 +30,7 @@
 	(_result) )
 
 
-//signal in unix SIGVTALRM does not exsist in win32 - but looking at the 
+//signal in unix SIGVTALRM does not exist in win32 - but looking at the 
 #define SIGVTALRM 254
 #define SIGALRM SIGVTALRM
 #define ITIMER_VIRTUAL 0
@@ -212,6 +212,8 @@ typedef __int16 int16_t;
 typedef unsigned __int8 uint8_t;
 typedef __int8 int8_t;
 
+typedef int socklen_t;
+
 // I (re-)defined here for the moment; has to be removed later !!! 
 #define BOX_VERSION "0.09hWin32"
 
@@ -337,17 +339,18 @@ inline int waitpid(pid_t pid, int *status, int)
 {
 	return 0;
 }
+
 //this shouldn't be needed.
 struct statfs
 {
 	TCHAR f_mntonname[MAX_PATH];
 };
-//I think this should get us going
-//Although there is a warning about 
-//mount points in win32 can now exsists - which means inode number can be duplicated 
-//so potential of a problem - so perhaps this needs to be implimented with a little 
-//more thought....TODO
 
+// I think this should get us going
+// Although there is a warning about 
+// mount points in win32 can now exists - which means inode number can be 
+// duplicated, so potential of a problem - perhaps this needs to be 
+// implemented with a little more thought... TODO
 
 struct stat {
 	//_dev_t st_dev;
