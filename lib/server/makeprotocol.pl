@@ -654,7 +654,9 @@ print CPP <<__E;
 	}
 }
 __E
-# write receieve and send functions
+
+# write receive and send functions
+
 print CPP <<__E;
 std::auto_ptr<$derive_objects_from> ${prefix}Receive()
 {
