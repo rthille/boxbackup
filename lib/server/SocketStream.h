@@ -12,6 +12,12 @@
 
 #include "IOStream.h"
 
+#ifdef WIN32
+	typedef SOCKET tOSSocketHandle;
+#else
+	typedef int tOSSocketHandle;
+#endif
+
 // --------------------------------------------------------------------------
 //
 // Class
@@ -42,20 +48,12 @@ public:
 	virtual bool GetPeerCredentials(uid_t &rUidOut, gid_t &rGidOut);
 
 protected:
-#ifdef WIN32
-	SOCKET GetSocketHandle();
-#else
-	int GetSocketHandle();
-#endif
+	tOSSocketHandle GetSocketHandle();
 	void MarkAsReadClosed() {mReadClosed = true;}
 	void MarkAsWriteClosed() {mWriteClosed = true;}
 
 private:
-#ifdef WIN32
-	SOCKET mSocketHandle;
-#else
-	int mSocketHandle;
-#endif
+	tOSSocketHandle mSocketHandle;
 	bool mReadClosed;
 	bool mWriteClosed;
 };

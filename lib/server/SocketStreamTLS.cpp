@@ -122,11 +122,8 @@ void SocketStreamTLS::Handshake(const TLSContext &rContext, bool IsServer)
 		SSLLib::LogError("Create socket bio");
 		THROW_EXCEPTION(ServerException, TLSAllocationFailed)
 	}
-#ifdef WIN32
-	SOCKET socket = GetSocketHandle();
-#else
-	int socket = GetSocketHandle();
-#endif
+
+	tOSSocketHandle socket = GetSocketHandle();
 	BIO_set_fd(mpBIO, socket, BIO_NOCLOSE);
 	
 	// Then the SSL object
