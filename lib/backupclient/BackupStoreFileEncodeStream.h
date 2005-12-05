@@ -16,7 +16,6 @@
 #include "BackupStoreFilename.h"
 #include "CollectInBufferStream.h"
 #include "MD5Digest.h"
-#include "BackupStoreFile.h"
 
 namespace BackupStoreFileCreation
 {
@@ -115,8 +114,7 @@ private:
 	int32_t mLastBlockSize;				// the size (unencoded) of the last block in the file
 	// Buffers
 	uint8_t *mpRawBuffer;				// buffer for raw data
-	BackupStoreFile::EncodingBuffer mEncodedBuffer;
-										// buffer for encoded data
+	uint8_t *mpEncodedBuffer;			// buffer for encoded data
 	int32_t mAllocatedBufferSize;		// size of above two allocated blocks
 	uint64_t mEntryIVBase;				// base for block entry IV
 };
