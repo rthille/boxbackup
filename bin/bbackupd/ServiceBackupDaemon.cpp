@@ -1,5 +1,7 @@
 // Win32 service functions for Box Backup, by Nick Knight
 
+#ifdef WIN32
+
 #include "Box.h"
 #include "BackupDaemon.h"
 #include "MainHelper.h"
@@ -58,3 +60,4 @@ DWORD ServiceBackupDaemon::WinService(void)
 	MAINHELPER_END
 }
 
+#endif // WIN32

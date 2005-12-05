@@ -10,6 +10,8 @@
 // Adapted for Box Backup by Nick Knight.
 //***************************************************************
 
+#ifdef WIN32
+
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -194,3 +196,5 @@ void removeService(void)
 	CloseServiceHandle(service);
 	CloseServiceHandle(scm);
 }
+
+#endif // WIN32
