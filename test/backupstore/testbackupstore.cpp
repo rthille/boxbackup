@@ -1459,12 +1459,16 @@ int test3(int argc, const char *argv[])
 			#define SMALL_BLOCK_SIZE	251
 			int encBlockSize = BackupStoreFile::MaxBlockSizeForChunkSize(SMALL_BLOCK_SIZE);
 			TEST_THAT(encBlockSize > SMALL_BLOCK_SIZE);
-			uint8_t *encoded = (uint8_t*)malloc(encBlockSize);
-			
+
+			BackupStoreFile::EncodingBuffer Buffer;
+			Buffer.Allocate(encBlockSize);
+			TEST_THAT(Buffer.mBufferSize == encBlockSize);
+
 			// Encode!
-			int encSize = BackupStoreFile::EncodeChunk(encfile, SMALL_BLOCK_SIZE, encoded, encBlockSize);
+			int encSize = BackupStoreFile::EncodeChunk(encfile, 
+				SMALL_BLOCK_SIZE, Buffer);
 			// Check the header says it's not been compressed
-			TEST_THAT((encoded[0] & 1) == 0);
+			TEST_THAT((Buffer.mpBuffer[0] & 1) == 0);
 			// Check the output size has been inflated (no compression)
 			TEST_THAT(encSize > SMALL_BLOCK_SIZE);
 			
@@ -1472,14 +1476,15 @@ int test3(int argc, const char *argv[])
 			int decBlockSize = BackupStoreFile::OutputBufferSizeForKnownOutputSize(SMALL_BLOCK_SIZE);
 			TEST_THAT(decBlockSize > SMALL_BLOCK_SIZE);
 			uint8_t *decoded = (uint8_t*)malloc(decBlockSize);
-			int decSize = BackupStoreFile::DecodeChunk(encoded, encSize, decoded, decBlockSize);
+			int decSize = BackupStoreFile::DecodeChunk(
+				Buffer.mpBuffer, encSize, decoded, 
+				decBlockSize);
 			TEST_THAT(decSize < decBlockSize);
 			TEST_THAT(decSize == SMALL_BLOCK_SIZE);
 			
 			// Check it came out of the wash the same
 			TEST_THAT(::memcmp(encfile, decoded, SMALL_BLOCK_SIZE) == 0);
 			
-			free(encoded);
 			free(decoded);
 		}
 
@@ -1487,12 +1492,16 @@ int test3(int argc, const char *argv[])
 		{
 			int encBlockSize = BackupStoreFile::MaxBlockSizeForChunkSize(ENCFILE_SIZE);
 			TEST_THAT(encBlockSize > ENCFILE_SIZE);
-			uint8_t *encoded = (uint8_t*)malloc(encBlockSize);
+
+			BackupStoreFile::EncodingBuffer Buffer;
+			Buffer.Allocate(encBlockSize);
+			TEST_THAT(Buffer.mBufferSize == encBlockSize);
 			
 			// Encode!
-			int encSize = BackupStoreFile::EncodeChunk(encfile, ENCFILE_SIZE, encoded, encBlockSize);
+			int encSize = BackupStoreFile::EncodeChunk(encfile, 
+				ENCFILE_SIZE, Buffer);
 			// Check the header says it's compressed
-			TEST_THAT((encoded[0] & 1) == 1);
+			TEST_THAT((Buffer.mpBuffer[0] & 1) == 1);
 			// Check the output size make it likely that it's compressed (is very compressible data)
 			TEST_THAT(encSize < ENCFILE_SIZE);
 			
@@ -1500,14 +1509,15 @@ int test3(int argc, const char *argv[])
 			int decBlockSize = BackupStoreFile::OutputBufferSizeForKnownOutputSize(ENCFILE_SIZE);
 			TEST_THAT(decBlockSize > ENCFILE_SIZE);
 			uint8_t *decoded = (uint8_t*)malloc(decBlockSize);
-			int decSize = BackupStoreFile::DecodeChunk(encoded, encSize, decoded, decBlockSize);
+			int decSize = BackupStoreFile::DecodeChunk(
+				Buffer.mpBuffer, encSize, decoded, 
+				decBlockSize);
 			TEST_THAT(decSize < decBlockSize);
 			TEST_THAT(decSize == ENCFILE_SIZE);
 
 			// Check it came out of the wash the same
 			TEST_THAT(::memcmp(encfile, decoded, ENCFILE_SIZE) == 0);
 			
-			free(encoded);
 			free(decoded);
 		}
 		
