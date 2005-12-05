@@ -158,7 +158,11 @@ int main(int argc, const char *argv[])
 	if(getLine.IsEOF())
 	{
 		printf("Server rejected the connection. Are you running bbackupctl as the same user as the daemon?\n");
+
+#if defined WIN32 && ! defined NDEBUG
 		syslog(LOG_ERR,"Server rejected the connection. Are you running bbackupctl as the same user as the daemon?");
+#endif
+
 		return 1;
 	}
 
