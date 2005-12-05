@@ -310,7 +310,7 @@ bool BackupClientInodeToIDMap::Lookup(InodeRefType InodeRef, int64_t &rObjectIDO
 		return false;
 	}
 	
-	// Data alignment isn't guarentted to be on a suitable bounday
+	// Data alignment isn't guaranteed to be on a suitable boundary
 	IDBRecord rec;
 
 	::memcpy(&rec, data.data, sizeof(rec));

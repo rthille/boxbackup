@@ -14,13 +14,9 @@
 #include <set>
 #include <vector>
 
-#ifdef WIN32
-#include <boost/regex.hpp>
-#else
 // avoid including regex.h in lots of places
 #ifndef EXCLUDELIST_IMPLEMENTATION_REGEX_T_DEFINED
 	typedef int regex_t;
-#endif
 #endif
 
 // --------------------------------------------------------------------------
@@ -49,23 +45,17 @@ public:
 	// Mainly for tests
 	unsigned int SizeOfDefiniteList() const {return mDefinite.size();}
 	unsigned int SizeOfRegexList() const
-#ifdef WIN32
-		//lets be explicit in this
-		{return mRegex.size();}
-#else
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 		{return mRegex.size();}
 #else
 		{return 0;}
 #endif
-#endif
 
 private:
 	std::set<std::string> mDefinite;
-
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 	std::vector<regex_t *> mRegex;
-#endif // PLATFORM_REGEX_NOT_SUPPORTED
+#endif
 
 	// For exceptions to the excludes
 	ExcludeList *mpAlwaysInclude;

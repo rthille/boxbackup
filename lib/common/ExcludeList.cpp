@@ -9,14 +9,10 @@
 
 #include "Box.h"
 
-#ifdef WIN32
-    #include <boost/regex.hpp>
-#else
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 	#include <regex.h>
 	#define EXCLUDELIST_IMPLEMENTATION_REGEX_T_DEFINED
-#endif // PLATFORM_REGEX_NOT_SUPPORTED
-#endif // WIN32
+#endif
 
 #include "ExcludeList.h"
 #include "Utils.h"
@@ -48,10 +44,6 @@ ExcludeList::ExcludeList()
 // --------------------------------------------------------------------------
 ExcludeList::~ExcludeList()
 {
-#ifdef WIN32
-	// under win32 and boost - 
-	// we didn't use pointers so all should auto destruct.
-#else // ! WIN32
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 	// free regex memory
 	while(mRegex.size() > 0)
@@ -62,8 +54,7 @@ ExcludeList::~ExcludeList()
 		::regfree(pregex);
 		delete pregex;
 	}
-#endif // ! PLATFORM_REGEX_NOT_SUPPORTED
-#endif // WIN32
+#endif
 
 	// Clean up exceptions list
 	if(mpAlwaysInclude != 0)
@@ -115,32 +106,6 @@ void ExcludeList::AddDefiniteEntries(const std::string &rEntries)
 // --------------------------------------------------------------------------
 void ExcludeList::AddRegexEntries(const std::string &rEntries)
 {
-#ifdef WIN32
-	//Under Win32 we use the boost library for the regular expression matching
-
-	// Split strings up
-	std::vector<std::string> ens;
-	SplitString(rEntries, Configuration::MultiValueSeparator, ens);
-	
-	// Create and add new regular expressions
-	for(std::vector<std::string>::const_iterator i(ens.begin()); i != ens.end(); ++i)
-	{
-		if(i->size() > 0)
-		{
-			try{
-				boost::regex ourReg(i->c_str());
-				this->mRegex.push_back(ourReg);
-				// Store in list of regular expression string for Serialize
-				this->mRegexStr.push_back(i->c_str());
-			}
-			catch(...)
-			{
-				THROW_EXCEPTION(CommonException, BadRegularExpression)
-			}
-		}
-	}
-
-#else // ! WIN32
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 
 	// Split strings up
@@ -174,10 +139,9 @@ void ExcludeList::AddRegexEntries(const std::string &rEntries)
 		}
 	}
 
-#else // PLATFORM_REGEX_NOT_SUPPORTED
+#else
 	THROW_EXCEPTION(CommonException, RegexNotSupportedOnThisPlatform)
-#endif // ! PLATFORM_REGEX_NOT_SUPPORTED
-#endif // WIN32
+#endif
 }
 
 
@@ -209,26 +173,6 @@ bool ExcludeList::IsExcluded(const std::string &rTest) const
 	}
 	
 	// Check against regular expressions
-#ifdef WIN32
-	for(std::vector<boost::regex>::const_iterator i(mRegex.begin()); i != mRegex.end(); ++i)
-	{
-		// Test against this expression
-		try
-		{
-		boost::smatch what;
-		if(boost::regex_match(rTest, what, *i, boost::match_extra))
-		{
-			// match happened
-			return true;
-		}
-		// In all other cases, including an error, just continue to the next expression
-		}
-		catch(...)
-		{
-			//just continue of no match
-		}
-	}
-#else // ! WIN32
 #ifndef PLATFORM_REGEX_NOT_SUPPORTED
 	for(std::vector<regex_t *>::const_iterator i(mRegex.begin()); i != mRegex.end(); ++i)
 	{
@@ -240,8 +184,7 @@ bool ExcludeList::IsExcluded(const std::string &rTest) const
 		}
 		// In all other cases, including an error, just continue to the next expression
 	}
-#endif // PLATFORM_REGEX_NOT_SUPPORTED
-#endif // WIN32
+#endif
 
 	return false;
 }
@@ -269,4 +212,8 @@ void ExcludeList::SetAlwaysIncludeList(ExcludeList *pAlwaysInclude)
 	// Store the pointer
 	mpAlwaysInclude = pAlwaysInclude;
 }
+
+
+	
+
 

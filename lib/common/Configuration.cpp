@@ -31,8 +31,6 @@ static const bool sValueBooleanValue[] = {true, true, false, false};
 
 
 
-
-
 // --------------------------------------------------------------------------
 //
 // Function
@@ -45,7 +43,6 @@ Configuration::Configuration(const std::string &rName)
 	: mName(rName)
 {
 }
-
 
 
 // --------------------------------------------------------------------------

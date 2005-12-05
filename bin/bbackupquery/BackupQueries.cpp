@@ -1047,7 +1047,8 @@ void BackupQueries::CompareLocation(const std::string &rLocation, BackupQueries:
 		}
 				
 		// Then get it compared
-		Compare(std::string(DIRECTORY_SEPARATOR) + rLocation, loc.GetKeyValue("Path"), rParams);
+		Compare(std::string(DIRECTORY_SEPARATOR) + rLocation, 
+			loc.GetKeyValue("Path"), rParams);
 	}
 	catch(...)
 	{

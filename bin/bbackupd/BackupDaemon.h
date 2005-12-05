@@ -168,7 +168,7 @@ private:
 	public:
 	void helperThread(void);
 	private:
-	bool mDoSyncFlagOut, mSyncIsForcedOut,mReceivedCommandConn;
+	bool mDoSyncFlagOut, mSyncIsForcedOut, mReceivedCommandConn;
 #endif
 };
 

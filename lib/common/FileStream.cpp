@@ -110,7 +110,10 @@ FileStream::~FileStream()
 // --------------------------------------------------------------------------
 int FileStream::Read(void *pBuffer, int NBytes, int Timeout)
 {
-	if(mOSFileHandle == INVALID_FILE) {THROW_EXCEPTION(CommonException, FileClosed)}
+	if(mOSFileHandle == INVALID_FILE) 
+	{
+		THROW_EXCEPTION(CommonException, FileClosed)
+	}
 
 #ifdef WIN32
 	int r;
@@ -177,7 +180,11 @@ IOStream::pos_type FileStream::BytesLeftToRead()
 // --------------------------------------------------------------------------
 void FileStream::Write(const void *pBuffer, int NBytes)
 {
-	if(mOSFileHandle == INVALID_FILE) {THROW_EXCEPTION(CommonException, FileClosed)}
+	if(mOSFileHandle == INVALID_FILE) 
+	{
+		THROW_EXCEPTION(CommonException, FileClosed)
+	}
+
 #ifdef WIN32
 	DWORD numBytesWritten = 0;
 	BOOL res = WriteFile(
