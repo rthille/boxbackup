@@ -43,17 +43,17 @@ std::string BoxTimeToISO8601String(box_time_t Time)
 	}
 	
 	sprintf(str, "%04d-%02d-%02dT%02d:%02d:%02d", time->tm_year + 1900,
-		time->tm_mon + 1, time->tm_mday, time->tm_hour, time->tm_min, time->tm_sec);
-	
+		time->tm_mon + 1, time->tm_mday, time->tm_hour, 
+		time->tm_min, time->tm_sec);
 #else // ! WIN32
-	
 	time_t timeInSecs = (time_t)BoxTimeToSeconds(Time);
 	struct tm time;
 	gmtime_r(&timeInSecs, &time);
 	
 	char str[128];	// more than enough space
 	sprintf(str, "%04d-%02d-%02dT%02d:%02d:%02d", time.tm_year + 1900,
-		time.tm_mon + 1, time.tm_mday, time.tm_hour, time.tm_min, time.tm_sec);
+		time.tm_mon + 1, time.tm_mday, time.tm_hour, 
+		time.tm_min, time.tm_sec);
 #endif // WIN32
 	
 	return std::string(str);
