@@ -31,7 +31,7 @@ BEGIN
 	close COMPILER;
 
 	# get version
-	open VERSION,"VERSION.txt";
+	open VERSION,"VERSION.txt" or die "VERSION.txt: $!";
 	$product_version = <VERSION>;
 	chomp $product_version;
 	$product_name = <VERSION>;
