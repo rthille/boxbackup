@@ -32,8 +32,6 @@
 
 #include "MemLeakFindOn.h"
 
-typedef std::map<std::string, BackupStoreDirectory::Entry *> DecryptedEntriesMap_t;
-
 // --------------------------------------------------------------------------
 //
 // Function
@@ -481,24 +479,6 @@ bool BackupClientDirectoryRecord::UpdateItems(BackupClientDirectoryRecord::SyncP
 {
 	bool allUpdatedSuccessfully = true;
 
-	// Decrypt all the directory entries.
-	// It would be nice to be able to just compare the encrypted versions, however this doesn't work
-	// in practise because there can be multiple encodings of the same filename using different 
-	// methods (although each method will result in the same string for the same filename.) This
-	// happens when the server fixes a broken store, and gives plain text generated filenames.
-	// So if we didn't do things like this, then you wouldn't be able to recover from bad things
-	// happening with the server.
-	DecryptedEntriesMap_t decryptedEntries;
-	if(pDirOnStore != 0)
-	{
-		BackupStoreDirectory::Iterator i(*pDirOnStore);
-		BackupStoreDirectory::Entry *en = 0;
-		while((en = i.Next()) != 0)
-		{
-			decryptedEntries[BackupStoreFilenameClear(en->GetName()).GetClearFilename()] = en;
-		}
-	}
-
 	// Do files
 	for(std::vector<std::string>::const_iterator f = rFiles.begin();
 		f != rFiles.end(); ++f)
@@ -535,10 +515,10 @@ bool BackupClientDirectoryRecord::UpdateItems(BackupClientDirectoryRecord::SyncP
 		int64_t latestObjectID = 0;
 		if(pDirOnStore != 0)
 		{
-			DecryptedEntriesMap_t::iterator i(decryptedEntries.find(*f));
-			if(i != decryptedEntries.end())
+			BackupStoreDirectory::Iterator i(*pDirOnStore);
+			en = i.FindMatchingClearName(storeFilename);
+			if(en)
 			{
-				en = i->second;
 				latestObjectID = en->GetObjectID();
 			}
 		}
@@ -812,11 +792,8 @@ bool BackupClientDirectoryRecord::UpdateItems(BackupClientDirectoryRecord::SyncP
 		BackupStoreDirectory::Entry *en = 0;
 		if(pDirOnStore != 0)
 		{
-			DecryptedEntriesMap_t::iterator i(decryptedEntries.find(*d));
-			if(i != decryptedEntries.end())
-			{
-				en = i->second;
-			}
+			BackupStoreDirectory::Iterator i(*pDirOnStore);
+			en = i.FindMatchingClearName(storeFilename);
 		}
 		
 		// Check that the entry which might have been found is in fact a directory
