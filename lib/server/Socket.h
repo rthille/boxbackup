@@ -11,12 +11,11 @@
 #define SOCKET__H
 
 #ifdef WIN32
-#include "emu.h"
-typedef int socklen_t;
+	#include "emu.h"
 #else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <sys/un.h>
+	#include <sys/socket.h>
+	#include <netinet/in.h>
+	#include <sys/un.h>
 #endif
 
 #include <string>
