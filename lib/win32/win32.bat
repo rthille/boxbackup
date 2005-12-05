@@ -1,7 +1,8 @@
 
 pwd = /usr/src/boxbackup0.08/
 
-#quick and dirty to get up and runngin generating the required files on cygwin perl
+# quick and dirty to get up and running by generating the required files 
+# using Cygwin and Perl
 
 cd ./bin/bbackupquery/ & perl ./../../bin/bbackupquery/makedocumentation.pl
 cd ../../
@@ -20,6 +21,7 @@ cd ../../
 cd ./lib/crypto & perl ./../../lib/common/makeexception.pl CipherException.txt
 cd ../../
 
-#server parts - which appears as theough some of the clients rely on
+# server parts - which appears as though some of the clients rely on
+
 cd ./lib/server & perl ./../../lib/common/makeexception.pl ServerException.txt & perl ./../../lib/common/makeexception.pl ConnectionException.txt
 cd ../../
