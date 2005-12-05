@@ -10,12 +10,6 @@
 #include "Box.h"
 
 #include <syslog.h>
-#include <signal.h>
-#ifdef WIN32
-#include <time.h>
-#else
-#include <sys/time.h>
-#endif
 
 #include "BoxPortsAndFiles.h"
 #include "BoxTime.h"
@@ -375,22 +369,8 @@ bool BackupClientContext::FindFilename(int64_t ObjectID, int64_t ContainingDirec
 	// Make a connection to the server
 	BackupProtocolClient &connection(GetConnection());
 
-	// Request filenames from the server, in a "safe" manner to ignore errors properly
-	{
-		BackupProtocolClientGetObjectName send(ObjectID, ContainingDirectory);
-		connection.Send(send);
-	}
-	std::auto_ptr<BackupProtocolObjectCl> preply(connection.Receive());
-
-	// Is it of the right type?
-	if(preply->GetType() != BackupProtocolClientObjectName::TypeID)
-	{
-		// Was an error or something
-		return false;
-	}
-
-	// Cast to expected type.
-	BackupProtocolClientObjectName *names = (BackupProtocolClientObjectName *)(preply.get());
+	// Request filenames from the server
+	std::auto_ptr<BackupProtocolClientObjectName> names(connection.QueryGetObjectName(ObjectID, ContainingDirectory));
 
 	// Anything found?
 	int32_t numElements = names->GetNumNameElements();
@@ -455,4 +435,5 @@ bool BackupClientContext::FindFilename(int64_t ObjectID, int64_t ContainingDirec
 	// Found
 	return true;
 }
+
 
