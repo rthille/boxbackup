@@ -18,8 +18,8 @@ lib/crypto
 lib/server
 lib/win32		lib/server
 lib/compress
-test/common
-test/crypto			lib/crypto
+test/common		lib/win32
+test/crypto		lib/crypto
 test/compress		lib/compress
 test/basicserver	lib/server
 
