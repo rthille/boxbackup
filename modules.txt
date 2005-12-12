@@ -19,11 +19,11 @@ lib/server
 lib/win32		lib/server
 lib/compress
 test/common		lib/win32
-test/crypto		lib/crypto
-test/compress		lib/compress
-test/basicserver	lib/server
+test/crypto		lib/crypto	lib/win32
+test/compress		lib/compress	lib/win32
 
 OMIT:mingw32
+test/basicserver	lib/server	lib/win32
 OMIT:CYGWIN
 test/raidfile		lib/raidfile
 END-OMIT
