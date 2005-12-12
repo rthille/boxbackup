@@ -27,10 +27,10 @@ and configure like this:
 
 	export CXX="g++ -mno-cygwin"
 	export LD="g++ -mno-cygwin"
-	export CFLAGS="-mno-cygwin"
-	export CXXFLAGS="-mno-cygwin"
-	export LDFLAGS="-mno-cygwin"
-	export LIBS="-lws2_32 -lgdi32 -lcrypto"
+	export CFLAGS="-mno-cygwin -mthreads"
+	export CXXFLAGS="-mno-cygwin -mthreads"
+	export LDFLAGS="-mno-cygwin -mthreads"
+	export LIBS="-lcrypto -lws2_32 -lgdi32"
 	(if you don't have a "configure" file, run "./bootstrap")
 	./configure --target=i686-pc-mingw32
 	make
