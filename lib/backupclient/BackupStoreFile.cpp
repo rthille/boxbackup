@@ -1487,7 +1487,9 @@ void BackupStoreFile::EncodingBuffer::Allocate(int Size)
 // --------------------------------------------------------------------------
 void BackupStoreFile::EncodingBuffer::Reallocate(int NewSize)
 {
+#ifndef WIN32
 	TRACE2("Reallocating EncodingBuffer from %d to %d\n", mBufferSize, NewSize);
+#endif
 	ASSERT(mpBuffer != 0);
 	uint8_t *buffer = (uint8_t*)BackupStoreFile::CodingChunkAlloc(NewSize);
 	if(buffer == 0)
