@@ -1909,6 +1909,17 @@ BackupDaemon::CommandSocketInfo::CommandSocketInfo()
 // --------------------------------------------------------------------------
 BackupDaemon::CommandSocketInfo::~CommandSocketInfo()
 {
+#ifdef WIN32
+	try
+	{
+		mListeningSocket.Close();
+	}
+	catch(ServerException &e)
+	{
+		// ignore errors as we're closing down anyway
+	}
+#endif
+
 	if(mpGetLine)
 	{
 		delete mpGetLine;
