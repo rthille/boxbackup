@@ -12,7 +12,7 @@
 
 int main(int argc, char* argv[])
 {
-	chdir("c:\\tmp");
+	_chdir("c:\\tmp");
 	openfile("test", O_CREAT, 0);
 	struct stat ourfs;
 	//test our opendir, readdir and closedir
