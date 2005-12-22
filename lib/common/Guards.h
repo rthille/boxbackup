@@ -26,12 +26,24 @@
 
 #include "MemLeakFindOn.h"
 
+#ifdef WIN32
+	#define INVALID_FILE NULL
+	typedef HANDLE tOSFileHandle;
+#else
+	#define INVALID_FILE -1
+	typedef int tOSFileHandle;
+#endif
+
 template <int flags = O_RDONLY, int mode = (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)>
 class FileHandleGuard
 {
 public:
 	FileHandleGuard(const char *filename)
+#ifdef WIN32
+		: mOSFileHandle(::openfile(filename, flags, mode))
+#else
 		: mOSFileHandle(::open(filename, flags, mode))
+#endif
 	{
 		if(mOSFileHandle < 0)
 		{
@@ -41,7 +53,7 @@ public:
 	
 	~FileHandleGuard()
 	{
-		if(mOSFileHandle >= 0)
+		if(mOSFileHandle == INVALID_FILE)
 		{
 			Close();
 		}
@@ -49,24 +61,28 @@ public:
 	
 	void Close()
 	{
-		if(mOSFileHandle < 0)
+		if(mOSFileHandle == INVALID_FILE)
 		{
 			THROW_EXCEPTION(CommonException, FileAlreadyClosed)
 		}
+#ifdef WIN32
+		if(::CloseHandle(mOSFileHandle) == 0)
+#else
 		if(::close(mOSFileHandle) != 0)
+#endif
 		{
 			THROW_EXCEPTION(CommonException, OSFileCloseError)
 		}
-		mOSFileHandle = -1;
+		mOSFileHandle = INVALID_FILE;
 	}
 	
 	operator int() const
 	{
-		return mOSFileHandle;
+		return (int)mOSFileHandle;
 	}
 
 private:
-	int mOSFileHandle;
+	tOSFileHandle mOSFileHandle;
 };
 
 template<typename type>
