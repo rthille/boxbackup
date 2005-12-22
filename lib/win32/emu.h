@@ -32,6 +32,7 @@
 #define SIGALRM SIGVTALRM
 #define ITIMER_VIRTUAL 0
 
+#ifdef _MSC_VER
 // Microsoft decided to deprecate the standard POSIX functions. Great!
 #define open(file,flags,mode) _open(file,flags,mode)
 #define close(fd)             _close(fd)
@@ -44,6 +45,7 @@
 #define getcwd(buf,length)    _getcwd(buf,length)
 #define fileno(struct_file)   _fileno(struct_file)
 #define chdir(dir)            _chdir(dir)
+#endif
 
 int setitimer(int type , struct itimerval *timeout, int);
 void InitTimer(void);
