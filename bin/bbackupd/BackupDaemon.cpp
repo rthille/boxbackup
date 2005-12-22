@@ -400,7 +400,16 @@ void BackupDaemon::Run()
 	{
 		if(mpCommandSocketInfo != 0)
 		{
-			delete mpCommandSocketInfo;
+			try 
+			{
+				delete mpCommandSocketInfo;
+			}
+			catch(...)
+			{
+				::syslog(LOG_WARNING,
+					"Error closing command socket "
+					"after exception, ignored.");
+			}
 			mpCommandSocketInfo = 0;
 		}
 
