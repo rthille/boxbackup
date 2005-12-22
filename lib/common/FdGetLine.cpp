@@ -154,7 +154,7 @@ std::string FdGetLine::GetLine(bool Preprocess)
 	else
 	{
 		// Check for comment char, but char before must be whitespace
-		std::string::size_type end = 0;
+		int end = 0;
 		std::string::size_type size = r.size();
 		while(end < size)
 		{
@@ -166,7 +166,7 @@ std::string FdGetLine::GetLine(bool Preprocess)
 		}
 		
 		// Remove whitespace
-		std::string::size_type begin = 0;
+		int begin = 0;
 		while(begin < size && iw(r[begin]))
 		{
 			begin++;
