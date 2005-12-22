@@ -47,7 +47,8 @@
 #define chdir(dir)            _chdir(dir)
 #endif
 
-int setitimer(int type , struct itimerval *timeout, int);
+int SetTimerHandler(void (__cdecl *func ) (int));
+int setitimer(int type, struct itimerval *timeout, int);
 void InitTimer(void);
 void FiniTimer(void);
 
