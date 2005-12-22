@@ -125,8 +125,6 @@ VOID ServiceMain(DWORD argc, LPTSTR *argv)
 			return;
 		}
 
-		ShowMessage("Starting...");
-
 		HANDLE ourThread = (HANDLE)_beginthreadex(
 			NULL,
 			0,
@@ -187,7 +185,12 @@ void InstallService(void)
 
 	scm = OpenSCManager(0,0,SC_MANAGER_CREATE_SERVICE);
 
-	if (!scm) return;
+	if (!scm) 
+	{
+		syslog(LOG_ERR, "Failed to open service control manager: "
+			"error %d", GetLastError());
+		return;
+	}
 
 	char cmd[MAX_PATH];
 	GetModuleFileName(NULL, cmd, sizeof(cmd)-1);
@@ -203,12 +206,31 @@ void InstallService(void)
 		"Box Backup", 
 		SERVICE_ALL_ACCESS, 
 		SERVICE_WIN32_OWN_PROCESS, 
-		SERVICE_DEMAND_START, 
+		SERVICE_AUTO_START, 
 		SERVICE_ERROR_NORMAL, 
 		cmd_args, 
 		0,0,0,0,0);
 
-	if (newService) CloseServiceHandle(newService);
+	if (!newService) 
+	{
+		::syslog(LOG_ERR, "Failed to create Box Backup service: "
+			"error %d", GetLastError());
+		return;
+	}
+
+	::syslog(LOG_INFO, "Created Box Backup service");
+	
+	SERVICE_DESCRIPTION desc;
+	desc.lpDescription = "Backs up your data files over the Internet";
+	
+	if (!ChangeServiceConfig2(newService, SERVICE_CONFIG_DESCRIPTION,
+		&desc))
+	{
+		::syslog(LOG_WARNING, "Failed to set description for "
+			"Box Backup service: error %d", GetLastError());
+	}
+
+	CloseServiceHandle(newService);
 	CloseServiceHandle(scm);
 }
 
@@ -219,23 +241,31 @@ void RemoveService(void)
 
 	scm = OpenSCManager(0,0,SC_MANAGER_CREATE_SERVICE);
 
-	if (!scm) return;
+	if (!scm) 
+	{
+		syslog(LOG_ERR, "Failed to open service control manager: "
+			"error %d", GetLastError());
+		return;
+	}
 
 	service = OpenService(scm, SERVICE_NAME, SERVICE_ALL_ACCESS|DELETE);
 	ControlService(service, SERVICE_CONTROL_STOP, &status);
 
 	if (!service)
 	{
-		printf("Failed to open service manager");
+		syslog(LOG_ERR, "Failed to open Box Backup service: "
+			"error %d", GetLastError());
 		return;
 	}
+
 	if (DeleteService(service))
 	{
-		printf("Service removed");
+		syslog(LOG_INFO, "Box Backup service deleted");
 	}
 	else
 	{
-		printf("Failed to remove service");
+		syslog(LOG_ERR, "Failed to remove Box Backup service: "
+			"error %d", GetLastError());
 	}
 
 	CloseServiceHandle(service);
