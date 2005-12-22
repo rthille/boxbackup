@@ -48,7 +48,13 @@ int main(int argc, const char *argv[])
 		InstallService();
 		return 0;
 	}
-		
+
+	bool runAsWin32Service = false;
+	if (argc == 2 && ::strcmp(argv[1], "--service") == 0)
+	{
+		runAsWin32Service = true;
+	}
+	
 	// Under win32 we must initialise the Winsock library
 	// before using sockets
 		
@@ -65,7 +71,7 @@ int main(int argc, const char *argv[])
 
 	int ExitCode = 0;
 
-	if (argc == 2 && ::strcmp(argv[1], "--service") == 0)
+	if (runAsWin32Service)
 	{
 		syslog(LOG_INFO,"Starting Box Backup Service");
 		OurService();
