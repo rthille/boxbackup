@@ -104,8 +104,13 @@ static unsigned int WINAPI RunTimer(LPVOID lpParameter)
 			if (rTimer.countDown == -1)
 			{
 				gTimerList.erase(it);
-				//if we don't do this the search is on a corrupt list
+				
+				// the iterator is now invalid, so restart search
 				it = gTimerList.begin();
+
+				// if the list is now empty, don't try to increment 
+				// the iterator again
+				if (it == gTimerList.end()) break;
 			}
 		}
 
