@@ -223,7 +223,9 @@ void BackupStoreFilenameClear::EncryptClear(const std::string &rToEncode, Cipher
 	// Make sure encode/decode buffer has enough space
 	if(sEncDecBufferSize < maxOutSize)
 	{
+#ifndef WIN32
 		TRACE2("Reallocating filename encoding/decoding buffer from %d to %d\n", sEncDecBufferSize, maxOutSize);
+#endif
 		spEncDecBuffer.Resize(maxOutSize);
 		sEncDecBufferSize = maxOutSize;
 	}
@@ -261,7 +263,9 @@ void BackupStoreFilenameClear::DecryptEncoded(CipherContext &rCipherContext) con
 	// Make sure encode/decode buffer has enough space
 	if(sEncDecBufferSize < maxOutSize)
 	{
+#ifndef WIN32
 		TRACE2("Reallocating filename encoding/decoding buffer from %d to %d\n", sEncDecBufferSize, maxOutSize);
+#endif
 		spEncDecBuffer.Resize(maxOutSize);
 		sEncDecBufferSize = maxOutSize;
 	}
