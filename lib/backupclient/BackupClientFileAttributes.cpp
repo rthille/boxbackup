@@ -335,7 +335,13 @@ void BackupClientFileAttributes::ReadAttributes(const char *Filename, bool ZeroM
 
 		box_time_t bob = BoxTimeToSeconds(pattr->ModificationTime);
 		__time64_t winTime = bob;
-		if (_gmtime64(&winTime) == 0 )
+
+		// _MAX__TIME64_T doesn't seem to be defined, but the code below
+		// will throw an assertion failure if we exceed it :-)
+		// Microsoft says dates up to the year 3000 are valid, which
+		// is a bit more than 15 * 2^32. Even that doesn't seem
+		// to be true (still aborts), but it can at least hold 2^32.
+		if (winTime >= 0x100000000 || _gmtime64(&winTime) == 0)
 		{
 			::syslog(LOG_ERR, "Corrupt value in store "
 				"Modification Time in file %s", Filename);
@@ -344,7 +350,7 @@ void BackupClientFileAttributes::ReadAttributes(const char *Filename, bool ZeroM
 
 		bob = BoxTimeToSeconds(pattr->AttrModificationTime);
 		winTime = bob;
-		if (_gmtime64(&winTime) == 0 )
+		if (winTime > 0x100000000 || _gmtime64(&winTime) == 0)
 		{
 			::syslog(LOG_ERR, "Corrupt value in store "
 				"Attr Modification Time in file %s", Filename);
