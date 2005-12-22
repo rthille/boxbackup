@@ -1031,12 +1031,17 @@ void TimerSignalHandler(int signal)
 // --------------------------------------------------------------------------
 void StartDiffTimer()
 {
+#ifdef WIN32
+	// no support for SIGVTALRM
+	SetTimerHandler(TimerSignalHandler);
+#else
 	// Set timer signal handler
 	if(!sSetTimerSignelHandler)
 	{
 		::signal(SIGVTALRM, TimerSignalHandler);
 		sSetTimerSignelHandler = true;
 	}
+#endif
 
 	struct itimerval timeout;
 	// Don't want this to repeat
