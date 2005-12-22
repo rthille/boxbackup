@@ -206,8 +206,8 @@ bool EnableBackupRights( void )
 // --------------------------------------------------------------------------
 HANDLE openfile(const char *filename, int flags, int mode)
 {
-	try{
-
+	try
+	{
 		wchar_t *buffer;
 		std::string fileN(filename);
 
@@ -241,6 +241,9 @@ HANDLE openfile(const char *filename, int flags, int mode)
 		buffer = new wchar_t[strlen+1];
 		if ( buffer == NULL )
 		{
+			::syslog(LOG_WARNING, "Failed to allocate buffer "
+				"for converting file name: %s",
+				tmpStr.c_str());
 			return NULL;
 		}
 
@@ -255,6 +258,9 @@ HANDLE openfile(const char *filename, int flags, int mode)
 
 		if ( strlen == 0 )
 		{
+			::syslog(LOG_WARNING, "Failed to convert filename "
+				"to unicode: %s (error %i)",
+				tmpStr.c_str(), GetLastError());
 			delete [] buffer;
 			return NULL;
 		}
@@ -266,20 +272,29 @@ HANDLE openfile(const char *filename, int flags, int mode)
 		DWORD shareMode = FILE_SHARE_READ;
 		DWORD accessRights = FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | FILE_READ_EA;
 
-		if ( flags & O_WRONLY )
+		if (flags & O_WRONLY)
 		{
-			createDisposition = OPEN_EXISTING;
-			shareMode |= FILE_SHARE_READ ;//| FILE_SHARE_WRITE;
+			shareMode = FILE_SHARE_WRITE;
 		}
-		if ( flags & O_CREAT )
+		if (flags & O_RDWR)
+		{
+			shareMode = FILE_SHARE_READ | FILE_SHARE_WRITE;
+		}
+		if (flags & O_CREAT)
 		{
 			createDisposition = OPEN_ALWAYS;
-			shareMode |= FILE_SHARE_READ ;//| FILE_SHARE_WRITE;
-			accessRights |= FILE_WRITE_ATTRIBUTES | FILE_WRITE_DATA | FILE_WRITE_EA | FILE_ALL_ACCESS;
+			shareMode |= FILE_SHARE_WRITE;
+			accessRights |= FILE_WRITE_ATTRIBUTES 
+				| FILE_WRITE_DATA | FILE_WRITE_EA 
+				| FILE_ALL_ACCESS;
 		}
-		if ( flags & O_TRUNC )
+		if (flags & O_TRUNC)
 		{
-			createDisposition = OPEN_ALWAYS;
+			createDisposition = CREATE_ALWAYS;
+		}
+		if (flags & O_EXCL)
+		{
+			shareMode = 0;
 		}
 
 		HANDLE hdir = CreateFileW(buffer, 
@@ -292,8 +307,9 @@ HANDLE openfile(const char *filename, int flags, int mode)
 
 		if ( hdir == INVALID_HANDLE_VALUE )
 		{
-			// DWORD err = GetLastError();
-			// syslog(EVENTLOG_WARNING_TYPE, "Couldn't open file %s, err %i\n", filename, err);
+			DWORD err = GetLastError();
+			::syslog(LOG_WARNING, "Failed to open file %s: "
+				"error %i", filename, err);
 			delete [] buffer;
 			return NULL;
 		}
@@ -304,7 +320,7 @@ HANDLE openfile(const char *filename, int flags, int mode)
 	}
 	catch(...)
 	{
-		printf("Caught openfile:%s\r\n", filename);
+		::syslog(LOG_ERR, "Caught openfile: %s", filename);
 	}
 	return NULL;
 
@@ -886,7 +902,7 @@ HANDLE gSyslogH = 0;
 void syslog(int loglevel, const char *frmt, ...)
 {
 	WORD errinfo;
-	char* buffer;
+	char buffer[1024];
 	std::string sixfour(frmt);
 
 	switch (loglevel)
@@ -907,79 +923,46 @@ void syslog(int loglevel, const char *frmt, ...)
 
 
 	//taken from MSDN
-	try
+	int sixfourpos;
+	while ( (sixfourpos = (int)sixfour.find("%ll")) != -1 )
 	{
-
-
-		int sixfourpos;
-		while ( (sixfourpos = (int)sixfour.find("%ll")) != -1 )
-		{
-			//maintain portability - change the 64 bit formater...
-			std::string temp = sixfour.substr(0,sixfourpos);
-			temp += "%I64";
-			temp += sixfour.substr(sixfourpos+3, sixfour.length());
-			sixfour = temp;
-		}
-
-		//printf("parsed string is:%s\r\n", sixfour.c_str());
-
-		va_list args;
-		va_start(args, frmt);
-
-#ifdef __MINGW32__
-		// no _vscprintf, use a fixed size buffer
-		buffer = new char[1024];
-		int len = 1023;
-#else
-		int len = _vscprintf( sixfour.c_str(), args );
-		ASSERT(len > 0)
-
-		len = len + 1;
-		char* buffer = new char[len];
-#endif
-
-		ASSERT(buffer)
-		memset(buffer, 0, len);
-
-		int len2 = vsnprintf(buffer, len, sixfour.c_str(), args);
-		ASSERT(len2 <= len);
-
-		va_end(args);
-	}
-	catch (...)
-	{
-		printf("Caught syslog: %s", sixfour.c_str());
-		return;
+		//maintain portability - change the 64 bit formater...
+		std::string temp = sixfour.substr(0,sixfourpos);
+		temp += "%I64";
+		temp += sixfour.substr(sixfourpos+3, sixfour.length());
+		sixfour = temp;
 	}
 
-	try
+	//printf("parsed string is:%s\r\n", sixfour.c_str());
+
+	va_list args;
+	va_start(args, frmt);
+
+	int len = vsnprintf(buffer, sizeof(buffer)-1, sixfour.c_str(), args);
+	buffer[sizeof(buffer)-1] = 0;
+
+	va_end(args);
+
+	LPCSTR strings[] = { buffer, NULL };
+
+	if (!ReportEvent(gSyslogH,    // event log handle 
+		errinfo,              // event type 
+		0,                    // category zero 
+		MSG_ERR_EXIST,	      // event identifier - 
+		                      // we will call them all the same
+		NULL,                 // no user security identifier 
+		1,                    // one substitution string 
+		0,                    // no data 
+		strings,     // pointer to string array 
+		NULL))                // pointer to data 
+
 	{
-
-		if (!ReportEvent(gSyslogH,    // event log handle 
-			errinfo,              // event type 
-			0,                    // category zero 
-			MSG_ERR_EXIST,	      // event identifier - 
-			                      // we will call them all the same
-			NULL,                 // no user security identifier 
-			1,                    // one substitution string 
-			0,                    // no data 
-			(LPCSTR*)&buffer,     // pointer to string array 
-			NULL))                // pointer to data 
-
-		{
-			DWORD err = GetLastError();
-			printf("Unable to send message to Event Log "
-				"(error %i):\r\n", err);
-		}
-
-		printf("%s\r\n", buffer);
-
-		if (buffer) delete [] buffer;
+		DWORD err = GetLastError();
+		printf("Unable to send message to Event Log "
+			"(error %i):\r\n", err);
 	}
-	catch (...)
-	{
-		printf("Caught syslog ReportEvent");
-	}
+
+	printf("%s\r\n", buffer);
 }
 
 #endif // WIN32
