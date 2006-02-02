@@ -1700,7 +1700,9 @@ void BackupDaemon::SetState(int State)
 	char newStateSize = sprintf(newState, "state %d\n", State);
 
 #ifdef WIN32
-	#warning FIX ME: race condition
+	#ifndef _MSC_VER
+		#warning FIX ME: race condition
+	#endif
 
 	// what happens if the socket is closed by the other thread before
 	// we can write to it? Null pointer deref at best.
