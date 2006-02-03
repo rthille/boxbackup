@@ -47,8 +47,8 @@ open PARCELS,"parcels.txt" or die "Can't open parcels file";
 				{
 					last if m'\AEND-ONLY';
 				}
-				next;
 			}
+			next;
 		}
 		
 		# new parcel, or a new parcel definition?
