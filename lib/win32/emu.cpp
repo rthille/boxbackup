@@ -41,7 +41,7 @@ static void (__cdecl *gTimerFunc) (int) = NULL;
 
 int setitimer(int type , struct itimerval *timeout, int)
 {
-	if ( SIGVTALRM == type || ITIMER_VIRTUAL == type )
+	if (ITIMER_VIRTUAL == type)
 	{
 		EnterCriticalSection(&gLock);
 		// we only need seconds for the mo!

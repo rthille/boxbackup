@@ -511,6 +511,9 @@ void BackupClientContext::ManageDiffProcess()
 
 #ifdef PLATFORM_CYGWIN
 	::signal(SIGALRM, TimerSigHandler);
+#elif WIN32
+	// no support for SIGVTALRM
+	SetTimerHandler(TimerSignalHandler);
 #else
 	::signal(SIGVTALRM, TimerSigHandler);
 #endif // PLATFORM_CYGWIN

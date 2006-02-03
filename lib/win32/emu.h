@@ -27,9 +27,6 @@
 	( *(_result) = *gmtime( (_clock) ), \
 	(_result) )
 
-//signal in unix SIGVTALRM does not exist in win32 - but looking at the 
-#define SIGVTALRM 254
-#define SIGALRM SIGVTALRM
 #define ITIMER_VIRTUAL 0
 
 #ifdef _MSC_VER
