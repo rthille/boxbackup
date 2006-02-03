@@ -16,17 +16,16 @@
 #ifdef HAVE_UNISTD_H
 	#include <unistd.h>
 #endif
-
-#include <string>
-#include <list>
-
 #ifdef HAVE_PROCESS_H
 	#include <process.h>
 #endif
 
-//our implimentation for a timer
-//based on a simple thread which sleeps for a
-//period of time
+#include <string>
+#include <list>
+
+// our implementation for a timer, based on a 
+// simple thread which sleeps for a period of time
+
 static bool gFinishTimer;
 static CRITICAL_SECTION gLock;
 
@@ -35,9 +34,9 @@ typedef struct
 	int countDown;
 	int interval;
 }
-tTimer;
+Timer_t;
 
-std::list<tTimer> gTimerList;
+std::list<Timer_t> gTimerList;
 static void (__cdecl *gTimerFunc) (int) = NULL;
 
 int setitimer(int type , struct itimerval *timeout, int)
@@ -53,7 +52,7 @@ int setitimer(int type , struct itimerval *timeout, int)
 		}
 		else
 		{
-			tTimer ourTimer;
+			Timer_t ourTimer;
 			ourTimer.countDown = timeout->it_value.tv_sec;
 			ourTimer.interval  = timeout->it_interval.tv_sec;
 			gTimerList.push_back(ourTimer);
@@ -71,12 +70,12 @@ static unsigned int WINAPI RunTimer(LPVOID lpParameter)
 
 	while (!gFinishTimer)
 	{
-		std::list<tTimer>::iterator it;
+		std::list<Timer_t>::iterator it;
 		EnterCriticalSection(&gLock);
 
 		for (it = gTimerList.begin(); it != gTimerList.end(); it++)
 		{
-			tTimer& rTimer(*it);
+			Timer_t& rTimer(*it);
 
 			rTimer.countDown --;
 			if (rTimer.countDown == 0)
@@ -99,7 +98,7 @@ static unsigned int WINAPI RunTimer(LPVOID lpParameter)
 
 		for (it = gTimerList.begin(); it != gTimerList.end(); it++)
 		{
-			tTimer& rTimer(*it);
+			Timer_t& rTimer(*it);
 
 			if (rTimer.countDown == -1)
 			{

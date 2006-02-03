@@ -8,11 +8,11 @@
 
 #include "../../bin/bbackupd/BackupDaemon.h"
 #include "BoxPortsAndFiles.h"
-
+#include "emu.h"
 
 int main(int argc, char* argv[])
 {
-	_chdir("c:\\tmp");
+	chdir("c:\\tmp");
 	openfile("test", O_CREAT, 0);
 	struct stat ourfs;
 	//test our opendir, readdir and closedir

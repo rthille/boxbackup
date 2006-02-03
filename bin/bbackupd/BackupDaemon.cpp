@@ -265,7 +265,7 @@ void BackupDaemon::RunHelperThread(void)
 				conf.GetKeyValueInt("MaxUploadWait"),
 				mState);
 
-			mpCommandSocketInfo->mListeningSocket.Write(summary, (int)summarySize);
+			mpCommandSocketInfo->mListeningSocket.Write(summary, summarySize);
 			mpCommandSocketInfo->mListeningSocket.Write("ping\n", 5);
 
 			IOStreamGetLine readLine(mpCommandSocketInfo->mListeningSocket);
@@ -320,7 +320,7 @@ void BackupDaemon::RunHelperThread(void)
 				{
 					const char* response = sendOK ? "ok\n" : "error\n";
 					mpCommandSocketInfo->mListeningSocket.Write(
-						response, (int)strlen(response));
+						response, strlen(response));
 				}
 
 				if (disconnect) 
@@ -523,7 +523,7 @@ void BackupDaemon::Run2()
 					{
 						// No command socket or connection, just do a normal sleep
 						time_t sleepSeconds = BoxTimeToSeconds(requiredDelay);
-						::sleep((unsigned int)((sleepSeconds <= 0)?1:sleepSeconds));
+						::sleep((sleepSeconds <= 0)?1:sleepSeconds);
 					}
 				}
 				
@@ -678,8 +678,7 @@ void BackupDaemon::Run2()
 				}
 				
 				// Calculate when the next sync run should be
-				nextSyncTime = currentSyncStartTime + updateStoreInterval + 
-					Random::RandomInt((uint32_t)updateStoreInterval >> SYNC_PERIOD_RANDOM_EXTRA_TIME_SHIFT_BY);
+				nextSyncTime = currentSyncStartTime + updateStoreInterval + Random::RandomInt(updateStoreInterval >> SYNC_PERIOD_RANDOM_EXTRA_TIME_SHIFT_BY);
 			
 				// Commit the ID Maps
 				CommitIDMapsAfterSync();

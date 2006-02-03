@@ -70,7 +70,7 @@ SocketStream::SocketStream(int socket)
 //
 // --------------------------------------------------------------------------
 SocketStream::SocketStream(const SocketStream &rToCopy)
-	: mSocketHandle(::dup((int)rToCopy.mSocketHandle)),
+	: mSocketHandle(::dup(rToCopy.mSocketHandle)),
 	  mReadClosed(rToCopy.mReadClosed),
 	  mWriteClosed(rToCopy.mWriteClosed)
 

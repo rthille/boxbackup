@@ -10,8 +10,6 @@
 #ifndef TEST__H
 #define TEST__H
 
-#include "Box.h"
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdlib.h>

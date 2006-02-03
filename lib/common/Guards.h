@@ -11,8 +11,6 @@
 #ifndef GUARDS__H
 #define GUARDS__H
 
-#include "Box.h"
-
 #ifdef HAVE_UNISTD_H
 	#include <unistd.h>
 #endif

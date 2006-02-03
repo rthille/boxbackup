@@ -163,7 +163,7 @@ void *WaitForEvent::Wait()
 	}
 	
 	// Poll!
-	switch(::poll(mpPollInfo, (unsigned int)mItems.size(), mTimeout))
+	switch(::poll(mpPollInfo, mItems.size(), mTimeout))
 	{
 	case -1:
 		// Interrupted system calls aren't an error, just equivalent to a timeout

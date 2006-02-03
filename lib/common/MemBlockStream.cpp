@@ -113,7 +113,7 @@ int MemBlockStream::Read(void *pBuffer, int NBytes, int Timeout)
 	// Adjust to number of bytes left
 	if(NBytes > (mBytesInBuffer - mReadPosition))
 	{
-		NBytes = (int)(mBytesInBuffer - mReadPosition);
+		NBytes = (mBytesInBuffer - mReadPosition);
 	}
 	ASSERT(NBytes >= 0);
 	if(NBytes <= 0) return 0;	// careful now
@@ -175,7 +175,7 @@ IOStream::pos_type MemBlockStream::GetPosition() const
 // --------------------------------------------------------------------------
 void MemBlockStream::Seek(pos_type Offset, int SeekType)
 {
-	pos_type newPos = 0;
+	int newPos = 0;
 	switch(SeekType)
 	{
 	case IOStream::SeekType_Absolute:

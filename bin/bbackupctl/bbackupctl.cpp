@@ -215,7 +215,7 @@ int main(int argc, const char *argv[])
 		// No? Just send the command given plus a quit command.
 		std::string cmd(argv[0]);
 		cmd += "\nquit\n";
-		connection.Write(cmd.c_str(), (int)cmd.size());
+		connection.Write(cmd.c_str(), cmd.size());
 	}
 	
 	// Read the response

@@ -151,8 +151,8 @@ bool IOStreamGetLine::GetLine(std::string &rOutput, bool Preprocess, int Timeout
 	else
 	{
 		// Check for comment char, but char before must be whitespace
-		std::string::size_type end = 0;
-		std::string::size_type size = r.size();
+		int end = 0;
+		int size = r.size();
 		while(end < size)
 		{
 			if(r[end] == '#' && (end == 0 || (iw(r[end-1]))))
@@ -163,7 +163,7 @@ bool IOStreamGetLine::GetLine(std::string &rOutput, bool Preprocess, int Timeout
 		}
 		
 		// Remove whitespace
-		std::string::size_type begin = 0;
+		int begin = 0;
 		while(begin < size && iw(r[begin]))
 		{
 			begin++;
