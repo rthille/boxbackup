@@ -6,6 +6,7 @@ lib/backupstore
 bin/bbstored
 bin/bbstoreaccounts
 bin/bbackupd
+bin/bbackupd/win32
 bin/bbackupquery
 bin/bbackupctl
 bin/bbackupobjdump

@@ -17,6 +17,8 @@
 #ifdef HAVE_LIBREADLINE
 	#ifdef HAVE_READLINE_READLINE_H
 		#include <readline/readline.h>
+	#elif defined(HAVE_EDITLINE_READLINE_H)
+		#include <editline/readline.h>
 	#elif defined(HAVE_READLINE_H)
 		#include <readline.h>
 	#endif

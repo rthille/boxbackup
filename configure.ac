@@ -4,11 +4,10 @@
 AC_PREREQ(2.59)
 AC_INIT([Box Backup], 0.09, [box@fluffy.co.uk])
 AC_CONFIG_SRCDIR([lib/common/Box.h])
-AC_CONFIG_HEADERS([lib/common/config.h])
+AC_CONFIG_HEADERS([lib/common/BoxConfig.h])
 
 touch install-sh
 AC_CANONICAL_SYSTEM
-# echo "Build target OS: '$target_os'"
 test -s install-sh || rm install-sh
 
 ### Checks for programs.
@@ -30,19 +29,31 @@ fi
 
 
 ### Checks for libraries.
+
 if test "$target_os" != "mingw32" -a "$target_os" != "winnt"; then
-AC_SEARCH_LIBS([nanosleep], [rt], [ac_have_nanosleep=yes], 
-	[AC_MSG_ERROR([[Cannot find a short sleep function (nanosleep)]])])
+  AC_SEARCH_LIBS([nanosleep], [rt], [ac_have_nanosleep=yes],
+                 [AC_MSG_ERROR([[cannot find a short sleep function (nanosleep)]])])
 fi
+AC_CHECK_LIB([z], [zlibVersion],, [AC_MSG_ERROR([[cannot find zlib]])])
+VL_LIB_READLINE([have_libreadline=yes], [have_libreadline=no])
 
-AC_CHECK_LIB([z], [zlibVersion],, [AC_MSG_ERROR([[Cannot find zlib]])])
-AX_CHECK_BDB_V1
-VL_LIB_READLINE
-have_libreadline=no
-test "x$vl_cv_lib_readline" != "xno" && have_libreadline=yes
+## Check for Berkely DB. Restrict to certain versions
+AX_PATH_BDB(, [
+  LIBS="$BDB_LIBS $LIBS"
+  LDFLAGS="$BDB_LDFLAGS $LDFLAGS"
+  CPPFLAGS="$CPPFLAGS $BDB_CPPFLAGS"
 
+  AX_COMPARE_VERSION([$BDB_VERSION],[ge],[4.1],,
+    [AX_COMPARE_VERSION([$BDB_VERSION],[lt],[2],,
+      [AC_MSG_ERROR([[only Berkely DB versions 1.x or at least 4.1 are currently supported]])]
+      )]
+  )
+  AX_SPLIT_VERSION([BDB_VERSION], [$BDB_VERSION])
+])
 
 ## Check for Open SSL, use old versions only if explicitly requested
+AC_SEARCH_LIBS([gethostbyname], [nsl socket resolv])
+AC_SEARCH_LIBS([shutdown], [nsl socket resolv])
 AX_CHECK_SSL(, [AC_MSG_ERROR([[OpenSSL is not installed but is required]])])
 AC_ARG_ENABLE(
   [old-ssl],
@@ -65,7 +76,11 @@ Upgrade or read the documentation for alternatives]])
 AC_HEADER_DIRENT
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS([execinfo.h netinet/in.h regex.h sys/types.h sys/xattr.h pwd.h process.h sys/socket.h dirent.h])
+AC_CHECK_HEADERS([dirent.h execinfo.h process.h pwd.h regex.h signal.h]
+AC_CHECK_HEADERS([syslog.h time.h])
+AC_CHECK_HEADERS([netinet/in.h])
+AC_CHECK_HEADERS([sys/param.h sys/socket.h sys/time.h sys/types.h sys/wait.h])
+AC_CHECK_HEADERS([sys/xattr.h])
 
 
 ### Checks for typedefs, structures, and compiler characteristics.
@@ -95,12 +110,17 @@ AX_CHECK_DIRENT_D_TYPE
 AC_SYS_LARGEFILE
 AX_CHECK_LLONG_MINMAX
 AX_CHECK_DEFINE_PRAGMA
-
-if test "$target_os" != "mingw32"; then
-AX_RANDOM_DEVICE
+if test "x$ac_cv_c_bigendian" != "xyes"; then
+  AX_BSWAP64
 fi
-
-AX_CHECK_MOUNT_POINT([],[])
+if test "$target_os" != "mingw32"; then
+  AX_RANDOM_DEVICE
+fi
+AX_CHECK_MOUNT_POINT(,[
+  if test "$target_os" != "mingw32" -a "$target_os" != "winnt"; then
+    AC_MSG_ERROR([[cannot work out how to discover mount points on your platform]])
+  fi
+  ])
 AX_CHECK_MALLOC_WORKAROUND
 
 
@@ -113,27 +133,32 @@ AC_FUNC_STAT
 AC_CHECK_FUNCS([getpeereid kqueue lchown setproctitle getpid])
 AX_FUNC_SYSCALL
 AX_CHECK_SYSCALL_LSEEK
+AC_CHECK_FUNCS([listxattr llistxattr getxattr lgetxattr setxattr lsetxattr])
+AC_CHECK_DECLS([XATTR_NOFOLLOW],,, [[#include <sys/xattr.h>]])
 
 
 ### Miscellaneous complicated feature checks
 
 ## Check for large file support active. AC_SYS_LARGEFILE has already worked
-## out how to enable it if necessary, we need to know if we've got it so we
-## can disable the raidfile intercepts
+## out how to enable it if necessary, we just use this to report to the user
 AC_CACHE_CHECK([if we have large file support enabled], [have_large_file_support],
   [AC_RUN_IFELSE([AC_LANG_PROGRAM([[$ac_includes_default]], [[
       return sizeof(off_t)==4;
     ]])],
     [have_large_file_support=yes], [have_large_file_support=no]
   )])
-if test "x$have_large_file_support" = "xyes"; then
-  AC_DEFINE([HAVE_LARGE_FILE_SUPPORT], 1, [Define to 1 large file support is in use])
-fi
 
 ## Find out how to do file locking
 AC_CHECK_FUNCS([flock])
 AC_CHECK_DECLS([O_EXLOCK],,, [[#include <fcntl.h>]])
 AC_CHECK_DECLS([F_SETLK],,, [[#include <fcntl.h>]])
+if test "x$ac_cv_func_flock" != "xyes" && \
+   test "x$ac_cv_have_decl_O_EXLOCK" != "xyes" && \
+   test "x$ac_cv_have_decl_F_SETLK" != "xyes" && \
+   test "$target_os" != "mingw32" -a "$target_os" != "winnt"
+then
+  AC_MSG_ERROR([[cannot work out how to do file locking on your platform]])
+fi
 
 ## Get tmpdir
 temp_directory_name="/tmp"
@@ -148,7 +173,7 @@ AC_ARG_ENABLE(
   [static-bin],
   [AC_HELP_STRING([--enable-static-bin], [Link binaries with static libraries])])
 if test "x$enable_static_bin" = "xyes"; then
-  AC_CHECK_LIB([ssl],[SSL_read],[],[],[crypto])
+  AC_CHECK_LIB([ssl],[SSL_read],,, [crypto])
   LIBS="-Wl,-Bstatic $LIBS -Wl,-Bdynamic"
 fi
 
@@ -169,7 +194,7 @@ without these features, but will work better where they are present. Refer
 to the documentation for more information on each feature.
 
 Large files:         $have_large_file_support
-Berkeley DB:         $ac_have_bdb
+Berkeley DB:         $ax_path_bdb_ok
 Readline:            $have_libreadline
 Extended attributes: $ac_cv_header_sys_xattr_h
 EOC
@@ -191,12 +216,7 @@ case "$vl_cv_lib_readline" in
   *readline*)
     echo
     AC_MSG_WARN([[do not distribute binaries compiled against GNU readline,
-as this would violate the GNU readline licence, which is GPL. You may use
+as this could violate the GNU readline licence, which is GPL. You may use
 libedit or libeditline instead.]])
     ;;
 esac
-
-if test "x$ac_have_bdb" != "xyes"; then
-  echo
-  AC_MSG_WARN([[db is not installed -- will run in reduced efficiency mode without it]])
-fi

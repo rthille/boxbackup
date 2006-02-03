@@ -21,6 +21,7 @@ BEGIN
 
 	# blank extra flags by default
 	$platform_compile_line_extra = '@CPPFLAGS@ @CXXFLAGS@ @CXXFLAGS_STRICT@';
+	$platform_compile_line_extra =~ s/ -O2//;
 	$platform_link_line_extra = '@LDFLAGS@';
 	$platform_lib_files = '@LIBS@';
 	$target_os = '@target_os@';
@@ -51,7 +52,7 @@ BEGIN
 		# test for fink installation
 		if(-d '/sw/include' && -d '/sw/lib')
 		{
-			print "Fink installation detected, will use headers and libraries\n";
+			print "Fink installation detected, will use headers and libraries\n\n\n";
 			$platform_compile_line_extra = '-I/sw/include ';
 			$platform_link_line_extra = '-L/sw/lib ';
 		}

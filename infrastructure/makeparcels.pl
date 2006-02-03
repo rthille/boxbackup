@@ -104,7 +104,7 @@ for my $parcel (@parcels)
 	print MAKE $target,":\n";
 	
 	my $dir = parcel_dir($parcel);
-	print MAKE "\tmkdir $dir\n";
+	print MAKE "\ttest -d $dir || mkdir $dir\n";
 	
 	open SCRIPT,">parcels/scripts/install-$parcel" or die "Can't open installer script for $parcel for writing";
 	print SCRIPT "#!/bin/sh\n\n";
@@ -169,7 +169,7 @@ close INSTALLMSG;
 
 sub parcel_root
 {
-	$product_name.'-'.$product_version.'-'.$_[0].'-'.$build_os.$os_suffix
+	$product_name.'-'.$product_version.'-'.$_[0].'-'.$target_os.$os_suffix
 }
 
 sub parcel_dir

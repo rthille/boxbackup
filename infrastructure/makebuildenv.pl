@@ -38,6 +38,13 @@ unless(-d 'local')
 # flags about the environment
 my %env_flags;
 
+my $windows_include_path = "-I../../lib/win32 ";
+if ($target_os ne "mingw32" && $target_os ne "winnt")
+{
+	$windows_include_path = "";
+	$env_flags{'IGNORE_lib/win32'} = 1;
+}
+
 # print "Flag: $_\n" for(keys %env_flags);
 
 # seed autogen code
@@ -343,8 +350,8 @@ for my $mod (@modules, $implicit_dep)
 {
 	opendir DIR,$mod;
 	for my $h (grep /\.h\Z/i, readdir DIR)
-	{	
-		next if /\A\._/;	# Temp Mac OS Resource hack
+	{
+		next if $h =~ /\A\./;		# Ignore Mac resource forks, autosaves, etc
 
 		open FL,"$mod/$h" or die "can't open $mod/$h";
 		my $f;
@@ -447,7 +454,7 @@ __E
 	
 
 	# make include path
-	my $include_paths = "-I../../lib/win32 " .
+	my $include_paths = $windows_include_path .
 		join(' ',map {'-I../../'.$_} @all_deps_for_module);
 
 	# is target a library?
