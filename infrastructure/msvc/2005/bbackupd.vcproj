@@ -41,7 +41,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="&quot;$(SolutionDir)..\..\..\lib\backupclient&quot;;&quot;$(SolutionDir)..\..\..\lib\common&quot;;&quot;$(SolutionDir)..\..\..\lib\compress&quot;;&quot;$(SolutionDir)..\..\..\lib\crypto&quot;;&quot;$(SolutionDir)..\..\..\lib\server&quot;;&quot;$(SolutionDir)..\..\..\lib\win32&quot;;&quot;$(SolutionDir)..\..\..\..\openssl\inc32&quot;;&quot;$(SolutionDir)..\..\..\..\zlib\include&quot;"
-				PreprocessorDefinitions="BOOST_REGEX_NO_LIB;WIN32;_DEBUG;_CONSOLE;PLATFORM_DISABLE_MEM_LEAK_TESTING;_CRT_SECURE_NO_DEPRECATE"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;PLATFORM_DISABLE_MEM_LEAK_TESTING;_CRT_SECURE_NO_DEPRECATE;NDEBUG"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
