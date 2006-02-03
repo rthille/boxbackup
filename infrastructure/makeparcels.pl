@@ -50,6 +50,7 @@ open PARCELS,"parcels.txt" or die "Can't open parcels file";
 			}
 			next;
 		}
+		next if (m'\AEND-ONLY');
 		
 		# new parcel, or a new parcel definition?
 		if(m/\A\s+(.+)\Z/)
