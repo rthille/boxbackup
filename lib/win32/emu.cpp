@@ -39,7 +39,7 @@ Timer_t;
 std::list<Timer_t> gTimerList;
 static void (__cdecl *gTimerFunc) (int) = NULL;
 
-int setitimer(int type , struct itimerval *timeout, int)
+int setitimer(int type, struct itimerval *timeout, void *arg)
 {
 	if (ITIMER_VIRTUAL == type)
 	{

@@ -45,7 +45,7 @@
 #endif
 
 int SetTimerHandler(void (__cdecl *func ) (int));
-int setitimer(int type, struct itimerval *timeout, int);
+int setitimer(int type, struct itimerval *timeout, void *arg);
 void InitTimer(void);
 void FiniTimer(void);
 
