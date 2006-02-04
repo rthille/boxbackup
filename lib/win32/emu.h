@@ -272,33 +272,31 @@ inline int mkdir(const char *pathname, mode_t mode)
 	return _mkdir(pathname);
 }
 
-#ifdef __MINGW32__
-	#include <dirent.h>
-#else
-	inline int strcasecmp(const char *s1, const char *s2)
-	{
-		return _stricmp(s1,s2);
-	}
-
-	struct dirent
-	{
-		char *d_name;
-	};
-
-	struct DIR
-	{
-		intptr_t		fd;	// filedescriptor
-		// struct _finddata_t	info;
-		struct _wfinddata_t	info;
-		// struct _finddata_t 	info;
-		struct dirent		result;	// d_name (first time null)
-		wchar_t			*name;	// null-terminated byte string
-	};
-
-	DIR *opendir(const char *name);
-	struct dirent *readdir(DIR *dp);
-	int closedir(DIR *dp);
+#ifndef __MINGW32__
+inline int strcasecmp(const char *s1, const char *s2)
+{
+	return _stricmp(s1,s2);
+}
 #endif
+
+struct dirent
+{
+	char *d_name;
+};
+
+struct DIR
+{
+	intptr_t		fd;	// filedescriptor
+	// struct _finddata_t	info;
+	struct _wfinddata_t	info;
+	// struct _finddata_t 	info;
+	struct dirent		result;	// d_name (first time null)
+	wchar_t			*name;	// null-terminated byte string
+};
+
+DIR *opendir(const char *name);
+struct dirent *readdir(DIR *dp);
+int closedir(DIR *dp);
 
 HANDLE openfile(const char *filename, int flags, int mode);
 

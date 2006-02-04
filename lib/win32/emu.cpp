@@ -620,14 +620,6 @@ int statfs(const char * pName, struct statfs * s)
 	return 0;
 }
 
-
-
-
-
-// MinGW provides opendir(), etc. via <dirent.h>
-// MSVC does not provide these, so emulation is needed
-
-#ifndef __MINGW32__
 // --------------------------------------------------------------------------
 //
 // Function
@@ -739,9 +731,10 @@ DIR *opendir(const char *name)
 	return NULL;
 }
 
-//this kinda makes it not thread friendly!
-//but I don't think it needs to be.
+// this kinda makes it not thread friendly!
+// but I don't think it needs to be.
 char tempbuff[MAX_PATH];
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -821,7 +814,6 @@ int closedir(DIR *dp)
 	}
 	return -1;
 }
-#endif // !__MINGW32__
 
 // --------------------------------------------------------------------------
 //
