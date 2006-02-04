@@ -73,10 +73,13 @@ Upgrade or read the documentation for alternatives]])
 
 ### Checks for header files.
 
-AC_HEADER_DIRENT
+if test "$target_os" != "mingw32"; then
+  AC_HEADER_DIRENT
+fi
+
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS([dirent.h execinfo.h process.h pwd.h regex.h signal.h])
+AC_CHECK_HEADERS([execinfo.h process.h pwd.h regex.h signal.h])
 AC_CHECK_HEADERS([syslog.h time.h])
 AC_CHECK_HEADERS([netinet/in.h])
 AC_CHECK_HEADERS([sys/param.h sys/socket.h sys/time.h sys/types.h sys/wait.h])
