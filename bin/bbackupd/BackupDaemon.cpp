@@ -190,11 +190,12 @@ void BackupDaemon::SetupInInitialProcess()
 	if(GetConfiguration().KeyExists("CommandSocket"))
 	{
 		printf(
-				"============================================================================================\n" \
-				"SECURITY WARNING: This platform cannot check the credentials of connections to the\n" \
-				"command socket. This is a potential DoS security problem.\n" \
-				"Remove the CommandSocket directive from the bbackupd.conf file if bbackupctl is not used.\n" \
-				"============================================================================================\n"
+				"==============================================================================\n"
+				"SECURITY WARNING: This platform cannot check the credentials of connections to\n"
+				"the command socket. This is a potential DoS security problem.\n"
+				"Remove the CommandSocket directive from the bbackupd.conf file if bbackupctl\n"
+				"is not used.\n"
+				"==============================================================================\n"
 			);
 	}
 }
