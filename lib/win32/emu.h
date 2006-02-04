@@ -39,6 +39,7 @@
 #define lseek(fd,off,whence)  _lseek(fd,off,whence)
 #define unlink(file)          _unlink(file)
 #define chmod(file,mode)      _chmod(file,mode)
+#define ::chmod(file,mode)    _chmod(file,mode)
 #define getcwd(buf,length)    _getcwd(buf,length)
 #define fileno(struct_file)   _fileno(struct_file)
 #define chdir(dir)            _chdir(dir)
@@ -121,9 +122,9 @@ inline int chown(const char * Filename, u_int32_t uid, u_int32_t gid)
 	return 0;
 }
 
-inline int _chmod(const char * Filename, int uid)
+inline int _chmod(const char * Filename, int mode)
 {
-	//indicate sucsess
+	// indicate success
 	return 0;
 }
 
@@ -431,6 +432,7 @@ bool EnableBackupRights( void );
 // caller must free the returned buffer from ConvertUtf8ToMultiByte()
 // with delete[]
 WCHAR* ConvertUtf8ToMultiByte(const char* pName);
+char*  ConvertUtf8ToConsole  (const char* pString);
 
 //
 // MessageId: MSG_ERR_EXIST

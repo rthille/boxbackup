@@ -159,7 +159,8 @@ bool EnableBackupRights( void )
 		TOKEN_ADJUST_PRIVILEGES, 
 		&hToken ))
 	{
-		printf( "Cannot open process token - err = %d\n", GetLastError( ) );
+		printf( "Cannot open process token: error %d\n", 
+			(int)GetLastError() );
 		return false;
 	}
 
@@ -170,7 +171,8 @@ bool EnableBackupRights( void )
 		SE_BACKUP_NAME, //the name of the privilege
 		&( token_priv.Privileges[0].Luid )) ) //result
 	{
-		printf( "Cannot lookup backup privilege - err = %d\n", GetLastError( ) );
+		printf( "Cannot lookup backup privilege: error %d\n", 
+			(int)GetLastError( ) );
 		return false;
 	}
 
@@ -190,7 +192,8 @@ bool EnableBackupRights( void )
 		//this function is a little tricky - if we were adjusting
 		//more than one privilege, it could return success but not
 		//adjust them all - in the general case, you need to trap this
-		printf( "Could not enable backup privileges - err = %d\n", GetLastError( ) );
+		printf( "Could not enable backup privileges: error %d\n", 
+			(int)GetLastError( ) );
 		return false;
 
 	}
@@ -212,7 +215,7 @@ bool EnableBackupRights( void )
 // --------------------------------------------------------------------------
 WCHAR* ConvertUtf8ToMultiByte(const char* pName)
 {
-	int strlen = MultiByteToWideChar(
+	int len = MultiByteToWideChar(
 		CP_UTF8,       // source code page
 		0,             // character-type options
 		pName,         // string to map
@@ -222,7 +225,7 @@ WCHAR* ConvertUtf8ToMultiByte(const char* pName)
 		               //   how much space we need
 		);
 
-	WCHAR* buffer = new WCHAR[strlen+1];
+	WCHAR* buffer = new WCHAR[len+1];
 
 	if (buffer == NULL)
 	{
@@ -233,16 +236,16 @@ WCHAR* ConvertUtf8ToMultiByte(const char* pName)
 		return NULL;
 	}
 
-	strlen = MultiByteToWideChar(
+	len = MultiByteToWideChar(
 		CP_UTF8,       // source code page
 		0,             // character-type options
 		pName,         // string to map
 		strlen(pName), // number of bytes in string
 		buffer,        // wide-character buffer
-		strlen         // size of buffer
+		len         // size of buffer
 		);
 
-	if (strlen == 0)
+	if (len == 0)
 	{
 		::syslog(LOG_WARNING, 
 			"Failed to convert string to multibyte: '%s': "
@@ -252,7 +255,88 @@ WCHAR* ConvertUtf8ToMultiByte(const char* pName)
 		return NULL;
 	}
 
-	buffer[strlen] = L'\0';
+	buffer[len] = L'\0';
+
+	return buffer;
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    ConvertUtf8ToConsole
+//		Purpose: Converts a string from UTF-8 to the console 
+//			 code page. Returns a buffer which MUST be freed 
+//			 by the caller with delete[].
+//			 In case of fire, logs the error and returns NULL.
+//		Created: 4th February 2006
+//
+// --------------------------------------------------------------------------
+char* ConvertUtf8ToConsole(const char* pString)
+{
+	WCHAR* pMulti = ConvertUtf8ToMultiByte(pString);
+	if (pMulti == NULL)
+	{
+		return NULL;
+	}
+
+	int len = WideCharToMultiByte(
+		GetConsoleCP(), // destination code page
+		0,              // character-type options
+		pMulti,         // string to map
+		-1,             // number of bytes in string - auto detect
+		NULL,           // output buffer
+		0,              // size of buffer - work out 
+		                //   how much space we need
+		"?",		// replace unknown chars with "?"
+		NULL		// don't tell us when that happened
+		);
+
+	if (len == 0)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to convert UTF-8 string to console: '%s': "
+			"error %d", pString, GetLastError());
+		delete [] pMulti;
+		errno = EINVAL;
+		return NULL;
+	}
+
+	char* buffer = new char[len+1];
+
+	if (buffer == NULL)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to convert UTF-8 string to console: '%s': "
+			"out of memory", pString);
+		delete [] pMulti;
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	len = WideCharToMultiByte(
+		GetConsoleCP(), // source code page
+		0,              // character-type options
+		pMulti,         // string to map
+		-1,             // number of bytes in string - auto detect
+		buffer,         // output buffer
+		len,            // size of buffer
+		"?",		// replace unknown chars with "?"
+		NULL		// don't tell us when that happened
+		);
+
+	if (len == 0)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to convert UTF-8 string to console: '%s': "
+			"error %i", pString, GetLastError());
+		delete [] pMulti;
+		errno = EACCES;
+		delete [] buffer;
+		return NULL;
+	}
+
+	buffer[len] = L'\0';
+	delete [] pMulti;
 
 	return buffer;
 }
@@ -265,7 +349,7 @@ WCHAR* ConvertUtf8ToMultiByte(const char* pName)
 //		Created: 4th February 2006
 //
 // --------------------------------------------------------------------------
-std::string ConvertPathToAbsoluteUnicode(const char *filename)
+std::string ConvertPathToAbsoluteUnicode(const char *pFileName)
 {
 	std::string tmpStr("\\\\?\\");
 	
@@ -273,7 +357,7 @@ std::string ConvertPathToAbsoluteUnicode(const char *filename)
 	// Absolute paths on Windows are always a drive letter
 	// followed by ':'
 	
-	if (fileN[1] != ':')
+	if (pFileName[1] != ':')
 	{
 		// Must be relative. We need to get the 
 		// current directory to make it absolute.
@@ -282,7 +366,8 @@ std::string ConvertPathToAbsoluteUnicode(const char *filename)
 		if (::getcwd(wd, PATH_MAX) == 0)
 		{
 			::syslog(LOG_WARNING, 
-				"Failed to open '%s': path too long", pName);
+				"Failed to open '%s': path too long", 
+				pFileName);
 			errno = ENAMETOOLONG;
 			tmpStr = "";
 			return tmpStr;
@@ -295,7 +380,7 @@ std::string ConvertPathToAbsoluteUnicode(const char *filename)
 		}
 	}
 	
-	tmpStr += filename;
+	tmpStr += pFileName;
 	return tmpStr;
 }
 
@@ -515,7 +600,7 @@ HANDLE OpenFileByNameUtf8(const char* pFileName)
 			NULL);
 	}
 
-	delete [] buffer;
+	delete [] pBuffer;
 
 	if (handle == INVALID_HANDLE_VALUE)
 	{
@@ -873,6 +958,7 @@ void syslog(int loglevel, const char *frmt, ...)
 	va_start(args, frmt);
 
 	int len = vsnprintf(buffer, sizeof(buffer)-1, sixfour.c_str(), args);
+	ASSERT(len < sizeof(buffer))
 	buffer[sizeof(buffer)-1] = 0;
 
 	va_end(args);
@@ -892,8 +978,8 @@ void syslog(int loglevel, const char *frmt, ...)
 
 	{
 		DWORD err = GetLastError();
-		printf("Unable to send message to Event Log "
-			"(error %i):\r\n", err);
+		printf("Unable to send message to Event Log: "
+			"error %i:\r\n", (int)err);
 	}
 
 	printf("%s\r\n", buffer);
