@@ -203,131 +203,177 @@ bool EnableBackupRights( void )
 // --------------------------------------------------------------------------
 //
 // Function
+//		Name:    ConvertUtf8ToMultiByte
+//		Purpose: Converts a string from UTF-8 to multibyte characters (MBCS).
+//			Returns a buffer which MUST be freed by the caller with delete[].
+//			In case of fire, logs the error and returns NULL.
+//		Created: 4th February 2006
+//
+// --------------------------------------------------------------------------
+WCHAR* ConvertUtf8ToMultiByte(const char* pName)
+{
+	int strlen = MultiByteToWideChar(
+		CP_UTF8,       // source code page
+		0,             // character-type options
+		pName,         // string to map
+		strlen(pName), // number of bytes in string
+		NULL,          // wide-character buffer
+		0              // size of buffer - work out 
+		               //   how much space we need
+		);
+
+	WCHAR* buffer = new WCHAR[strlen+1];
+
+	if (buffer == NULL)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to convert string to multibyte: '%s': "
+			"out of memory", pName);
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	strlen = MultiByteToWideChar(
+		CP_UTF8,       // source code page
+		0,             // character-type options
+		pName,         // string to map
+		strlen(pName), // number of bytes in string
+		buffer,        // wide-character buffer
+		strlen         // size of buffer
+		);
+
+	if (strlen == 0)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to convert string to multibyte: '%s': "
+			"error %i", pName, GetLastError());
+		errno = EACCES;
+		delete [] buffer;
+		return NULL;
+	}
+
+	buffer[strlen] = L'\0';
+
+	return buffer;
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    ConvertPathToAbsoluteUnicode
+//		Purpose: Converts relative paths to absolute (with unicode marker)
+//		Created: 4th February 2006
+//
+// --------------------------------------------------------------------------
+std::string ConvertPathToAbsoluteUnicode(const char *filename)
+{
+	std::string tmpStr("\\\\?\\");
+	
+	// Is the path relative or absolute?
+	// Absolute paths on Windows are always a drive letter
+	// followed by ':'
+	
+	if (fileN[1] != ':')
+	{
+		// Must be relative. We need to get the 
+		// current directory to make it absolute.
+		
+		char wd[PATH_MAX];
+		if (::getcwd(wd, PATH_MAX) == 0)
+		{
+			::syslog(LOG_WARNING, 
+				"Failed to open '%s': path too long", pName);
+			errno = ENAMETOOLONG;
+			tmpStr = "";
+			return tmpStr;
+		}
+		
+		tmpStr += wd;
+		if (tmpStr[tmpStr.length()] != '\\')
+		{
+			tmpStr += '\\';
+		}
+	}
+	
+	tmpStr += filename;
+	return tmpStr;
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
 //		Name:    openfile
 //		Purpose: replacement for any open calls - handles unicode filenames - supplied in utf8
 //		Created: 25th October 2004
 //
 // --------------------------------------------------------------------------
-HANDLE openfile(const char *filename, int flags, int mode)
+HANDLE openfile(const char *pFileName, int flags, int mode)
 {
-	try
+	std::string AbsPathWithUnicode = ConvertPathToAbsoluteUnicode(pFileName);
+	
+	if (AbsPathWithUnicode.size() == 0)
 	{
-		wchar_t *buffer;
-		std::string fileN(filename);
-
-		std::string tmpStr("\\\\?\\");
-		//is the path relative or otherwise
-		if ( fileN[1] != ':' )
-		{
-			//we need to get the current directory
-			char wd[PATH_MAX];
-			if(::getcwd(wd, PATH_MAX) == 0)
-			{
-				return NULL;
-			}
-			tmpStr += wd;
-			if (tmpStr[tmpStr.length()] != '\\')
-			{
-				tmpStr += '\\';
-			}
-		}
-		tmpStr += filename;
-
-		int strlen = MultiByteToWideChar(
-			CP_UTF8,               // code page
-			0,                     // character-type options
-			tmpStr.c_str(),        // string to map
-			(int)tmpStr.length(),       // number of bytes in string
-			NULL,                  // wide-character buffer
-			0                      // size of buffer - work out how much space we need
-			);
-
-		buffer = new wchar_t[strlen+1];
-		if ( buffer == NULL )
-		{
-			::syslog(LOG_WARNING, "Failed to allocate buffer "
-				"for converting file name: %s",
-				tmpStr.c_str());
-			return NULL;
-		}
-
-		strlen = MultiByteToWideChar(
-			CP_UTF8,               // code page
-			0,                     // character-type options
-			tmpStr.c_str(),        // string to map
-			(int)tmpStr.length(),       // number of bytes in string
-			buffer,                // wide-character buffer
-			strlen                 // size of buffer
-			);
-
-		if ( strlen == 0 )
-		{
-			::syslog(LOG_WARNING, "Failed to convert filename "
-				"to unicode: %s (error %i)",
-				tmpStr.c_str(), GetLastError());
-			delete [] buffer;
-			return NULL;
-		}
-
-		buffer[strlen] = L'\0';
-
-		//flags could be O_WRONLY | O_CREAT | O_RDONLY
-		DWORD createDisposition = OPEN_EXISTING;
-		DWORD shareMode = FILE_SHARE_READ;
-		DWORD accessRights = FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | FILE_READ_EA;
-
-		if (flags & O_WRONLY)
-		{
-			shareMode = FILE_SHARE_WRITE;
-		}
-		if (flags & O_RDWR)
-		{
-			shareMode = FILE_SHARE_READ | FILE_SHARE_WRITE;
-		}
-		if (flags & O_CREAT)
-		{
-			createDisposition = OPEN_ALWAYS;
-			shareMode |= FILE_SHARE_WRITE;
-			accessRights |= FILE_WRITE_ATTRIBUTES 
-				| FILE_WRITE_DATA | FILE_WRITE_EA 
-				| FILE_ALL_ACCESS;
-		}
-		if (flags & O_TRUNC)
-		{
-			createDisposition = CREATE_ALWAYS;
-		}
-		if (flags & O_EXCL)
-		{
-			shareMode = 0;
-		}
-
-		HANDLE hdir = CreateFileW(buffer, 
-			accessRights, 
-			shareMode, 
-			NULL, 
-			createDisposition, 
-			FILE_FLAG_BACKUP_SEMANTICS,
-			NULL);
-
-		if ( hdir == INVALID_HANDLE_VALUE )
-		{
-			DWORD err = GetLastError();
-			::syslog(LOG_WARNING, "Failed to open file %s: "
-				"error %i", filename, err);
-			delete [] buffer;
-			return NULL;
-		}
-
-		delete [] buffer;
-		return hdir;
-
+		// error already logged by ConvertPathToAbsoluteUnicode()
+		return NULL;
 	}
-	catch(...)
+	
+	WCHAR* pBuffer = ConvertUtf8ToMultiByte(AbsPathWithUnicode.c_str());
+	// We are responsible for freeing pBuffer
+	
+	if (pBuffer == NULL)
 	{
-		::syslog(LOG_ERR, "Caught openfile: %s", filename);
+		// error already logged by ConvertUtf8ToMultiByte()
+		return NULL;
 	}
-	return NULL;
 
+	// flags could be O_WRONLY | O_CREAT | O_RDONLY
+	DWORD createDisposition = OPEN_EXISTING;
+	DWORD shareMode = FILE_SHARE_READ;
+	DWORD accessRights = FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | FILE_READ_EA;
+
+	if (flags & O_WRONLY)
+	{
+		shareMode = FILE_SHARE_WRITE;
+	}
+	if (flags & O_RDWR)
+	{
+		shareMode = FILE_SHARE_READ | FILE_SHARE_WRITE;
+	}
+	if (flags & O_CREAT)
+	{
+		createDisposition = OPEN_ALWAYS;
+		shareMode |= FILE_SHARE_WRITE;
+		accessRights |= FILE_WRITE_ATTRIBUTES 
+			| FILE_WRITE_DATA | FILE_WRITE_EA 
+			| FILE_ALL_ACCESS;
+	}
+	if (flags & O_TRUNC)
+	{
+		createDisposition = CREATE_ALWAYS;
+	}
+	if (flags & O_EXCL)
+	{
+		shareMode = 0;
+	}
+
+	HANDLE hdir = CreateFileW(pBuffer, 
+		accessRights, 
+		shareMode, 
+		NULL, 
+		createDisposition, 
+		FILE_FLAG_BACKUP_SEMANTICS,
+		NULL);
+	
+	delete [] pBuffer;
+
+	if (hdir == INVALID_HANDLE_VALUE)
+	{
+		::syslog(LOG_WARNING, "Failed to open file %s: "
+			"error %i", pFileName, GetLastError());
+		return NULL;
+	}
+
+	return hdir;
 }
 
 // MinGW provides a getopt implementation
@@ -427,76 +473,26 @@ int ourfstat(HANDLE hdir, struct stat * st)
 //		Created: 10th December 2004
 //
 // --------------------------------------------------------------------------
-HANDLE OpenFileByNameUtf8(const char* pName)
+HANDLE OpenFileByNameUtf8(const char* pFileName)
 {
-	//some string thing - required by ms to indicate long/unicode filename
-	std::string tmpStr("\\\\?\\");
-
-	// is the path relative or otherwise
-	std::string fileN(pName);
-	if (fileN[1] != ':')
+	std::string AbsPathWithUnicode = ConvertPathToAbsoluteUnicode(pFileName);
+	
+	if (AbsPathWithUnicode.size() == 0)
 	{
-		// we need to get the current directory
-		char wd[PATH_MAX];
-		if(::getcwd(wd, PATH_MAX) == 0)
-		{
-			::syslog(LOG_WARNING, 
-				"Failed to open '%s': path too long", pName);
-			errno = ENAMETOOLONG;
-			return NULL;
-		}
-
-		tmpStr += wd;
-		if (tmpStr[tmpStr.length()] != '\\')
-		{
-			tmpStr += '\\';
-		}
+		// error already logged by ConvertPathToAbsoluteUnicode()
+		return NULL;
 	}
-
-	tmpStr += fileN;
-
-	int strlen = MultiByteToWideChar(
-		CP_UTF8,               // code page
-		0,                     // character-type options
-		tmpStr.c_str(),        // string to map
-		(int)tmpStr.length(),  // number of bytes in string
-		NULL,                  // wide-character buffer
-		0                      // size of buffer - work out 
-		                       //   how much space we need
-		);
-
-	wchar_t* buffer = new wchar_t[strlen+1];
-
-	if (buffer == NULL)
+	
+	WCHAR* pBuffer = ConvertUtf8ToMultiByte(AbsPathWithUnicode.c_str());
+	// We are responsible for freeing pBuffer
+	
+	if (pBuffer == NULL)
 	{
-		::syslog(LOG_WARNING, 
-			"Failed to open '%s': out of memory", pName);
-		errno = ENOMEM;
+		// error already logged by ConvertUtf8ToMultiByte()
 		return NULL;
 	}
 
-	strlen = MultiByteToWideChar(
-		CP_UTF8,               // code page
-		0,                     // character-type options
-		tmpStr.c_str(),        // string to map
-		(int)tmpStr.length(),  // number of bytes in string
-		buffer,                // wide-character buffer
-		strlen                 // size of buffer
-		);
-
-	if (strlen == 0)
-	{
-		::syslog(LOG_WARNING, 
-			"Failed to open '%s': could not convert "
-			"file name to Unicode", pName);
-		errno = EACCES;
-		delete [] buffer;
-		return NULL;
-	}
-
-	buffer[strlen] = L'\0';
-
-	HANDLE handle = CreateFileW(buffer, 
+	HANDLE handle = CreateFileW(pBuffer, 
 		FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | FILE_READ_EA, 
 		FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE, 
 		NULL, 
@@ -510,7 +506,7 @@ HANDLE OpenFileByNameUtf8(const char* pName)
 		// open in this mode - to get the inode information
 		// at least one process must have the file open - 
 		// in this case someone else does.
-		handle = CreateFileW(buffer, 
+		handle = CreateFileW(pBuffer, 
 			0, 
 			FILE_SHARE_READ, 
 			NULL, 
@@ -532,7 +528,7 @@ HANDLE OpenFileByNameUtf8(const char* pName)
 		else
 		{
 			::syslog(LOG_WARNING, 
-				"Failed to open '%s': error %d", pName);
+				"Failed to open '%s': error %d", pFileName, err);
 			errno = EACCES;
 		}
 
@@ -630,105 +626,50 @@ int statfs(const char * pName, struct statfs * s)
 // --------------------------------------------------------------------------
 DIR *opendir(const char *name)
 {
-	try
+	if (!name || !name[0])
 	{
-		DIR *dir = 0;
-		std::string dirName(name);
-
-		//append a '\' win32 findfirst is sensitive to this
-		if ( dirName[dirName.size()] != '\\' || dirName[dirName.size()] != '/' )
-		{
-			dirName += '\\';
-		}
-
-		//what is the search string? - everything
-		dirName += '*';
-
-		if(name && name[0])
-		{
-			if ( ( dir = new DIR ) != 0 )
-			{
-				//mbstowcs(dir->name, dirName.c_str(),100);
-				//wcscpy((wchar_t*)dir->name, (const wchar_t*)dirName.c_str());
-				//mbstowcs(dir->name, dirName.c_str(), dirName.size()+1);
-				//wchar_t *buffer;
-
-				int strlen = MultiByteToWideChar(
-					CP_UTF8,               // code page
-					0,                     // character-type options
-					dirName.c_str(),       // string to map
-					(int)dirName.length(), // number of bytes in string
-					NULL,                  // wide-character buffer
-					0                      // size of buffer - work out how much space we need
-					);
-
-				dir->name = new wchar_t[strlen+1];
-
-				if (dir->name == NULL)
-				{
-					delete dir;
-					dir   = 0;
-					errno = ENOMEM;
-					return NULL;
-				}
-
-				strlen = MultiByteToWideChar(
-					CP_UTF8,               // code page
-					0,                     // character-type options
-					dirName.c_str(),        // string to map
-					(int)dirName.length(),       // number of bytes in string
-					dir->name,                // wide-character buffer
-					strlen                 // size of buffer
-					);
-
-				if (strlen == 0)
-				{
-					delete dir->name;
-					delete dir;
-					dir   = 0;
-					errno = ENOMEM;
-					return NULL;
-				}
-
-				dir->name[strlen] = L'\0';
-
-				
-				dir->fd = _wfindfirst(
-					(const wchar_t*)dir->name,
-					&dir->info);
-
-				if (dir->fd != -1)
-				{
-					dir->result.d_name = 0;
-				}
-				else // go back
-				{
-					delete [] dir->name;
-					delete dir;
-					dir = 0;
-				}
-			}
-			else // backwards again
-			{
-				delete dir;
-				dir   = 0;
-				errno = ENOMEM;
-			}
-		}
-		else
-		{
-			errno = EINVAL;
-		}
-
-		return dir;
-
+		errno = EINVAL;
+		return NULL;
 	}
-	catch(...)
+	
+	std::string dirName(name);
+
+	//append a '\' win32 findfirst is sensitive to this
+	if ( dirName[dirName.size()] != '\\' || dirName[dirName.size()] != '/' )
 	{
-		printf("Caught opendir");
+		dirName += '\\';
 	}
 
-	return NULL;
+	// what is the search string? - everything
+	dirName += '*';
+
+	DIR *pDir = new DIR;
+	if (pDir == NULL)
+	{
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	pDir->name = ConvertUtf8ToMultiByte(dirName.c_str());
+	// We are responsible for freeing dir->name
+	
+	if (pDir->name == NULL)
+	{
+		delete pDir;
+		return NULL;
+	}
+
+	pDir->fd = _wfindfirst((const wchar_t*)pDir->name, &(pDir->info));
+
+	if (pDir->fd == -1)
+	{
+		delete [] pDir->name;
+		delete pDir;
+		return NULL;
+	}
+		
+	pDir->result.d_name = 0;
+	return pDir;
 }
 
 // this kinda makes it not thread friendly!
@@ -915,19 +856,18 @@ void syslog(int loglevel, const char *frmt, ...)
 		break;
 	}
 
-
-	//taken from MSDN
+	// taken from MSDN
 	int sixfourpos;
 	while ( (sixfourpos = (int)sixfour.find("%ll")) != -1 )
 	{
-		//maintain portability - change the 64 bit formater...
+		// maintain portability - change the 64 bit formater...
 		std::string temp = sixfour.substr(0,sixfourpos);
 		temp += "%I64";
 		temp += sixfour.substr(sixfourpos+3, sixfour.length());
 		sixfour = temp;
 	}
 
-	//printf("parsed string is:%s\r\n", sixfour.c_str());
+	// printf("parsed string is:%s\r\n", sixfour.c_str());
 
 	va_list args;
 	va_start(args, frmt);
@@ -939,16 +879,16 @@ void syslog(int loglevel, const char *frmt, ...)
 
 	LPCSTR strings[] = { buffer, NULL };
 
-	if (!ReportEvent(gSyslogH,    // event log handle 
-		errinfo,              // event type 
-		0,                    // category zero 
-		MSG_ERR_EXIST,	      // event identifier - 
-		                      // we will call them all the same
-		NULL,                 // no user security identifier 
-		1,                    // one substitution string 
-		0,                    // no data 
-		strings,     // pointer to string array 
-		NULL))                // pointer to data 
+	if (!ReportEvent(gSyslogH, // event log handle 
+		errinfo,               // event type 
+		0,                     // category zero 
+		MSG_ERR_EXIST,	       // event identifier - 
+		                       // we will call them all the same
+		NULL,                  // no user security identifier 
+		1,                     // one substitution string 
+		0,                     // no data 
+		strings,               // pointer to string array 
+		NULL))                 // pointer to data 
 
 	{
 		DWORD err = GetLastError();

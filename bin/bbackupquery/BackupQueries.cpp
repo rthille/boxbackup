@@ -335,7 +335,16 @@ void BackupQueries::CommandList(const std::vector<std::string> &args, const bool
 		rootDir = FindDirectoryObjectID(args[0], opts[LIST_OPTION_ALLOWOLD], opts[LIST_OPTION_ALLOWDELETED]);
 		if(rootDir == 0)
 		{
-			printf("Directory %s not found on store\n", args[0].c_str());
+			char* pMsg = "Directory '%s' not found on store\n";
+#ifdef WIN32
+			WCHAR* pMsgBuffer  = ConvertUtf8ToMultiByte(pMsg);
+			WCHAR* pNameBuffer = ConvertUtf8ToMultiByte(args[0].c_str());
+			wprintf(pMsgBuffer, pNameBuffer);
+			delete [] pNameBuffer;
+			delete [] pMsgBuffer;
+#else
+			printf(msg, args[0].c_str());
+#endif
 			return;
 		}
 	}
@@ -379,19 +388,16 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot, const bool
 	{
 		// Display this entry
 		BackupStoreFilenameClear clear(en->GetName());
-		std::string line;
 		
 		// Object ID?
 		if(!opts[LIST_OPTION_NOOBJECTID])
 		{
 			// add object ID to line
-			char oid[32];
-#ifdef WIN32
-			sprintf(oid, "%08I64x ", en->GetObjectID());
+#ifdef _MSC_VER
+			printf("%08I64x ", (int64_t)en->GetObjectID());
 #else
-			sprintf(oid, "%08llx ", en->GetObjectID());
+			printf("%08llx ", (long long)en->GetObjectID());
 #endif
-			line += oid;
 		}
 		
 		// Flags?
@@ -418,57 +424,70 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot, const bool
 			// terminate
 			*(f++) = ' ';
 			*(f++) = '\0';
-			line += displayflags;
+			printf(displayflags);
+			
 			if(en_flags != 0)
 			{
-				line += "[ERROR: Entry has additional flags set] ";
+				printf("[ERROR: Entry has additional flags set] ");
 			}
 		}
 		
 		if(opts[LIST_OPTION_TIMES])
 		{
 			// Show times...
-			line += BoxTimeToISO8601String(en->GetModificationTime());
-			line += ' ';
+			printf("%s ", BoxTimeToISO8601String(en->GetModificationTime()));
 		}
 		
 		if(opts[LIST_OPTION_DISPLAY_HASH])
 		{
-			char hash[64];
-#ifdef WIN32
-			::sprintf(hash, "%016I64x ", en->GetAttributesHash());
+#ifdef _MSC_VER
+			printf("%016I64x ", (int64_t)en->GetAttributesHash());
 #else
-			::sprintf(hash, "%016llx ", en->GetAttributesHash());
+			printf("%016llx ", (long long)en->GetAttributesHash());
 #endif
-			line += hash;
 		}
 		
 		if(opts[LIST_OPTION_SIZEINBLOCKS])
 		{
-			char num[32];
-#ifdef WIN32
-			sprintf(num, "%05I64d ", en->GetSizeInBlocks());
+#ifdef _MSC_VER
+			printf("%05I64d ", (int64_t)en->GetSizeInBlocks());
 #else
-			sprintf(num, "%05lld ", en->GetSizeInBlocks());
+			printf("%05lld ", (long long)en->GetSizeInBlocks());
 #endif
-			line += num;
 		}
 		
 		// add name
 		if(!FirstLevel)
 		{
-			line += rListRoot;
-			line += '/';
+#ifdef WIN32
+			pMsgBuffer  = ConvertUtf8ToMultiByte("%s");
+			pNameBuffer = ConvertUtf8ToMultiByte(rListRoot);
+			wprintf(pMsgBuffer, pNameBuffer);
+			delete [] pNameBuffer;
+			delete [] pMsgBuffer;
+			printf("/");
+#else
+			printf("%s/", rListRoot.c_str());
+#endif
 		}
-		line += clear.GetClearFilename().c_str();
+		
+#ifdef WIN32
+		{
+			pMsgBuffer  = ConvertUtf8ToMultiByte("%s");
+			pNameBuffer = ConvertUtf8ToMultiByte(
+				clear.GetClearFilename().c_str());
+			wprintf(pMsgBuffer, pNameBuffer);
+			delete [] pNameBuffer;
+			delete [] pMsgBuffer;
+		}
+#else
+		printf("%s", clear.GetClearFilename().c_str());
+#endif
 		
 		if(!en->GetName().IsEncrypted())
 		{
-			line += "[FILENAME NOT ENCRYPTED]";
+			printf("[FILENAME NOT ENCRYPTED]");
 		}
-		
-		// print line
-		printf("%s\n", line.c_str());
 		
 		// Directory?
 		if((en->GetFlags() & BackupStoreDirectory::Entry::Flags_Dir) != 0)
@@ -1715,8 +1734,3 @@ void BackupQueries::CommandUndelete(const std::vector<std::string> &args, const 
 	// Undelete
 	mrConnection.QueryUndeleteDirectory(dirID);
 }
-
-
-
-
-
