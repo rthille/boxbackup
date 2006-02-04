@@ -337,13 +337,12 @@ void BackupQueries::CommandList(const std::vector<std::string> &args, const bool
 		{
 			char* pMsg = "Directory '%s' not found on store\n";
 #ifdef WIN32
-			WCHAR* pMsgBuffer  = ConvertUtf8ToMultiByte(pMsg);
-			WCHAR* pNameBuffer = ConvertUtf8ToMultiByte(args[0].c_str());
-			wprintf(pMsgBuffer, pNameBuffer);
+			char* pNameBuffer = ConvertUtf8ToConsole(
+				args[0].c_str());
+			printf(pMsg, pNameBuffer);
 			delete [] pNameBuffer;
-			delete [] pMsgBuffer;
 #else
-			printf(msg, args[0].c_str());
+			printf(pMsg, args[0].c_str());
 #endif
 			return;
 		}
@@ -435,7 +434,9 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot, const bool
 		if(opts[LIST_OPTION_TIMES])
 		{
 			// Show times...
-			printf("%s ", BoxTimeToISO8601String(en->GetModificationTime()));
+			std::string time = BoxTimeToISO8601String(
+				en->GetModificationTime());
+			printf("%s ", time.c_str());
 		}
 		
 		if(opts[LIST_OPTION_DISPLAY_HASH])
@@ -460,12 +461,10 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot, const bool
 		if(!FirstLevel)
 		{
 #ifdef WIN32
-			pMsgBuffer  = ConvertUtf8ToMultiByte("%s");
-			pNameBuffer = ConvertUtf8ToMultiByte(rListRoot);
-			wprintf(pMsgBuffer, pNameBuffer);
+			char* pNameBuffer = ConvertUtf8ToConsole(
+				rListRoot.c_str());
+			printf("%s/", pNameBuffer);
 			delete [] pNameBuffer;
-			delete [] pMsgBuffer;
-			printf("/");
 #else
 			printf("%s/", rListRoot.c_str());
 #endif
@@ -473,12 +472,10 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot, const bool
 		
 #ifdef WIN32
 		{
-			pMsgBuffer  = ConvertUtf8ToMultiByte("%s");
-			pNameBuffer = ConvertUtf8ToMultiByte(
+			char* pNameBuffer = ConvertUtf8ToConsole(
 				clear.GetClearFilename().c_str());
-			wprintf(pMsgBuffer, pNameBuffer);
+			printf("%s", pNameBuffer);
 			delete [] pNameBuffer;
-			delete [] pMsgBuffer;
 		}
 #else
 		printf("%s", clear.GetClearFilename().c_str());
@@ -488,6 +485,8 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot, const bool
 		{
 			printf("[FILENAME NOT ENCRYPTED]");
 		}
+
+		printf("\n");
 		
 		// Directory?
 		if((en->GetFlags() & BackupStoreDirectory::Entry::Flags_Dir) != 0)
