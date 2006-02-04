@@ -95,7 +95,7 @@ void WINAPI ServiceControlHandler( DWORD controlCode )
 
 VOID ServiceMain(DWORD argc, LPTSTR *argv) 
 {
-   // initialise service status
+    // initialise service status
     gServiceStatus.dwServiceType = SERVICE_WIN32;
     gServiceStatus.dwCurrentState = SERVICE_STOPPED;
     gServiceStatus.dwControlsAccepted = 0;
