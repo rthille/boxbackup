@@ -253,7 +253,15 @@ void BackupQueries::DoCommand(const char *Command)
 		{
 			// Simple implementation, so do it here
 			std::string dir(GetCurrentDirectoryName());
-			printf("%s (%08llx)\n", dir.c_str(), GetCurrentDirectoryID());
+#ifdef WIN32
+			char* pEncoded = ConvertUtf8ToConsole(dir.c_str());
+			printf("%s (%08llx)\n", pEncoded, 
+				(long long)GetCurrentDirectoryID());
+			delete [] pEncoded;
+#else
+			printf("%s (%08llx)\n", dir.c_str(), 
+				(long long)GetCurrentDirectoryID());
+#endif
 		}
 		break;
 
@@ -332,18 +340,17 @@ void BackupQueries::CommandList(const std::vector<std::string> &args, const bool
 	if(args.size() > 0)
 	{
 		// Attempt to find the directory
+#ifdef WIN32
+		char* pBuffer = ConvertConsoleToUtf8(args[0].c_str());
+		rootDir = FindDirectoryObjectID(pBuffer, opts[LIST_OPTION_ALLOWOLD], opts[LIST_OPTION_ALLOWDELETED]);
+		delete [] pBuffer;
+#else
 		rootDir = FindDirectoryObjectID(args[0], opts[LIST_OPTION_ALLOWOLD], opts[LIST_OPTION_ALLOWDELETED]);
+#endif
 		if(rootDir == 0)
 		{
-			char* pMsg = "Directory '%s' not found on store\n";
-#ifdef WIN32
-			char* pNameBuffer = ConvertUtf8ToConsole(
+			printf("Directory '%s' not found on store\n",
 				args[0].c_str());
-			printf(pMsg, pNameBuffer);
-			delete [] pNameBuffer;
-#else
-			printf(pMsg, args[0].c_str());
-#endif
 			return;
 		}
 	}
@@ -585,7 +592,14 @@ int64_t BackupQueries::FindDirectoryObjectID(const std::string &rDirName, bool A
 
 				// Then... find the directory within it
 				BackupStoreDirectory::Iterator i(dir);
+#ifdef WIN32
+				char* pBuffer = ConvertConsoleToUtf8(
+					dirElements[e].c_str());
+				BackupStoreFilenameClear dirname(pBuffer);
+				delete [] pBuffer;
+#else
 				BackupStoreFilenameClear dirname(dirElements[e]);
+#endif
 				BackupStoreDirectory::Entry *en = i.FindMatchingClearName(dirname);
 				if(en == 0)
 				{
@@ -653,7 +667,14 @@ std::string BackupQueries::GetCurrentDirectoryName()
 	for(unsigned int l = 0; l < mDirStack.size(); ++l)
 	{
 		r += "/";
+#ifdef WIN32
+		char* pBuffer = ConvertUtf8ToConsole(
+			mDirStack[l].first.c_str());
+		r += pBuffer;
+		delete [] pBuffer;
+#else
 		r += mDirStack[l].first;
+#endif
 	}
 	
 	return r;
@@ -850,7 +871,13 @@ void BackupQueries::CommandGet(const std::vector<std::string> &args, const bool 
 		{				
 			// Specified by name, find the object in the directory to get the ID
 			BackupStoreDirectory::Iterator i(dir);
+#ifdef WIN32
+			char* pBuffer = ConvertConsoleToUtf8(args[0].c_str());
+			BackupStoreFilenameClear fn(pBuffer);
+			delete [] pBuffer;
+#else
 			BackupStoreFilenameClear fn(args[0]);
+#endif
 			BackupStoreDirectory::Entry *en = i.FindMatchingClearName(fn);
 			
 			if(en == 0)
@@ -892,7 +919,7 @@ void BackupQueries::CommandGet(const std::vector<std::string> &args, const bool 
 	}
 	catch(...)
 	{
-		::unlink(args[1].c_str());
+		::unlink(localName.c_str());
 		printf("Error occured fetching file.\n");
 	}
 }
@@ -986,7 +1013,7 @@ void BackupQueries::CommandCompare(const std::vector<std::string> &args, const b
 		}
 		else
 		{
-			printf("Warning: couldn't determine the time of the last syncronisation -- checks not performed.\n");
+			printf("Warning: couldn't determine the time of the last synchronisation -- checks not performed.\n");
 		}
 	}
 
