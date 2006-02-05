@@ -429,10 +429,9 @@ inline time_t ConvertFileTimeToTime_t(FILETIME *fileTime)
 int poll (struct pollfd *ufds, unsigned long nfds, int timeout);
 bool EnableBackupRights( void );
 
-// caller must free the returned buffer from ConvertUtf8ToMultiByte()
-// with delete[]
-WCHAR* ConvertUtf8ToMultiByte(const char* pName);
-char*  ConvertUtf8ToConsole  (const char* pString);
+// caller must free the returned buffer with delete[]
+char* ConvertUtf8ToConsole(const char* pString);
+char* ConvertConsoleToUtf8(const char* pString);
 
 //
 // MessageId: MSG_ERR_EXIST
