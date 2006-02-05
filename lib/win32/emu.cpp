@@ -308,7 +308,7 @@ char* ConvertFromWideString(const WCHAR* pString, unsigned int codepage)
 		NULL,     // output buffer
 		0,        // size of buffer - work out 
 		          //   how much space we need
-		"?",      // replace unknown chars with "?"
+		NULL,     // replace unknown chars with system default
 		NULL      // don't tell us when that happened
 	);
 
@@ -340,7 +340,7 @@ char* ConvertFromWideString(const WCHAR* pString, unsigned int codepage)
 		-1,       // number of bytes in string - auto detect
 		buffer,   // output buffer
 		len,      // size of buffer
-		"?",      // replace unknown chars with "?"
+		NULL,     // replace unknown chars with system default
 		NULL      // don't tell us when that happened
 	);
 
@@ -538,18 +538,18 @@ char nextchar = -1;
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    ourfstat
+//		Name:    emu_fstat
 //		Purpose: replacement for fstat supply a windows handle
 //		Created: 25th October 2004
 //
 // --------------------------------------------------------------------------
-int ourfstat(HANDLE hdir, struct stat * st)
+int emu_fstat(HANDLE hdir, struct stat * st)
 {
 	ULARGE_INTEGER conv;
 
 	if (hdir == INVALID_HANDLE_VALUE)
 	{
-		::syslog(LOG_ERR, "Error: invalid file handle in ourfstat()");
+		::syslog(LOG_ERR, "Error: invalid file handle in emu_fstat()");
 		errno = EBADF;
 		return -1;
 	}
@@ -691,13 +691,13 @@ HANDLE OpenFileByNameUtf8(const char* pFileName)
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    ourstat 
+//		Name:    emu_stat 
 //		Purpose: replacement for the lstat and stat functions, 
 //			works with unicode filenames supplied in utf8 format
 //		Created: 25th October 2004
 //
 // --------------------------------------------------------------------------
-int ourstat(const char * pName, struct stat * st)
+int emu_stat(const char * pName, struct stat * st)
 {
 	// at the mo
 	st->st_uid = 0;
@@ -712,7 +712,7 @@ int ourstat(const char * pName, struct stat * st)
 		return -1;
 	}
 
-	int retVal = ourfstat(handle, st);
+	int retVal = emu_fstat(handle, st);
 	if (retVal != 0)
 	{
 		// error logged, but without filename
@@ -1048,6 +1048,101 @@ void syslog(int loglevel, const char *frmt, ...)
 	}
 
 	printf("%s\r\n", buffer);
+}
+
+int emu_chdir(const char* pDirName)
+{
+	WCHAR* pBuffer = ConvertUtf8ToWideString(pDirName);
+	if (!pBuffer) return -1;
+	int result = SetCurrentDirectoryW(pBuffer);
+	delete [] pBuffer;
+	if (result != 0) return 0;
+	errno = EACCES;
+	return -1;
+}
+
+char* emu_getcwd(char* pBuffer, int BufSize)
+{
+	DWORD len = GetCurrentDirectoryW(0, NULL);
+	if (len == 0)
+	{
+		errno = EINVAL;
+		return NULL;
+	}
+
+	if (len > BufSize)
+	{
+		errno = ENAMETOOLONG;
+		return NULL;
+	}
+
+	WCHAR* pWide = new WCHAR [len];
+	if (!pWide)
+	{
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	DWORD result = GetCurrentDirectoryW(len, pWide);
+	if (result <= 0 || result >= len)
+	{
+		errno = EACCES;
+		return NULL;
+	}
+
+	char* pUtf8 = ConvertFromWideString(pWide, CP_UTF8);
+	delete [] pWide;
+
+	if (!pUtf8)
+	{
+		return NULL;
+	}
+
+	strncpy(pBuffer, pUtf8, BufSize - 1);
+	pBuffer[BufSize - 1] = 0;
+	delete [] pUtf8;
+
+	return pBuffer;
+}
+
+int emu_mkdir(const char* pPathName)
+{
+	WCHAR* pBuffer = ConvertToWideString(pPathName, CP_UTF8);
+	if (!pBuffer)
+	{
+		return -1;
+	}
+
+	BOOL result = CreateDirectoryW(pBuffer, NULL);
+	delete [] pBuffer;
+
+	if (!result)
+	{
+		errno = EACCES;
+		return -1;
+	}
+
+	return 0;
+}
+
+int emu_unlink(const char* pFileName)
+{
+	WCHAR* pBuffer = ConvertToWideString(pFileName, CP_UTF8);
+	if (!pBuffer)
+	{
+		return -1;
+	}
+
+	BOOL result = DeleteFileW(pBuffer);
+	delete [] pBuffer;
+
+	if (!result)
+	{
+		errno = EACCES;
+		return -1;
+	}
+
+	return 0;
 }
 
 #endif // WIN32
