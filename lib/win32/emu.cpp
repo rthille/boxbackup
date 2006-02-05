@@ -206,56 +206,153 @@ bool EnableBackupRights( void )
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    ConvertUtf8ToMultiByte
-//		Purpose: Converts a string from UTF-8 to multibyte characters (MBCS).
-//			Returns a buffer which MUST be freed by the caller with delete[].
-//			In case of fire, logs the error and returns NULL.
+//		Name:    ConvertToWideString
+//		Purpose: Converts a string from specified codepage to 
+//			 a wide string (WCHAR*). Returns a buffer which 
+//			 MUST be freed by the caller with delete[].
+//			 In case of fire, logs the error and returns NULL.
 //		Created: 4th February 2006
 //
 // --------------------------------------------------------------------------
-WCHAR* ConvertUtf8ToMultiByte(const char* pName)
+WCHAR* ConvertToWideString(const char* pString, unsigned int codepage)
 {
-	int len = MultiByteToWideChar(
-		CP_UTF8,       // source code page
-		0,             // character-type options
-		pName,         // string to map
-		strlen(pName), // number of bytes in string
-		NULL,          // wide-character buffer
-		0              // size of buffer - work out 
-		               //   how much space we need
-		);
-
-	WCHAR* buffer = new WCHAR[len+1];
-
-	if (buffer == NULL)
-	{
-		::syslog(LOG_WARNING, 
-			"Failed to convert string to multibyte: '%s': "
-			"out of memory", pName);
-		errno = ENOMEM;
-		return NULL;
-	}
-
-	len = MultiByteToWideChar(
-		CP_UTF8,       // source code page
-		0,             // character-type options
-		pName,         // string to map
-		strlen(pName), // number of bytes in string
-		buffer,        // wide-character buffer
-		len         // size of buffer
-		);
+	int len = MultiByteToWideChar
+	(
+		codepage, // source code page
+		0,        // character-type options
+		pString,  // string to map
+		-1,       // number of bytes in string - auto detect
+		NULL,     // wide-character buffer
+		0         // size of buffer - work out 
+		          //   how much space we need
+	);
 
 	if (len == 0)
 	{
 		::syslog(LOG_WARNING, 
-			"Failed to convert string to multibyte: '%s': "
-			"error %i", pName, GetLastError());
+			"Failed to convert string to wide string: "
+			"error %d", GetLastError());
+		errno = EINVAL;
+		return NULL;
+	}
+
+	WCHAR* buffer = new WCHAR[len];
+
+	if (buffer == NULL)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to convert string to wide string: "
+			"out of memory");
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	len = MultiByteToWideChar
+	(
+		codepage, // source code page
+		0,        // character-type options
+		pString,  // string to map
+		-1,       // number of bytes in string - auto detect
+		buffer,   // wide-character buffer
+		len       // size of buffer
+	);
+
+	if (len == 0)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to convert string to wide string: "
+			"error %i", GetLastError());
 		errno = EACCES;
 		delete [] buffer;
 		return NULL;
 	}
 
-	buffer[len] = L'\0';
+	return buffer;
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    ConvertUtf8ToWideString
+//		Purpose: Converts a string from UTF-8 to a wide string.
+//			 Returns a buffer which MUST be freed by the caller 
+//			 with delete[].
+//			 In case of fire, logs the error and returns NULL.
+//		Created: 4th February 2006
+//
+// --------------------------------------------------------------------------
+WCHAR* ConvertUtf8ToWideString(const char* pString)
+{
+	return ConvertToWideString(pString, CP_UTF8);
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    ConvertFromWideString
+//		Purpose: Converts a wide string to a narrow string in the
+//			 specified code page. Returns a buffer which MUST 
+//			 be freed by the caller with delete[].
+//			 In case of fire, logs the error and returns NULL.
+//		Created: 4th February 2006
+//
+// --------------------------------------------------------------------------
+char* ConvertFromWideString(const WCHAR* pString, unsigned int codepage)
+{
+	int len = WideCharToMultiByte
+	(
+		codepage, // destination code page
+		0,        // character-type options
+		pString,  // string to map
+		-1,       // number of bytes in string - auto detect
+		NULL,     // output buffer
+		0,        // size of buffer - work out 
+		          //   how much space we need
+		"?",      // replace unknown chars with "?"
+		NULL      // don't tell us when that happened
+	);
+
+	if (len == 0)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to convert wide string to narrow: "
+			"error %d", GetLastError());
+		errno = EINVAL;
+		return NULL;
+	}
+
+	char* buffer = new char[len];
+
+	if (buffer == NULL)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to convert wide string to narrow: "
+			"out of memory");
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	len = WideCharToMultiByte
+	(
+		codepage, // source code page
+		0,        // character-type options
+		pString,  // string to map
+		-1,       // number of bytes in string - auto detect
+		buffer,   // output buffer
+		len,      // size of buffer
+		"?",      // replace unknown chars with "?"
+		NULL      // don't tell us when that happened
+	);
+
+	if (len == 0)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to convert wide string to narrow: "
+			"error %i", GetLastError());
+		errno = EACCES;
+		delete [] buffer;
+		return NULL;
+	}
 
 	return buffer;
 }
@@ -273,73 +370,41 @@ WCHAR* ConvertUtf8ToMultiByte(const char* pName)
 // --------------------------------------------------------------------------
 char* ConvertUtf8ToConsole(const char* pString)
 {
-	WCHAR* pMulti = ConvertUtf8ToMultiByte(pString);
+	WCHAR* pMulti = ConvertToWideString(pString, CP_UTF8);
 	if (pMulti == NULL)
 	{
 		return NULL;
 	}
 
-	int len = WideCharToMultiByte(
-		GetConsoleCP(), // destination code page
-		0,              // character-type options
-		pMulti,         // string to map
-		-1,             // number of bytes in string - auto detect
-		NULL,           // output buffer
-		0,              // size of buffer - work out 
-		                //   how much space we need
-		"?",		// replace unknown chars with "?"
-		NULL		// don't tell us when that happened
-		);
-
-	if (len == 0)
-	{
-		::syslog(LOG_WARNING, 
-			"Failed to convert UTF-8 string to console: '%s': "
-			"error %d", pString, GetLastError());
-		delete [] pMulti;
-		errno = EINVAL;
-		return NULL;
-	}
-
-	char* buffer = new char[len+1];
-
-	if (buffer == NULL)
-	{
-		::syslog(LOG_WARNING, 
-			"Failed to convert UTF-8 string to console: '%s': "
-			"out of memory", pString);
-		delete [] pMulti;
-		errno = ENOMEM;
-		return NULL;
-	}
-
-	len = WideCharToMultiByte(
-		GetConsoleCP(), // source code page
-		0,              // character-type options
-		pMulti,         // string to map
-		-1,             // number of bytes in string - auto detect
-		buffer,         // output buffer
-		len,            // size of buffer
-		"?",		// replace unknown chars with "?"
-		NULL		// don't tell us when that happened
-		);
-
-	if (len == 0)
-	{
-		::syslog(LOG_WARNING, 
-			"Failed to convert UTF-8 string to console: '%s': "
-			"error %i", pString, GetLastError());
-		delete [] pMulti;
-		errno = EACCES;
-		delete [] buffer;
-		return NULL;
-	}
-
-	buffer[len] = L'\0';
+	char* pConsole = ConvertFromWideString(pMulti, GetConsoleOutputCP());
 	delete [] pMulti;
-
-	return buffer;
+	return pConsole;
 }
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    ConvertConsoleToUtf8
+//		Purpose: Converts a string from the console code page
+//			 to UTF-8. Returns a buffer which MUST be freed 
+//			 by the caller with delete[].
+//			 In case of fire, logs the error and returns NULL.
+//		Created: 4th February 2006
+//
+// --------------------------------------------------------------------------
+char* ConvertConsoleToUtf8(const char* pString)
+{
+	WCHAR* pMulti = ConvertToWideString(pString, GetConsoleCP());
+	if (pMulti == NULL)
+	{
+		return NULL;
+	}
+
+	char* pConsole = ConvertFromWideString(pMulti, CP_UTF8);
+	delete [] pMulti;
+	return pConsole;
+}
+
 
 // --------------------------------------------------------------------------
 //
@@ -402,12 +467,12 @@ HANDLE openfile(const char *pFileName, int flags, int mode)
 		return NULL;
 	}
 	
-	WCHAR* pBuffer = ConvertUtf8ToMultiByte(AbsPathWithUnicode.c_str());
+	WCHAR* pBuffer = ConvertUtf8ToWideString(AbsPathWithUnicode.c_str());
 	// We are responsible for freeing pBuffer
 	
 	if (pBuffer == NULL)
 	{
-		// error already logged by ConvertUtf8ToMultiByte()
+		// error already logged by ConvertUtf8ToWideString()
 		return NULL;
 	}
 
@@ -568,12 +633,12 @@ HANDLE OpenFileByNameUtf8(const char* pFileName)
 		return NULL;
 	}
 	
-	WCHAR* pBuffer = ConvertUtf8ToMultiByte(AbsPathWithUnicode.c_str());
+	WCHAR* pBuffer = ConvertUtf8ToWideString(AbsPathWithUnicode.c_str());
 	// We are responsible for freeing pBuffer
 	
 	if (pBuffer == NULL)
 	{
-		// error already logged by ConvertUtf8ToMultiByte()
+		// error already logged by ConvertUtf8ToWideString()
 		return NULL;
 	}
 
@@ -735,7 +800,7 @@ DIR *opendir(const char *name)
 		return NULL;
 	}
 
-	pDir->name = ConvertUtf8ToMultiByte(dirName.c_str());
+	pDir->name = ConvertUtf8ToWideString(dirName.c_str());
 	// We are responsible for freeing dir->name
 	
 	if (pDir->name == NULL)
