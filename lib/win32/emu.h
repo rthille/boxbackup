@@ -3,7 +3,6 @@
 #if ! defined EMU_INCLUDE && defined WIN32
 #define EMU_INCLUDE
 
-// #define _STAT_DEFINED
 #define _INO_T_DEFINED
 
 #include <winsock2.h>
@@ -17,9 +16,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <time.h>
-//#include <winsock.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
 
 #include <string>
 
@@ -37,12 +33,7 @@
 #define read(fd,buf,count)    _read(fd,buf,count)
 #define write(fd,buf,count)   _write(fd,buf,count)
 #define lseek(fd,off,whence)  _lseek(fd,off,whence)
-#define unlink(file)          _unlink(file)
-#define chmod(file,mode)      _chmod(file,mode)
-#define ::chmod(file,mode)    _chmod(file,mode)
-#define getcwd(buf,length)    _getcwd(buf,length)
 #define fileno(struct_file)   _fileno(struct_file)
-#define chdir(dir)            _chdir(dir)
 #endif
 
 int SetTimerHandler(void (__cdecl *func ) (int));
@@ -122,10 +113,31 @@ inline int chown(const char * Filename, u_int32_t uid, u_int32_t gid)
 	return 0;
 }
 
-inline int _chmod(const char * Filename, int mode)
+inline int chmod(const char * Filename, int mode)
 {
 	// indicate success
 	return 0;
+}
+
+int emu_chdir(const char* pDirName);
+
+inline int chdir(const char* pDirName)
+{
+	return emu_chdir(pDirName);
+}
+
+char* emu_getcwd(char* pBuffer, int BufSize);
+
+inline char* getcwd(char* pBuffer, int BufSize)
+{
+	return emu_getcwd(pBuffer, BufSize);
+}
+
+int emu_unlink(const char* pFileName);
+
+inline int unlink(const char* pFileName)
+{
+	return emu_unlink(pFileName);
 }
 
 //I do not perceive a need to change the user or group on a backup client
@@ -162,55 +174,56 @@ inline int getuid(void)
 // MinGW provides a getopt implementation
 #ifndef __MINGW32__
 
-//this will need to be implimented if we see fit that command line
-//options are going to be used! (probably then:)
-//where the calling function looks for the parsed parameter
+// this will need to be implemented if we see fit that command line
+// options are going to be used! (probably then:)
+// where the calling function looks for the parsed parameter
 extern char *optarg;
-//optind looks like an index into the string - how far we have moved along
+
+// optind looks like an index into the string - how far we have moved along
 extern int optind;
 extern char nextchar;
 
 inline int getopt(int count, char * const * args, char * tolookfor)
 {
-	if ( optind >= count ) return -1;
+	if (optind >= count) return -1;
 
 	std::string str((const char *)args[optind]);
 	std::string interestin(tolookfor);
 	int opttolookfor = 0;
 	int index = -1;
-	//just initialize the string - just in case it is used.
-	//optarg[0] = 0;
+	// just initialize the string - just in case it is used.
+	// optarg[0] = 0;
 	std::string opt;
 
-	if ( count == 0 ) return -1;
+	if (count == 0) return -1;
 
 	do 
 	{
-		if ( index != -1 )
+		if (index != -1)
 		{
 			str = str.substr(index+1, str.size());
 		}
 
 		index = (int)str.find('-');
 
-		if ( index == -1 ) return -1;
+		if (index == -1) return -1;
 
 		opt = str[1];
 
 		optind ++;
 		str = args[optind];
 	}
-	while ( ( opttolookfor = (int)interestin.find(opt)) == -1 );
+	while ((opttolookfor = (int)interestin.find(opt)) == -1);
 
-	if ( interestin[opttolookfor+1] == ':' ) 
+	if (interestin[opttolookfor+1] == ':') 
 	{
 
-		//strcpy(optarg, str.c_str());
+		// strcpy(optarg, str.c_str());
 		optarg = args[optind];
 		optind ++;
 	}
 
-	//indicate we have finished
+	// indicate we have finished
 	return opt[0];
 }
 #endif // !__MINGW32__
@@ -257,20 +270,17 @@ struct itimerval
 
 #define S_ISLNK(x) ( false )
 
-// nasty implementation to get working - TODO get the win32 equiv
-//#ifdef _DEBUG
-//#define getpid() 1
-//#endif
-
 #define vsnprintf _vsnprintf
 
 #ifndef __MINGW32__
 typedef unsigned int mode_t;
 #endif
 
-inline int mkdir(const char *pathname, mode_t mode)
+int emu_mkdir(const char* pPathName);
+
+inline int mkdir(const char *pPathName, mode_t mode)
 {
-	return _mkdir(pathname);
+	return emu_mkdir(pPathName);
 }
 
 #ifndef __MINGW32__
@@ -395,8 +405,8 @@ typedef u_int64_t _ino_t;
 #endif
 #endif
 
-int ourstat(const char * name, struct stat * st);
-int ourfstat(HANDLE file, struct stat * st);
+int emu_stat(const char * name, struct stat * st);
+int emu_fstat(HANDLE file, struct stat * st);
 int statfs(const char * name, struct statfs * s);
 
 //need this for converstions
@@ -422,16 +432,28 @@ inline time_t ConvertFileTimeToTime_t(FILETIME *fileTime)
 	return retVal;
 }
 
-#define stat(x,y) ourstat(x,y)
-#define fstat(x,y) ourfstat(x,y)
-#define lstat(x,y) ourstat(x,y)
+inline int stat(const char* filename, struct stat* stat)
+{
+	return emu_stat(filename, stat);
+}
+inline int lstat(const char* filename, struct stat* stat)
+{
+	return emu_stat(filename, stat);
+}
+inline int fstat(HANDLE handle, struct stat* stat)
+{
+	return emu_fstat(handle, stat);
+}
 
-int poll (struct pollfd *ufds, unsigned long nfds, int timeout);
+int poll(struct pollfd *ufds, unsigned long nfds, int timeout);
 bool EnableBackupRights( void );
 
 // caller must free the returned buffer with delete[]
 char* ConvertUtf8ToConsole(const char* pString);
 char* ConvertConsoleToUtf8(const char* pString);
+
+// std::string ConvertUtf8ToConsoleString(const std::string& rUtf8String);
+// std::string ConvertConsoleToUtf8String(const std::string& rConsoleString);
 
 //
 // MessageId: MSG_ERR_EXIST
