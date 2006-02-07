@@ -1292,8 +1292,7 @@ TRACE0("new location\n");
 			// Do a fsstat on the pathname to find out which mount it's on
 			{
 
-#if defined HAVE_STRUCT_STATFS_F_MNTONNAME || defined WIN32 \
-	|| defined __CYGWIN__
+#if defined HAVE_STRUCT_STATFS_F_MNTONNAME || defined WIN32
 
 				// BSD style statfs -- includes mount point, which is nice.
 				struct statfs s;
