@@ -115,7 +115,7 @@ if test "$target_os" != "mingw32"; then
   AX_RANDOM_DEVICE
 fi
 AX_CHECK_MOUNT_POINT(,[
-  if test "$target_os" != "mingw32" -a "$target_os" != "cygwin"; then
+  if test "$target_os" != "mingw32"; then
     AC_MSG_ERROR([[cannot work out how to discover mount points on your platform]])
   fi
   ])
