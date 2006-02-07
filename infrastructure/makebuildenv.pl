@@ -39,7 +39,7 @@ unless(-d 'local')
 my %env_flags;
 
 my $windows_include_path = "-I../../lib/win32 ";
-if ($target_os ne "mingw32" && $target_os ne "winnt")
+if ($target_os ne "mingw32" && $target_os ne "cygwin")
 {
 	$windows_include_path = "";
 	$env_flags{'IGNORE_lib/win32'} = 1;
