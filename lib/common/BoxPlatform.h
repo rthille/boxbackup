@@ -46,6 +46,10 @@
 	#define PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
 #endif
 
+#ifdef __CYGWIN__
+	#define PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
+#endif
+
 // Find out if credentials on UNIX sockets can be obtained
 #ifndef HAVE_GETPEEREID
 	#if !HAVE_DECL_SO_PEERCRED
@@ -140,7 +144,7 @@
 	typedef ino_t InodeRefType;
 #endif
 
-#ifdef WIN32
+#if defined WIN32 || defined __CYGWIN__
 	#define WIN32_LEAN_AND_MEAN
 	#include "emu.h"
 #endif
