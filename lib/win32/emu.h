@@ -1,7 +1,22 @@
 // emulates unix syscalls to win32 functions
 
-#if ! defined EMU_INCLUDE && defined WIN32
+#ifndef EMU_INCLUDE
 #define EMU_INCLUDE
+
+#if defined WIN32 || defined __CYGWIN__
+	#include <errno.h>
+	#define LOG_INFO 6
+	#define LOG_WARNING 4
+	#define LOG_ERR 3
+	#define LOG_PID 0
+	#define LOG_LOCAL6 0
+
+	#ifndef PATH_MAX
+		#define PATH_MAX MAX_PATH
+	#endif
+#endif
+
+#ifdef WIN32
 
 #define _STAT_DEFINED
 #define _INO_T_DEFINED
@@ -10,7 +25,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <direct.h>
-#include <errno.h>
 #include <io.h>
 #include <stdlib.h>
 #include <string.h>
@@ -141,10 +155,6 @@ inline int getuid(void)
 {
 	return 0;
 }
-
-#ifndef PATH_MAX
-#define PATH_MAX MAX_PATH
-#endif
 
 // MinGW provides a getopt implementation
 #ifndef __MINGW32__
@@ -290,12 +300,6 @@ inline int mkdir(const char *pathname, mode_t mode)
 
 HANDLE openfile(const char *filename, int flags, int mode);
 
-#define LOG_INFO 6
-#define LOG_WARNING 4
-#define LOG_ERR 3
-#define LOG_PID 0
-#define LOG_LOCAL6 0
-
 extern HANDLE gSyslogH;
 void MyReportEvent(LPCTSTR *szMsg, DWORD errinfo);
 inline void openlog(const char * daemonName, int, int)
@@ -352,12 +356,6 @@ inline int waitpid(pid_t pid, int *status, int)
 	return 0;
 }
 
-//this shouldn't be needed.
-struct statfs
-{
-	TCHAR f_mntonname[MAX_PATH];
-};
-
 // I think this should get us going
 // Although there is a warning about 
 // mount points in win32 can now exists - which means inode number can be 
@@ -384,7 +382,6 @@ typedef u_int64_t _ino_t;
 
 int ourstat(const char * name, struct stat * st);
 int ourfstat(HANDLE file, struct stat * st);
-int statfs(const char * name, struct statfs * s);
 
 //need this for converstions
 inline time_t ConvertFileTimeToTime_t(FILETIME *fileTime)
@@ -416,6 +413,14 @@ inline time_t ConvertFileTimeToTime_t(FILETIME *fileTime)
 int poll (struct pollfd *ufds, unsigned long nfds, int timeout);
 bool EnableBackupRights( void );
 
+#endif // WIN32
+
+#ifdef __CYGWIN__
+typedef char TCHAR;
+#define MAX_PATH 1024
+#endif
+
+#if defined WIN32 || defined __CYGWIN__
 //
 // MessageId: MSG_ERR_EXIST
 // MessageText:
@@ -423,4 +428,13 @@ bool EnableBackupRights( void );
 //
 #define MSG_ERR_EXIST                         ((DWORD)0xC0000004L)
 
-#endif // !EMU_INCLUDE && WIN32
+// this shouldn't be needed.
+struct statfs
+{
+	TCHAR f_mntonname[MAX_PATH];
+};
+
+int statfs(const char * name, struct statfs * s);
+#endif // WIN32 || __CYGWIN__
+
+#endif // !EMU_INCLUDE
