@@ -10,10 +10,6 @@
 	#define LOG_ERR 3
 	#define LOG_PID 0
 	#define LOG_LOCAL6 0
-
-	#ifndef PATH_MAX
-		#define PATH_MAX MAX_PATH
-	#endif
 #endif
 
 #ifdef WIN32
@@ -155,6 +151,10 @@ inline int getuid(void)
 {
 	return 0;
 }
+
+#ifndef PATH_MAX
+#define PATH_MAX MAX_PATH
+#endif
 
 // MinGW provides a getopt implementation
 #ifndef __MINGW32__
@@ -356,6 +356,12 @@ inline int waitpid(pid_t pid, int *status, int)
 	return 0;
 }
 
+// this shouldn't be needed.
+struct statfs
+{
+	TCHAR f_mntonname[MAX_PATH];
+};
+
 // I think this should get us going
 // Although there is a warning about 
 // mount points in win32 can now exists - which means inode number can be 
@@ -382,6 +388,7 @@ typedef u_int64_t _ino_t;
 
 int ourstat(const char * name, struct stat * st);
 int ourfstat(HANDLE file, struct stat * st);
+int statfs(const char * name, struct statfs * s);
 
 //need this for converstions
 inline time_t ConvertFileTimeToTime_t(FILETIME *fileTime)
@@ -427,14 +434,6 @@ typedef char TCHAR;
 //  Box Backup.
 //
 #define MSG_ERR_EXIST                         ((DWORD)0xC0000004L)
-
-// this shouldn't be needed.
-struct statfs
-{
-	TCHAR f_mntonname[MAX_PATH];
-};
-
-int statfs(const char * name, struct statfs * s);
 #endif // WIN32 || __CYGWIN__
 
 #endif // !EMU_INCLUDE

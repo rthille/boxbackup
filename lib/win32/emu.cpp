@@ -10,13 +10,12 @@
 	#ifdef __CYGWIN__
 		#undef WIN32
 	#endif
-	HANDLE OpenFileByNameUtf8(const char* pName);
 	#include <string>
 #endif
 
-#ifdef __CYGWIN__
-	#include <stdio.h>
-#endif
+// #ifdef __CYGWIN__
+//	#include <stdio.h>
+// #endif
 
 #ifdef WIN32
 
@@ -401,6 +400,131 @@ int ourfstat(HANDLE hdir, struct stat * st)
 // --------------------------------------------------------------------------
 //
 // Function
+//		Name:    OpenFileByNameUtf8
+//		Purpose: Converts filename to Unicode and returns 
+//			a handle to it. In case of error, sets errno,
+//			logs the error and returns NULL.
+//		Created: 10th December 2004
+//
+// --------------------------------------------------------------------------
+HANDLE OpenFileByNameUtf8(const char* pName)
+{
+	//some string thing - required by ms to indicate long/unicode filename
+	std::string tmpStr("\\\\?\\");
+
+	// is the path relative or otherwise
+	std::string fileN(pName);
+	if (fileN[1] != ':')
+	{
+		// we need to get the current directory
+		char wd[PATH_MAX];
+		if(::getcwd(wd, PATH_MAX) == 0)
+		{
+			::syslog(LOG_WARNING, 
+				"Failed to open '%s': path too long", pName);
+			errno = ENAMETOOLONG;
+			return NULL;
+		}
+
+		tmpStr += wd;
+		if (tmpStr[tmpStr.length()] != '\\')
+		{
+			tmpStr += '\\';
+		}
+	}
+
+	tmpStr += fileN;
+
+	int strlen = MultiByteToWideChar(
+		CP_UTF8,               // code page
+		0,                     // character-type options
+		tmpStr.c_str(),        // string to map
+		(int)tmpStr.length(),  // number of bytes in string
+		NULL,                  // wide-character buffer
+		0                      // size of buffer - work out 
+		                       //   how much space we need
+		);
+
+	wchar_t* buffer = new wchar_t[strlen+1];
+
+	if (buffer == NULL)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to open '%s': out of memory", pName);
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	strlen = MultiByteToWideChar(
+		CP_UTF8,               // code page
+		0,                     // character-type options
+		tmpStr.c_str(),        // string to map
+		(int)tmpStr.length(),  // number of bytes in string
+		buffer,                // wide-character buffer
+		strlen                 // size of buffer
+		);
+
+	if (strlen == 0)
+	{
+		::syslog(LOG_WARNING, 
+			"Failed to open '%s': could not convert "
+			"file name to Unicode", pName);
+		errno = EACCES;
+		delete [] buffer;
+		return NULL;
+	}
+
+	buffer[strlen] = L'\0';
+
+	HANDLE handle = CreateFileW(buffer, 
+		FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | FILE_READ_EA, 
+		FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE, 
+		NULL, 
+		OPEN_EXISTING, 
+		FILE_FLAG_BACKUP_SEMANTICS,
+		NULL);
+
+	if (handle == INVALID_HANDLE_VALUE)
+	{
+		// if our open fails we should always be able to 
+		// open in this mode - to get the inode information
+		// at least one process must have the file open - 
+		// in this case someone else does.
+		handle = CreateFileW(buffer, 
+			0, 
+			FILE_SHARE_READ, 
+			NULL, 
+			OPEN_EXISTING, 
+			FILE_FLAG_BACKUP_SEMANTICS,
+			NULL);
+	}
+
+	delete [] buffer;
+
+	if (handle == INVALID_HANDLE_VALUE)
+	{
+		DWORD err = GetLastError();
+
+		if (err == ERROR_FILE_NOT_FOUND)
+		{
+			errno = ENOENT;
+		}
+		else
+		{
+			::syslog(LOG_WARNING, 
+				"Failed to open '%s': error %d", pName);
+			errno = EACCES;
+		}
+
+		return NULL;
+	}
+
+	return handle;
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
 //		Name:    ourstat 
 //		Purpose: replacement for the lstat and stat functions, 
 //			works with unicode filenames supplied in utf8 format
@@ -434,6 +558,46 @@ int ourstat(const char * pName, struct stat * st)
 	CloseHandle(handle);
 
 	return retVal;
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    statfs
+//		Purpose: returns the mount point of where a file is located - 
+//			in this case the volume serial number
+//		Created: 25th October 2004
+//
+// --------------------------------------------------------------------------
+int statfs(const char * pName, struct statfs * s)
+{
+	HANDLE handle = OpenFileByNameUtf8(pName);
+
+	if (handle == NULL)
+	{
+		// errno already set and error logged by OpenFileByNameUtf8()
+		return -1;
+	}
+
+	BY_HANDLE_FILE_INFORMATION fi;
+	if (!GetFileInformationByHandle(handle, &fi))
+	{
+		::syslog(LOG_WARNING, "Failed to get file information "
+			"for '%s': error %d", pName, GetLastError());
+		CloseHandle(handle);
+		errno = EACCES;
+		return -1;
+	}
+
+	// convert volume serial number to a string
+	_ui64toa(fi.dwVolumeSerialNumber, s->f_mntonname + 1, 16);
+
+	// pseudo unix mount point
+	s->f_mntonname[0] = DIRECTORY_SEPARATOR_ASCHAR;
+
+	CloseHandle(handle);   // close the handle
+
+	return 0;
 }
 
 // MinGW provides opendir(), etc. via <dirent.h>
@@ -815,174 +979,5 @@ void syslog(int loglevel, const char *frmt, ...)
 	}
 }
 
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    OpenFileByNameUtf8
-//		Purpose: Converts filename to Unicode and returns 
-//			a handle to it. In case of error, sets errno,
-//			logs the error and returns NULL.
-//		Created: 10th December 2004
-//
-// --------------------------------------------------------------------------
-HANDLE OpenFileByNameUtf8(const char* pName)
-{
-	//some string thing - required by ms to indicate long/unicode filename
-	std::string tmpStr("\\\\?\\");
 
-	// is the path relative or otherwise
-	std::string fileN(pName);
-	if (fileN[1] != ':')
-	{
-		// we need to get the current directory
-		char wd[PATH_MAX];
-		if(::getcwd(wd, PATH_MAX) == 0)
-		{
-			::syslog(LOG_WARNING, 
-				"Failed to open '%s': path too long", pName);
-			errno = ENAMETOOLONG;
-			return NULL;
-		}
-
-		tmpStr += wd;
-		if (tmpStr[tmpStr.length()] != '\\')
-		{
-			tmpStr += '\\';
-		}
-	}
-
-	tmpStr += fileN;
-
-	int strlen = MultiByteToWideChar(
-		CP_UTF8,               // code page
-		0,                     // character-type options
-		tmpStr.c_str(),        // string to map
-		(int)tmpStr.length(),  // number of bytes in string
-		NULL,                  // wide-character buffer
-		0                      // size of buffer - work out 
-		                       //   how much space we need
-		);
-
-	wchar_t* buffer = new wchar_t[strlen+1];
-
-	if (buffer == NULL)
-	{
-		::syslog(LOG_WARNING, 
-			"Failed to open '%s': out of memory", pName);
-		errno = ENOMEM;
-		return NULL;
-	}
-
-	strlen = MultiByteToWideChar(
-		CP_UTF8,               // code page
-		0,                     // character-type options
-		tmpStr.c_str(),        // string to map
-		(int)tmpStr.length(),  // number of bytes in string
-		buffer,                // wide-character buffer
-		strlen                 // size of buffer
-		);
-
-	if (strlen == 0)
-	{
-		::syslog(LOG_WARNING, 
-			"Failed to open '%s': could not convert "
-			"file name to Unicode", pName);
-		errno = EACCES;
-		delete [] buffer;
-		return NULL;
-	}
-
-	buffer[strlen] = L'\0';
-
-	HANDLE handle = CreateFileW(buffer, 
-		FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | FILE_READ_EA, 
-		FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE, 
-		NULL, 
-		OPEN_EXISTING, 
-		FILE_FLAG_BACKUP_SEMANTICS,
-		NULL);
-
-	if (handle == INVALID_HANDLE_VALUE)
-	{
-		// if our open fails we should always be able to 
-		// open in this mode - to get the inode information
-		// at least one process must have the file open - 
-		// in this case someone else does.
-		handle = CreateFileW(buffer, 
-			0, 
-			FILE_SHARE_READ, 
-			NULL, 
-			OPEN_EXISTING, 
-			FILE_FLAG_BACKUP_SEMANTICS,
-			NULL);
-	}
-
-	delete [] buffer;
-
-	if (handle == INVALID_HANDLE_VALUE)
-	{
-		DWORD err = GetLastError();
-
-		if (err == ERROR_FILE_NOT_FOUND)
-		{
-			errno = ENOENT;
-		}
-		else
-		{
-			::syslog(LOG_WARNING, 
-				"Failed to open '%s': error %d", pName);
-			errno = EACCES;
-		}
-
-		return NULL;
-	}
-
-	return handle;
-}
-
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    statfs
-//		Purpose: returns the mount point of where a file is located - 
-//			in this case the volume serial number
-//		Created: 25th October 2004
-//
-// --------------------------------------------------------------------------
-int statfs(const char * pName, struct statfs * s)
-{
-	HANDLE handle = OpenFileByNameUtf8(pName);
-
-	if (handle == NULL)
-	{
-		// errno already set and error logged by OpenFileByNameUtf8()
-		return -1;
-	}
-
-	BY_HANDLE_FILE_INFORMATION fi;
-	if (!GetFileInformationByHandle(handle, &fi))
-	{
-		::syslog(LOG_WARNING, "Failed to get file information "
-			"for '%s': error %d", pName, GetLastError());
-		CloseHandle(handle);
-		errno = EACCES;
-		return -1;
-	}
-
-	// convert volume serial number to a string
-
-#ifdef __CYGWIN__
-	snprintf(s->f_mntonname, sizeof(s->f_mntonname), "/%llx",
-		(long long)fi.dwVolumeSerialNumber);
-#else
-	_ui64toa(fi.dwVolumeSerialNumber, s->f_mntonname + 1, 16);
-
-	// pseudo unix mount point
-	s->f_mntonname[0] = DIRECTORY_SEPARATOR_ASCHAR;
-#endif
-
-	CloseHandle(handle);   // close the handle
-
-	return 0;
-}
 #endif
