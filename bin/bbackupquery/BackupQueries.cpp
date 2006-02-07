@@ -1669,8 +1669,8 @@ void BackupQueries::CommandUsageDisplayEntry(const char *Name, int64_t Size, int
 	}
 	bar[b] = '\0';
 
-	// Print the entryj
-	::printf("%14s %10.1fMb %3d%% %s\n", Name, mb, (int32_t)percent, bar);
+	// Print the entry
+	::printf("%14s %10.1fMb %3d%% %s\n", Name, mb, (int)percent, bar);
 }
 
 
