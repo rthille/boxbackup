@@ -34,7 +34,10 @@ AC_DEFUN([AX_CHECK_MOUNT_POINT], [
     #include <sys/mount.h>
     ]])
   # Linux
-  AC_CHECK_MEMBERS([struct mntent.mnt_dir],,, [[#include <mntent.h>]])
+  AC_CHECK_MEMBERS([struct mntent.mnt_dir],,, [[
+    #include <stdio.h>
+    #include <mntent.h>
+    ]])
   # Solaris
   AC_CHECK_MEMBERS([struct mnttab.mnt_mountp],,, [[
     #include <stdio.h>
