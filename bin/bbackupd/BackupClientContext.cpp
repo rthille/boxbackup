@@ -602,7 +602,16 @@ void BackupClientContext::UnManageDiffProcess()
 void BackupClientContext::DoKeepAlive()
 {
 	if (!mpConnection)
+	{
+		::syslog(LOG_ERR, "DoKeepAlive() called with no connection!");
 		return;
+	}
+
+	if (mExtendedLogging)
+	{
+		::syslog(LOG_INFO, "DoKeepAlive() sending keep-alive "
+			"packet now");
+	}
 
 	mpConnection->QueryGetIsAlive();
 }
