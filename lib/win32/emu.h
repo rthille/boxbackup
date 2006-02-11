@@ -468,9 +468,7 @@ bool EnableBackupRights( void );
 // caller must free the returned buffer with delete[]
 char* ConvertUtf8ToConsole(const char* pString);
 char* ConvertConsoleToUtf8(const char* pString);
-
-// std::string ConvertUtf8ToConsoleString(const std::string& rUtf8String);
-// std::string ConvertConsoleToUtf8String(const std::string& rConsoleString);
+char* ConvertFromWideString(const WCHAR* pString, unsigned int DestCodepage);
 
 //
 // MessageId: MSG_ERR_EXIST
@@ -478,5 +476,9 @@ char* ConvertConsoleToUtf8(const char* pString);
 //  Box Backup.
 //
 #define MSG_ERR_EXIST                         ((DWORD)0xC0000004L)
+
+#ifdef __MINGW32__
+	extern "C" { _CRTIMP wchar_t* __cdecl _cgetws (wchar_t *); }
+#endif
 
 #endif // !EMU_INCLUDE && WIN32
