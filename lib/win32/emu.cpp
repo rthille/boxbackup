@@ -983,6 +983,7 @@ int poll (struct pollfd *ufds, unsigned long nfds, int timeout)
 }
 
 HANDLE gSyslogH = 0;
+static bool sHaveWarnedEventLogFull = FALSE;
 
 void syslog(int loglevel, const char *frmt, ...)
 {
@@ -1043,8 +1044,24 @@ void syslog(int loglevel, const char *frmt, ...)
 
 	{
 		DWORD err = GetLastError();
-		printf("Unable to send message to Event Log: "
-			"error %i:\r\n", (int)err);
+		if (err == ERROR_LOG_FILE_FULL)
+		{
+			if (!sHaveWarnedEventLogFull)
+			{
+				printf("Unable to send message to Event Log "
+					"(Event Log is full):\r\n");
+				sHaveWarnedEventLogFull = TRUE;
+			}
+		}
+		else
+		{
+			printf("Unable to send message to Event Log: "
+				"error %i:\r\n", (int)err);
+		}
+	}
+	else
+	{
+		sHaveWarnedEventLogFull = FALSE;
 	}
 
 	printf("%s\r\n", buffer);
