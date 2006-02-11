@@ -4,6 +4,7 @@
 	Version="8.00"
 	Name="common"
 	ProjectGUID="{A089CEE6-EBF0-4232-A0C0-74850A8127A6}"
+	RootNamespace="common"
 	Keyword="Win32Proj"
 	>
 	<Platforms>
@@ -500,6 +501,10 @@
 					</File>
 					<File
 						RelativePath="..\..\..\lib\common\Box.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\lib\common\BoxConfig.h"
 						>
 					</File>
 					<File
