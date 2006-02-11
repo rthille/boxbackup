@@ -113,32 +113,43 @@ inline int chown(const char * Filename, u_int32_t uid, u_int32_t gid)
 	return 0;
 }
 
-inline int chmod(const char * Filename, int mode)
-{
-	// indicate success
-	return 0;
-}
-
-int emu_chdir(const char* pDirName);
-
-inline int chdir(const char* pDirName)
-{
-	return emu_chdir(pDirName);
-}
-
+int   emu_chdir (const char* pDirName);
+int   emu_unlink(const char* pFileName);
 char* emu_getcwd(char* pBuffer, int BufSize);
 
-inline char* getcwd(char* pBuffer, int BufSize)
-{
-	return emu_getcwd(pBuffer, BufSize);
-}
+#ifdef _MSC_VER
+	inline int emu_chmod(const char * Filename, int mode)
+	{
+		// indicate success
+		return 0;
+	}
 
-int emu_unlink(const char* pFileName);
+	#define chmod(file, mode)    emu_chmod(file, mode)
+	#define chdir(directory)     emu_chdir(directory)
+	#define unlink(file)         emu_unlink(file)
+	#define getcwd(buffer, size) emu_getcwd(buffer, size)
+#else
+	inline int chmod(const char * Filename, int mode)
+	{
+		// indicate success
+		return 0;
+	}
 
-inline int unlink(const char* pFileName)
-{
-	return emu_unlink(pFileName);
-}
+	inline int chdir(const char* pDirName)
+	{
+		return emu_chdir(pDirName);
+	}
+
+	inline char* getcwd(char* pBuffer, int BufSize)
+	{
+		return emu_getcwd(pBuffer, BufSize);
+	}
+
+	inline int unlink(const char* pFileName)
+	{
+		return emu_unlink(pFileName);
+	}
+#endif
 
 //I do not perceive a need to change the user or group on a backup client
 //at any rate the owner of a service can be set in the service settings
@@ -432,18 +443,24 @@ inline time_t ConvertFileTimeToTime_t(FILETIME *fileTime)
 	return retVal;
 }
 
-inline int stat(const char* filename, struct stat* stat)
-{
-	return emu_stat(filename, stat);
-}
-inline int lstat(const char* filename, struct stat* stat)
-{
-	return emu_stat(filename, stat);
-}
-inline int fstat(HANDLE handle, struct stat* stat)
-{
-	return emu_fstat(handle, stat);
-}
+#ifdef _MSC_VER
+	#define stat(filename,  struct) emu_stat (filename, struct)
+	#define lstat(filename, struct) emu_stat (filename, struct)
+	#define fstat(handle,   struct) emu_fstat(handle,   struct)
+#else
+	inline int stat(const char* filename, struct stat* stat)
+	{
+		return emu_stat(filename, stat);
+	}
+	inline int lstat(const char* filename, struct stat* stat)
+	{
+		return emu_stat(filename, stat);
+	}
+	inline int fstat(HANDLE handle, struct stat* stat)
+	{
+		return emu_fstat(handle, stat);
+	}
+#endif
 
 int poll(struct pollfd *ufds, unsigned long nfds, int timeout);
 bool EnableBackupRights( void );
