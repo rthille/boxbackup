@@ -120,7 +120,51 @@ std::string FdGetLine::GetLine(bool Preprocess)
 		// Read more in?
 		if(!foundLineEnd && mBufferBegin >= mBytesInBuffer && !mPendingEOF)
 		{
+#ifdef WIN32
+			int bytes;
+
+			if (mFileHandle == _fileno(stdin))
+			{
+#ifdef HAVE_CGETWS
+				int size = sizeof(mBuffer) - 3;
+				if (size > 80) size = 80;
+				WCHAR tempbuf[83] = { size };
+				::_cgetws(tempbuf);
+				size = tempbuf[1];
+				tempbuf[size + 2] = '\n';
+				tempbuf[size + 3] = 0;
+				char* utf8buf = ConvertFromWideString
+				(
+					tempbuf + 2, GetConsoleCP()
+				);
+				strncpy(mBuffer, utf8buf, sizeof(mBuffer));
+				bytes = strlen(utf8buf);
+				delete [] utf8buf;
+#else // !HAVE_CGETWS
+				int size = sizeof(mBuffer) - 3;
+				if (size > 80) size = 80;
+				char tempbuf[83] = { (char)size };
+				::_cgets(tempbuf);
+				size = tempbuf[1];
+				tempbuf[size + 2] = '\n';
+				tempbuf[size + 3] = 0;
+				char* utf8buf = ConvertConsoleToUtf8
+				(
+					tempbuf + 2
+				);
+				strncpy(mBuffer, utf8buf, sizeof(mBuffer));
+				bytes = strlen(utf8buf);
+				delete [] utf8buf;
+#endif // HAVE_CGETWS
+			}
+			else
+			{
+				bytes = ::read(mFileHandle, mBuffer, 
+					sizeof(mBuffer));
+			}
+#else // !WIN32
 			int bytes = ::read(mFileHandle, mBuffer, sizeof(mBuffer));
+#endif // WIN32
 			
 			// Error?
 			if(bytes == -1)
