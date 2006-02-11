@@ -100,8 +100,7 @@ void WinNamedPipeStream::Accept(const wchar_t* pName)
 	{
 		::syslog(LOG_ERR, "ConnectNamedPipe failed: %d", 
 			GetLastError());
-		CloseHandle(mSocketHandle);
-		mSocketHandle = NULL;
+		Close();
 		THROW_EXCEPTION(ServerException, SocketOpenError)
 	}
 	
@@ -184,7 +183,7 @@ int WinNamedPipeStream::Read(void *pBuffer, int NBytes, int Timeout)
 	// Closed for reading at EOF?
 	if (NumBytesRead == 0)
 	{
-		mReadClosed = true;
+		mReadClosed = TRUE;
 	}
 	
 	return NumBytesRead;
@@ -224,7 +223,7 @@ void WinNamedPipeStream::Write(const void *pBuffer, int NBytes)
 
 		if (!Success)
 		{
-			mWriteClosed = true;	// assume can't write again
+			mWriteClosed = TRUE;	// assume can't write again
 			THROW_EXCEPTION(ConnectionException, 
 				Conn_SocketWriteError)
 		}
@@ -243,7 +242,14 @@ void WinNamedPipeStream::Write(const void *pBuffer, int NBytes)
 // --------------------------------------------------------------------------
 void WinNamedPipeStream::Close()
 {
-	if (mSocketHandle == NULL || !mIsConnected) 
+	if (mSocketHandle == NULL && mIsConnected)
+	{
+		fprintf(stderr, "Inconsistent connected state\n");
+		::syslog(LOG_ERR, "Inconsistent connected state");
+		mIsConnected = FALSE;
+	}
+
+	if (mSocketHandle == NULL) 
 	{
 		THROW_EXCEPTION(ServerException, BadSocketHandle)
 	}
@@ -265,14 +271,16 @@ void WinNamedPipeStream::Close()
 		mIsServer = false;
 	}
 
-	if (!CloseHandle(mSocketHandle))
+	bool result = CloseHandle(mSocketHandle);
+
+	mSocketHandle = NULL;
+	mIsConnected = FALSE;
+
+	if (!result) 
 	{
 		::syslog(LOG_ERR, "CloseHandle failed: %d", GetLastError());
 		THROW_EXCEPTION(ServerException, SocketCloseError)
 	}
-	
-	mSocketHandle = NULL;
-	mIsConnected = FALSE;
 }
 
 // --------------------------------------------------------------------------
