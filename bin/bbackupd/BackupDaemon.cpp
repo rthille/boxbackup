@@ -83,6 +83,26 @@ static const time_t MAX_SLEEP_TIME = 1024;
 // This prevents repetative cycles of load on the server
 #define		SYNC_PERIOD_RANDOM_EXTRA_TIME_SHIFT_BY	6
 
+#ifdef WIN32
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    HelperThread()
+//		Purpose: Background thread function, called by Windows,
+//			calls the BackupDaemon's RunHelperThread method
+//			to listen for and act on control communications
+//		Created: 18/2/04
+//
+// --------------------------------------------------------------------------
+unsigned int WINAPI HelperThread( LPVOID lpParam ) 
+{ 
+	// printf( "Parameter = %lu.\n", *(DWORD*)lpParam ); 
+	((BackupDaemon *)lpParam)->RunHelperThread();
+
+	return 0;
+}
+#endif
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -104,6 +124,20 @@ BackupDaemon::BackupDaemon()
 	{
 		mNotificationsSent[l] = false;
 	}
+
+#ifdef WIN32
+	// Create a thread to handle the named pipe
+	HANDLE hThread;
+	unsigned int dwThreadId;
+
+	hThread = (HANDLE) _beginthreadex( 
+        	NULL,                        // default security attributes 
+        	0,                           // use default stack size  
+        	HelperThread,                // thread function 
+        	this,                        // argument to thread function 
+        	0,                           // use default creation flags 
+        	&dwThreadId);                // returns the thread identifier 
+#endif
 }
 
 // --------------------------------------------------------------------------
@@ -227,30 +261,13 @@ void BackupDaemon::DeleteAllLocations()
 }
 
 #ifdef WIN32
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    HelperThread()
-//		Purpose: Background thread function, called by Windows,
-//			calls the BackupDaemon's RunHelperThread method
-//			to listen for and act on control communications
-//		Created: 18/2/04
-//
-// --------------------------------------------------------------------------
-unsigned int WINAPI HelperThread( LPVOID lpParam ) 
-{ 
-	printf( "Parameter = %lu.\n", *(DWORD*)lpParam ); 
-	((BackupDaemon *)lpParam)->RunHelperThread();
-
-	return 0;
-}
-
 void BackupDaemon::RunHelperThread(void)
 {
 	mpCommandSocketInfo = new CommandSocketInfo;
 	this->mReceivedCommandConn = false;
 
-	while ( !IsTerminateWanted() )
+	// loop until the parent process exits
+	while (TRUE)
 	{
 		try
 		{
@@ -290,7 +307,7 @@ void BackupDaemon::RunHelperThread(void)
 				bool disconnect = false;
 
 				// Command to process!
-				if(command == "quit" || command == "")
+				if (command == "quit" || command == "")
 				{
 					// Close the socket.
 					disconnect = true;
@@ -303,20 +320,20 @@ void BackupDaemon::RunHelperThread(void)
 					this->mSyncIsForcedOut = false;
 					sendOK = true;
 				}
-				else if(command == "force-sync")
+				else if (command == "force-sync")
 				{
 					// Sync now (forced -- overrides any SyncAllowScript)
 					this->mDoSyncFlagOut = true;
 					this->mSyncIsForcedOut = true;
 					sendOK = true;
 				}
-				else if(command == "reload")
+				else if (command == "reload")
 				{
 					// Reload the configuration
 					SetReloadConfigWanted();
 					sendOK = true;
 				}
-				else if(command == "terminate")
+				else if (command == "terminate")
 				{
 					// Terminate the daemon cleanly
 					SetTerminateWanted();
@@ -365,24 +382,21 @@ void BackupDaemon::RunHelperThread(void)
 void BackupDaemon::Run()
 {
 #ifdef WIN32
-
-	// Create a thread to handle the named pipe
-	HANDLE hThread;
-	unsigned int dwThreadId;
-
-	hThread = (HANDLE) _beginthreadex( 
-        	NULL,                        // default security attributes 
-        	0,                           // use default stack size  
-        	HelperThread,                // thread function 
-        	this,                        // argument to thread function 
-        	0,                           // use default creation flags 
-        	&dwThreadId);                // returns the thread identifier 
-
 	// init our own timer for file diff timeouts
 	InitTimer();
 
-#else // ! WIN32
+	try
+	{
+		Run2();
+	}
+	catch (...)
+	{
+		FiniTimer();
+		throw;
+	}
 
+	FiniTimer();
+#else // ! WIN32
 	// Ignore SIGPIPE (so that if a command connection is broken, the daemon doesn't terminate)
 	::signal(SIGPIPE, SIG_IGN);
 
@@ -396,8 +410,6 @@ void BackupDaemon::Run()
 		::unlink(socketName);
 		mpCommandSocketInfo->mListeningSocket.Listen(Socket::TypeUNIX, socketName);
 	}
-	
-#endif // WIN32
 
 	// Handle things nicely on exceptions
 	try
@@ -423,17 +435,13 @@ void BackupDaemon::Run()
 
 		throw;
 	}
-	
+
 	// Clean up
 	if(mpCommandSocketInfo != 0)
 	{
 		delete mpCommandSocketInfo;
 		mpCommandSocketInfo = 0;
 	}
-
-#ifdef WIN32
-	// clean up windows specific stuff.
-	FiniTimer();
 #endif
 }
 
@@ -766,7 +774,12 @@ void BackupDaemon::Run2()
 						"to retry...", 
 						errorString, errorCode, 
 						errorSubCode);
-					::sleep(100);
+					::sleep(10);
+					nextSyncTime = currentSyncStartTime + 
+						SecondsToBoxTime(90) +
+						Random::RandomInt(
+							updateStoreInterval >> 
+							SYNC_PERIOD_RANDOM_EXTRA_TIME_SHIFT_BY);
 				}
 			}
 
@@ -1080,25 +1093,23 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 // --------------------------------------------------------------------------
 void BackupDaemon::CloseCommandConnection()
 {
+#ifndef WIN32
 	try
 	{
 		TRACE0("Closing command connection\n");
 		
-#ifdef WIN32
-		mpCommandSocketInfo->mListeningSocket.Close();
-#else
 		if(mpCommandSocketInfo->mpGetLine)
 		{
 			delete mpCommandSocketInfo->mpGetLine;
 			mpCommandSocketInfo->mpGetLine = 0;
 		}
 		mpCommandSocketInfo->mpConnectedSocket.reset();
-#endif
 	}
 	catch(...)
 	{
 		// Ignore any errors
 	}
+#endif
 }
 
 
@@ -1115,7 +1126,11 @@ void BackupDaemon::SendSyncStartOrFinish(bool SendStart)
 {
 	// The bbackupctl program can't rely on a state change, because it may never
 	// change if the server doesn't need to be contacted.
-	
+
+#ifdef __MINGW32__
+#warning race condition: what happens if socket is closed?
+#endif
+
 	if (mpCommandSocketInfo != NULL &&
 #ifdef WIN32
 	    mpCommandSocketInfo->mListeningSocket.IsConnected()
@@ -2119,17 +2134,6 @@ BackupDaemon::CommandSocketInfo::CommandSocketInfo()
 // --------------------------------------------------------------------------
 BackupDaemon::CommandSocketInfo::~CommandSocketInfo()
 {
-#ifdef WIN32
-	try
-	{
-		mListeningSocket.Close();
-	}
-	catch(ServerException &e)
-	{
-		// ignore errors as we're closing down anyway
-	}
-#endif
-
 	if(mpGetLine)
 	{
 		delete mpGetLine;
