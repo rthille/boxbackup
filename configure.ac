@@ -89,6 +89,9 @@ if test "$ac_cv_header_regex_h" = "yes"; then
   AC_SEARCH_LIBS([regcomp], [pcreposix])
 fi
 
+AC_SEARCH_LIBS([_cgetws], [msvcr71 msvcr80],
+  AC_DEFINE([HAVE_CGETWS], [1], [Define to 1 if we have a _cgetws function]))
+
 ### Checks for typedefs, structures, and compiler characteristics.
 
 AC_CHECK_TYPES([u_int8_t, u_int16_t, u_int32_t, u_int64_t])
