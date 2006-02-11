@@ -50,8 +50,13 @@
 
 void PrintUsageAndExit()
 {
-	printf("Usage: bbackupquery [-q] [-c config_file] [-l log_file] [commands]\nAs many commands as you require.\n"	\
-	"If commands are multiple words, remember to enclose the command in quotes.\n"	\
+	printf("Usage: bbackupquery [-q] [-w] "
+#ifdef WIN32
+	"[-u] "
+#endif
+	"\n\t[-c config_file] [-l log_file] [commands]\n"
+	"As many commands as you require.\n"
+	"If commands are multiple words, remember to enclose the command in quotes.\n"
 	"Remember to use quit command if you don't want to drop into interactive mode.\n");
 	exit(1);
 }
@@ -90,10 +95,17 @@ int main(int argc, const char *argv[])
 	// Flags
 	bool quiet = false;
 	bool readWrite = false;
-	
+
+#ifdef WIN32
+	const char* validOpts = "qwuc:l:";
+	bool unicodeConsole = false;
+#else
+	const char* validOpts = "qwc:l:";
+#endif
+
 	// See if there's another entry on the command line
 	int c;
-	while((c = getopt(argc, (char * const *)argv, "qwc:l:")) != -1)
+	while((c = getopt(argc, (char * const *)argv, validOpts)) != -1)
 	{
 		switch(c)
 		{
@@ -120,6 +132,12 @@ int main(int argc, const char *argv[])
 				printf("Can't open log file '%s'\n", optarg);
 			}
 			break;
+
+#ifdef WIN32
+		case 'u':
+			unicodeConsole = true;
+			break;
+#endif
 		
 		case '?':
 		default:
@@ -136,6 +154,36 @@ int main(int argc, const char *argv[])
 		const char *banner = BANNER_TEXT("Backup Query Tool");
 		printf(banner);
 	}
+
+#ifdef WIN32
+	if (unicodeConsole)
+	{
+#ifdef HAVE_CGETWS
+		if (!SetConsoleCP(CP_UTF8))
+		{
+			fprintf(stderr, "Failed to set input codepage: "
+				"error %d\n", GetLastError());
+		}
+
+		if (!SetConsoleOutputCP(CP_UTF8))
+		{
+			fprintf(stderr, "Failed to set output codepage: "
+				"error %d\n", GetLastError());
+		}
+
+		// enable input of Unicode characters
+		if (_setmode(_fileno(stdin), _O_TEXT) == -1)
+		{
+			perror("Failed to set the console input to "
+				"binary mode");
+		}
+#else // !HAVE_CGETWS
+		fprintf(stderr, "This version of bbackupquery does not "
+			"work in unicode mode!\n");
+		exit(2);
+#endif // HAVE_CGETWS
+	}
+#endif // WIN32
 
 	// Read in the configuration file
 	if(!quiet) printf("Using configuration file %s\n", configFilename);
