@@ -440,7 +440,7 @@ inline time_t ConvertFileTimeToTime_t(FILETIME *fileTime)
 	// timeinfo.tm_yday = ...;
 	timeinfo.tm_year = stUTC.wYear - 1900;
 
-	time_t retVal = mktime(&timeinfo);
+	time_t retVal = mktime(&timeinfo) - _timezone;
 	return retVal;
 }
 
