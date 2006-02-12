@@ -362,23 +362,32 @@ char* ConvertFromWideString(const WCHAR* pString, unsigned int codepage)
 // Function
 //		Name:    ConvertUtf8ToConsole
 //		Purpose: Converts a string from UTF-8 to the console 
-//			 code page. Returns a buffer which MUST be freed 
-//			 by the caller with delete[].
-//			 In case of fire, logs the error and returns NULL.
+//			 code page. On success, replaces contents of rDest 
+//			 and returns true. In case of fire, logs the error 
+//			 and returns false.
 //		Created: 4th February 2006
 //
 // --------------------------------------------------------------------------
-char* ConvertUtf8ToConsole(const char* pString)
+bool ConvertUtf8ToConsole(const char* pString, std::string& rDest)
 {
-	WCHAR* pMulti = ConvertToWideString(pString, CP_UTF8);
-	if (pMulti == NULL)
+	WCHAR* pWide = ConvertToWideString(pString, CP_UTF8);
+	if (pWide == NULL)
 	{
-		return NULL;
+		return false;
 	}
 
-	char* pConsole = ConvertFromWideString(pMulti, GetConsoleOutputCP());
-	delete [] pMulti;
-	return pConsole;
+	char* pConsole = ConvertFromWideString(pWide, GetConsoleOutputCP());
+	delete [] pWide;
+
+	if (!pConsole)
+	{
+		return false;
+	}
+
+	rDest = pConsole;
+	delete [] pConsole;
+
+	return true;
 }
 
 // --------------------------------------------------------------------------
@@ -386,23 +395,32 @@ char* ConvertUtf8ToConsole(const char* pString)
 // Function
 //		Name:    ConvertConsoleToUtf8
 //		Purpose: Converts a string from the console code page
-//			 to UTF-8. Returns a buffer which MUST be freed 
-//			 by the caller with delete[].
-//			 In case of fire, logs the error and returns NULL.
+//			 to UTF-8. On success, replaces contents of rDest
+//			 and returns true. In case of fire, logs the error 
+//			 and returns false.
 //		Created: 4th February 2006
 //
 // --------------------------------------------------------------------------
-char* ConvertConsoleToUtf8(const char* pString)
+bool ConvertConsoleToUtf8(const char* pString, std::string& rDest)
 {
-	WCHAR* pMulti = ConvertToWideString(pString, GetConsoleCP());
-	if (pMulti == NULL)
+	WCHAR* pWide = ConvertToWideString(pString, GetConsoleCP());
+	if (pWide == NULL)
 	{
-		return NULL;
+		return false;
 	}
 
-	char* pConsole = ConvertFromWideString(pMulti, CP_UTF8);
-	delete [] pMulti;
-	return pConsole;
+	char* pConsole = ConvertFromWideString(pWide, CP_UTF8);
+	delete [] pWide;
+
+	if (!pConsole)
+	{
+		return false;
+	}
+
+	rDest = pConsole;
+	delete [] pConsole;
+
+	return true;
 }
 
 

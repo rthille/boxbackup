@@ -194,7 +194,7 @@ extern char *optarg;
 extern int optind;
 extern char nextchar;
 
-inline int getopt(int count, char * const * args, char * tolookfor)
+inline int getopt(int count, char * const * args, const char * tolookfor)
 {
 	if (optind >= count) return -1;
 
@@ -466,10 +466,8 @@ inline time_t ConvertFileTimeToTime_t(FILETIME *fileTime)
 int poll(struct pollfd *ufds, unsigned long nfds, int timeout);
 bool EnableBackupRights( void );
 
-// caller must free the returned buffer with delete[]
-char* ConvertUtf8ToConsole(const char* pString);
-char* ConvertConsoleToUtf8(const char* pString);
-char* ConvertFromWideString(const WCHAR* pString, unsigned int DestCodepage);
+bool ConvertUtf8ToConsole(const char* pString, std::string& rDest);
+bool ConvertConsoleToUtf8(const char* pString, std::string& rDest);
 
 //
 // MessageId: MSG_ERR_EXIST
