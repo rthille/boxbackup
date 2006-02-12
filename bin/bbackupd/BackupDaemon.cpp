@@ -611,7 +611,7 @@ void BackupDaemon::Run2()
 			// Delete the serialised store object file,
 			// so that we don't try to reload it after a
 			// partially completed backup
-			if(!DeleteStoreObjectInfo())
+			if(deserialised && !DeleteStoreObjectInfo())
 			{
 				::syslog(LOG_ERR, "Failed to delete the "
 					"StoreObjectInfoFile, backup cannot "
