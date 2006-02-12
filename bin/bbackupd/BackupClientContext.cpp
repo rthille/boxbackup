@@ -607,12 +607,6 @@ void BackupClientContext::DoKeepAlive()
 		return;
 	}
 
-	if (mExtendedLogging)
-	{
-		::syslog(LOG_INFO, "DoKeepAlive() sending keep-alive "
-			"packet now");
-	}
-
 	mpConnection->QueryGetIsAlive();
 }
 
