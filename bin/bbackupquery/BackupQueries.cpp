@@ -337,7 +337,7 @@ void BackupQueries::CommandList(const std::vector<std::string> &args, const bool
 		if(!ConvertConsoleToUtf8(args[0].c_str(), storeDirEncoded))
 			return;
 #else
-		const std::string& storeDirEncoded(rStoreDir);
+		const std::string& storeDirEncoded(args[0]);
 #endif
 	
 		// Attempt to find the directory
@@ -693,7 +693,7 @@ void BackupQueries::CommandChangeDir(const std::vector<std::string> &args, const
 	std::string dirName;
 	if(!ConvertConsoleToUtf8(args[0].c_str(), dirName)) return;
 #else
-	std::string& dirName(args[0]);
+	const std::string& dirName(args[0]);
 #endif
 	
 	std::vector<std::pair<std::string, int64_t> > newStack;
@@ -1844,7 +1844,7 @@ void BackupQueries::CommandUndelete(const std::vector<std::string> &args, const 
 	std::string storeDirEncoded;
 	if(!ConvertConsoleToUtf8(args[0].c_str(), storeDirEncoded)) return;
 #else
-	const std::string& storeDirEncoded(rStoreDir);
+	const std::string& storeDirEncoded(args[0]);
 #endif
 	
 	// Get directory ID
