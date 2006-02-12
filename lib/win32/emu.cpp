@@ -983,7 +983,7 @@ int poll (struct pollfd *ufds, unsigned long nfds, int timeout)
 }
 
 HANDLE gSyslogH = 0;
-static bool sHaveWarnedEventLogFull = FALSE;
+static bool sHaveWarnedEventLogFull = false;
 
 void syslog(int loglevel, const char *frmt, ...)
 {
@@ -1061,7 +1061,7 @@ void syslog(int loglevel, const char *frmt, ...)
 	}
 	else
 	{
-		sHaveWarnedEventLogFull = FALSE;
+		sHaveWarnedEventLogFull = false;
 	}
 
 	printf("%s\r\n", buffer);

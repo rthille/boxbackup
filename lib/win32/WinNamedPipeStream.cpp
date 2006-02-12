@@ -104,10 +104,10 @@ void WinNamedPipeStream::Accept(const wchar_t* pName)
 		THROW_EXCEPTION(ServerException, SocketOpenError)
 	}
 	
-	mReadClosed  = FALSE;
-	mWriteClosed = FALSE;
-	mIsServer    = TRUE; // must flush and disconnect before closing
-	mIsConnected = TRUE;
+	mReadClosed  = false;
+	mWriteClosed = false;
+	mIsServer    = true; // must flush and disconnect before closing
+	mIsConnected = true;
 }
 
 // --------------------------------------------------------------------------
@@ -142,10 +142,10 @@ void WinNamedPipeStream::Connect(const wchar_t* pName)
 		THROW_EXCEPTION(ServerException, SocketOpenError)
 	}
 
-	mReadClosed  = FALSE;
-	mWriteClosed = FALSE;
-	mIsServer    = FALSE; // just close the socket
-	mIsConnected = TRUE;
+	mReadClosed  = false;
+	mWriteClosed = false;
+	mIsServer    = false; // just close the socket
+	mIsConnected = true;
 }
 
 // --------------------------------------------------------------------------
@@ -183,7 +183,7 @@ int WinNamedPipeStream::Read(void *pBuffer, int NBytes, int Timeout)
 	// Closed for reading at EOF?
 	if (NumBytesRead == 0)
 	{
-		mReadClosed = TRUE;
+		mReadClosed = true;
 	}
 	
 	return NumBytesRead;
@@ -223,7 +223,7 @@ void WinNamedPipeStream::Write(const void *pBuffer, int NBytes)
 
 		if (!Success)
 		{
-			mWriteClosed = TRUE;	// assume can't write again
+			mWriteClosed = true;	// assume can't write again
 			THROW_EXCEPTION(ConnectionException, 
 				Conn_SocketWriteError)
 		}
@@ -246,7 +246,7 @@ void WinNamedPipeStream::Close()
 	{
 		fprintf(stderr, "Inconsistent connected state\n");
 		::syslog(LOG_ERR, "Inconsistent connected state");
-		mIsConnected = FALSE;
+		mIsConnected = false;
 	}
 
 	if (mSocketHandle == NULL) 
@@ -274,7 +274,7 @@ void WinNamedPipeStream::Close()
 	bool result = CloseHandle(mSocketHandle);
 
 	mSocketHandle = NULL;
-	mIsConnected = FALSE;
+	mIsConnected = false;
 
 	if (!result) 
 	{
