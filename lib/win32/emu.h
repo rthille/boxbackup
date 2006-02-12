@@ -478,8 +478,7 @@ char* ConvertFromWideString(const WCHAR* pString, unsigned int DestCodepage);
 //
 #define MSG_ERR_EXIST                         ((DWORD)0xC0000004L)
 
-#ifdef __MINGW32__
-	extern "C" { _CRTIMP wchar_t* __cdecl _cgetws (wchar_t *); }
-#endif
+// replacement for _cgetws which requires a relatively recent C runtime lib
+int console_read(char* pBuffer, size_t BufferSize);
 
 #endif // !EMU_INCLUDE && WIN32

@@ -1162,4 +1162,48 @@ int emu_unlink(const char* pFileName)
 	return 0;
 }
 
+int console_read(char* pBuffer, size_t BufferSize)
+{
+	HANDLE hConsole = GetStdHandle(STD_INPUT_HANDLE);
+
+	if (hConsole == INVALID_HANDLE_VALUE)
+	{
+		::fprintf(stderr, "Failed to get a handle on standard input: "
+			"error %d\n", GetLastError());
+		return -1;
+	}
+
+	int WideSize = BufferSize / 5;
+	WCHAR* pWideBuffer = new WCHAR [WideSize];
+
+	if (!pWideBuffer)
+	{
+		::perror("Failed to allocate wide character buffer");
+		return -1;
+	}
+
+	DWORD numCharsRead = 0;
+
+	if (!ReadConsoleW(
+			hConsole,
+			pWideBuffer,
+			WideSize - 1,
+			&numCharsRead,
+			NULL // reserved
+		)) 
+	{
+		::fprintf(stderr, "Failed to read from console: error %d\n",
+			GetLastError());
+		return -1;
+	}
+
+	pWideBuffer[numCharsRead] = 0;
+
+	char* pUtf8 = ConvertFromWideString(pWideBuffer, GetConsoleCP());
+	strncpy(pBuffer, pUtf8, BufferSize);
+	delete [] pUtf8;
+
+	return strlen(pBuffer);
+}
+
 #endif // WIN32
