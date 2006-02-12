@@ -9,8 +9,11 @@ typedef int u_int32_t;
 
 int main(int argc, char** argv)
 {
-	int time_now = time(NULL);
-	printf("Time now is %d\n", time_now);
+	time_t time_now = time(NULL);
+	char* time_str = strdup(asctime(gmtime(&time_now)));
+	time_str[24] = 0;
+
+	printf("Time now is %d (%s)\n", time_now, time_str);
 
 	char testfile[80];
 	snprintf(testfile, sizeof(testfile), "test.%d", time_now);
@@ -56,9 +59,19 @@ int main(int argc, char** argv)
 	}
 
 	time_t created_time = ConvertFileTimeToTime_t(&fi.ftCreationTime);
-	printf("File created time: %d\n", created_time);
+	time_str = strdup(asctime(gmtime(&created_time)));
+	time_str[24] = 0;
+
+	printf("File created time: %d (%s)\n", created_time, time_str);
 
 	printf("Difference is: %d\n", created_time - time_now);
+
+	if (abs(created_time - time_now) > 30)
+	{
+		fprintf(stderr, "Error: time difference too big: "
+			"bug in emu.h?\n");
+		exit(1);
+	}
 
 	/*
 	sleep(1);
