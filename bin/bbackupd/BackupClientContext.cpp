@@ -57,9 +57,7 @@ BackupClientContext::BackupClientContext(BackupDaemon &rDaemon, TLSContext &rTLS
 	  mpExcludeFiles(0),
 	  mpExcludeDirs(0),
 	  mbIsManaged(false),
-	  mTimeMgmtEpoch(0),
-	  mMaximumDiffTime(600),
-	  mKeepAliveTime(0)
+	  mTimeMgmtEpoch(0)
 {
 }
 
@@ -626,10 +624,10 @@ time_t BackupClientContext::GetTimeMgmtEpoch()
 
 int BackupClientContext::GetMaximumDiffingTime() 
 {
-	return mMaximumDiffTime;
+	return sMaximumDiffTime;
 }
 
 int BackupClientContext::GetKeepaliveTime() 
 {
-	return mKeepAliveTime;
+	return sKeepAliveTime;
 }
