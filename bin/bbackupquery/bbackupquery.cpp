@@ -158,7 +158,6 @@ int main(int argc, const char *argv[])
 #ifdef WIN32
 	if (unicodeConsole)
 	{
-#ifdef HAVE_CGETWS
 		if (!SetConsoleCP(CP_UTF8))
 		{
 			fprintf(stderr, "Failed to set input codepage: "
@@ -177,11 +176,6 @@ int main(int argc, const char *argv[])
 			perror("Failed to set the console input to "
 				"binary mode");
 		}
-#else // !HAVE_CGETWS
-		fprintf(stderr, "This version of bbackupquery does not "
-			"work in unicode mode!\n");
-		exit(2);
-#endif // HAVE_CGETWS
 	}
 #endif // WIN32
 
