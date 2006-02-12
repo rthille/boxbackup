@@ -429,7 +429,8 @@ inline time_t ConvertFileTimeToTime_t(FILETIME *fileTime)
 	// Convert the last-write time to local time.
 	FileTimeToSystemTime(fileTime, &stUTC);
 	// SystemTimeToTzSpecificLocalTime(NULL, &stUTC, &stLocal);
-	
+
+	memset(&timeinfo, 0, sizeof(timeinfo));	
 	timeinfo.tm_sec = stUTC.wSecond;
 	timeinfo.tm_min = stUTC.wMinute;
 	timeinfo.tm_hour = stUTC.wHour;
