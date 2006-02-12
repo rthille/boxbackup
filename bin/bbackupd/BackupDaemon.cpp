@@ -504,8 +504,8 @@ void BackupDaemon::Run2()
 		BackupClientContext::ClientStoreMarker_NotKnown;
 	// haven't contacted the store yet
 
- 	DeserializeStoreObjectInfo(clientStoreMarker, lastSyncTime, 
-		nextSyncTime);
+ 	bool deserialised = DeserializeStoreObjectInfo(clientStoreMarker, 
+		lastSyncTime, nextSyncTime);
  
 	// --------------------------------------------------------------------------------------------
 	
@@ -606,6 +606,17 @@ void BackupDaemon::Run2()
 				// Of course, they may be eligable to be synced again the next time round,
 				// but this should be OK, because the changes only upload should upload no data.
 				syncPeriodEndExtended += SecondsToBoxTime((time_t)(356*24*3600));
+			}
+
+			// Delete the serialised store object file,
+			// so that we don't try to reload it after a
+			// partially completed backup
+			if(!DeleteStoreObjectInfo())
+			{
+				::syslog(LOG_ERR, "Failed to delete the "
+					"StoreObjectInfoFile, backup cannot "
+					"continue safely.");
+				continue;
 			}
 			
 			// Do sync
@@ -2228,7 +2239,7 @@ void BackupDaemon::SerializeStoreObjectInfo(int64_t aClientStoreMarker, box_time
 //		Created: 2005/04/11
 //
 // --------------------------------------------------------------------------
-void BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_time_t & theLastSyncTime, box_time_t & theNextSyncTime)
+bool BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_time_t & theLastSyncTime, box_time_t & theNextSyncTime)
 {
 	//
 	//
@@ -2240,7 +2251,7 @@ void BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 	//
 	if(!GetConfiguration().KeyExists("StoreObjectInfoFile"))
 	{
-		return;
+		return false;
 	}
 
 	std::string StoreObjectInfoFile = 
@@ -2248,7 +2259,7 @@ void BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 
 	if (StoreObjectInfoFile.size() <= 0)
 	{
-		return;
+		return false;
 	}
 
 	try
@@ -2268,7 +2279,7 @@ void BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 				"is not a valid or compatible serialised "
 				"archive. Will re-cache from store.", 
 				StoreObjectInfoFile.c_str());
-			return;
+			return false;
 		}
 
 		//
@@ -2283,7 +2294,7 @@ void BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 				"is not a valid or compatible serialised "
 				"archive. Will re-cache from store.", 
 				StoreObjectInfoFile.c_str());
-			return;
+			return false;
 		}
 
 		//
@@ -2296,11 +2307,11 @@ void BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 		if (iVersion != STOREOBJECTINFO_VERSION)
 		{
 			::syslog(LOG_WARNING, "Store object info file '%s' "
-				"version [%d] unsupported. "
+				"version %d unsupported. "
 				"Will re-cache from store.", 
 				StoreObjectInfoFile.c_str(), 
 				iVersion);
-			return;
+			return false;
 		}
 
 		//
@@ -2315,7 +2326,7 @@ void BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 			::syslog(LOG_WARNING, "Store object info file '%s' "
 				"out of date. Will re-cache from store", 
 				StoreObjectInfoFile.c_str());
-			return;
+			return false;
 		}
 
 		//
@@ -2363,12 +2374,7 @@ void BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 			"version [%d]", StoreObjectInfoFile.c_str(), 
 			iVersion);
 
-		if (::unlink(StoreObjectInfoFile.c_str()) != 0)
-		{
-			::syslog(LOG_ERR, "Failed to delete the old "
-				"store object info file '%s': %s",
-				StoreObjectInfoFile.c_str(), strerror(errno));
-		}
+		return true;
 	}
 	catch (...)
 	{
@@ -2384,4 +2390,38 @@ void BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 			"Will re-cache from store.", 
 			StoreObjectInfoFile.c_str());
 	}
+
+	return false;
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupDaemon::DeleteStoreObjectInfo()
+//		Purpose: Deletes the serialised state file, to prevent us
+//			 from using it again if a backup is interrupted.
+//
+//		Created: 2006/02/12
+//
+// --------------------------------------------------------------------------
+
+bool BackupDaemon::DeleteStoreObjectInfo() const
+{
+	if(!GetConfiguration().KeyExists("StoreObjectInfoFile"))
+	{
+		return false;
+	}
+
+	std::string StoreObjectInfoFile = 
+		GetConfiguration().GetKeyValue("StoreObjectInfoFile");
+
+	if (::unlink(StoreObjectInfoFile.c_str()) != 0)
+	{
+		::syslog(LOG_ERR, "Failed to delete the old "
+			"store object info file '%s': %s",
+			StoreObjectInfoFile.c_str(), strerror(errno));
+		return false;
+	}
+
+	return true;
 }
