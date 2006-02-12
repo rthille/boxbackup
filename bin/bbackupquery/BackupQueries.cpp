@@ -1121,7 +1121,7 @@ void BackupQueries::CompareLocation(const std::string &rLocation, BackupQueries:
 		}
 				
 		// Then get it compared
-		Compare(std::string(DIRECTORY_SEPARATOR) + rLocation, 
+		Compare(std::string("/") + rLocation, 
 			loc.GetKeyValue("Path"), rParams);
 	}
 	catch(...)
@@ -1378,7 +1378,8 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 			if(local == localFiles.end())
 			{
 				// Not found -- report
-				printf("Local file '%s/%s' does not exist, "
+				printf("Local file '%s" DIRECTORY_SEPARATOR 
+					"%s' does not exist, "
 					"but store file '%s/%s' does.\n",
 					localName.c_str(), i->first.c_str(), 
 					storeName.c_str(), i->first.c_str());
@@ -1447,7 +1448,10 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 								true /* ignore attr mod time */,
 								fileOnServerStream->IsSymLink() /* ignore modification time if it's a symlink */))
 						{
-							printf("Local file '%s/%s' has different attributes to store file '%s/%s'.\n",
+							printf("Local file '%s"
+								DIRECTORY_SEPARATOR
+								"%s' has different attributes "
+								"to store file '%s/%s'.\n",
 								localName.c_str(), i->first.c_str(), storeName.c_str(), i->first.c_str());						
 							rParams.mDifferences ++;
 							if(modifiedAfterLastSync)
@@ -1512,7 +1516,10 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 					// Report if not equal.
 					if(!equal)
 					{
-						printf("Local file '%s/%s' has different contents to store file '%s/%s'.\n",
+						printf("Local file '%s"
+							DIRECTORY_SEPARATOR
+							"%s' has different contents "
+							"to store file '%s/%s'.\n",
 							localName.c_str(), i->first.c_str(), storeName.c_str(), i->first.c_str());
 						rParams.mDifferences ++;
 						if(modifiedAfterLastSync)
@@ -1553,8 +1560,9 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 			if(rParams.mpExcludeFiles == 0 || 
 				!(rParams.mpExcludeFiles->IsExcluded(localFileName)))
 			{
-				printf("Local file '%s/%s' exists, but "
-					"store file '%s/%s' does not exist.\n",
+				printf("Local file '%s" DIRECTORY_SEPARATOR
+					"%s' exists, but store file '%s/%s' "
+					"does not exist.\n",
 					localName.c_str(), (*i).c_str(), 
 					storeName.c_str(), (*i).c_str());
 				rParams.mDifferences ++;
@@ -1590,8 +1598,10 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 			if(local == localDirs.end())
 			{
 				// Not found -- report
-				printf("Local directory '%s/%s' does not exist, "
-					"but store directory '%s/%s' does.\n",
+				printf("Local directory '%s" 
+					DIRECTORY_SEPARATOR "%s' "
+					"does not exist, but store directory "
+					"'%s/%s' does.\n",
 					localName.c_str(), i->first.c_str(), 
 					storeName.c_str(), i->first.c_str());
 				rParams.mDifferences ++;
