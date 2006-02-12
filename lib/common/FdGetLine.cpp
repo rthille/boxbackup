@@ -125,37 +125,7 @@ std::string FdGetLine::GetLine(bool Preprocess)
 
 			if (mFileHandle == _fileno(stdin))
 			{
-#ifdef HAVE_CGETWS
-				int size = sizeof(mBuffer) - 3;
-				if (size > 80) size = 80;
-				WCHAR tempbuf[83] = { size };
-				::_cgetws(tempbuf);
-				size = tempbuf[1];
-				tempbuf[size + 2] = '\n';
-				tempbuf[size + 3] = 0;
-				char* utf8buf = ConvertFromWideString
-				(
-					tempbuf + 2, GetConsoleCP()
-				);
-				strncpy(mBuffer, utf8buf, sizeof(mBuffer));
-				bytes = strlen(utf8buf);
-				delete [] utf8buf;
-#else // !HAVE_CGETWS
-				int size = sizeof(mBuffer) - 3;
-				if (size > 80) size = 80;
-				char tempbuf[83] = { (char)size };
-				::_cgets(tempbuf);
-				size = tempbuf[1];
-				tempbuf[size + 2] = '\n';
-				tempbuf[size + 3] = 0;
-				char* utf8buf = ConvertConsoleToUtf8
-				(
-					tempbuf + 2
-				);
-				strncpy(mBuffer, utf8buf, sizeof(mBuffer));
-				bytes = strlen(utf8buf);
-				delete [] utf8buf;
-#endif // HAVE_CGETWS
+				bytes = console_read(mBuffer, sizeof(mBuffer));
 			}
 			else
 			{
