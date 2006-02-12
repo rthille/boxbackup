@@ -53,7 +53,7 @@ WinNamedPipeStream::WinNamedPipeStream()
 // --------------------------------------------------------------------------
 WinNamedPipeStream::~WinNamedPipeStream()
 {
-	if (mSocketHandle != NULL && IsConnected())
+	if (mSocketHandle != NULL)
 	{
 		Close();
 	}
