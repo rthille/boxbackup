@@ -1369,12 +1369,18 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 				storeDirs.insert(std::pair<std::string, BackupStoreDirectory::Entry *>(name.GetClearFilename(), storeDirEn));
 			}
 		}
+
+#ifdef _MSC_VER
+		typedef std::set<std::string>::iterator string_set_iter_t;
+#else
+		typedef std::set<std::string>::const_iterator string_set_iter_t;
+#endif
 		
 		// Now compare files.
 		for(std::set<std::pair<std::string, BackupStoreDirectory::Entry *> >::const_iterator i = storeFiles.begin(); i != storeFiles.end(); ++i)
 		{
 			// Does the file exist locally?
-			std::set<std::string>::iterator local(localFiles.find(i->first));
+			string_set_iter_t local(localFiles.find(i->first));
 			if(local == localFiles.end())
 			{
 				// Not found -- report
@@ -1552,7 +1558,7 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 		}
 		
 		// Report any files which exist on the locally, but not on the store
-		for(std::set<std::string>::iterator i = localFiles.begin(); i != localFiles.end(); ++i)
+		for(string_set_iter_t i = localFiles.begin(); i != localFiles.end(); ++i)
 		{
 			std::string localFileName(rLocalDir + 
 				DIRECTORY_SEPARATOR + *i);
@@ -1594,7 +1600,7 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 		for(std::set<std::pair<std::string, BackupStoreDirectory::Entry *> >::const_iterator i = storeDirs.begin(); i != storeDirs.end(); ++i)
 		{
 			// Does the directory exist locally?
-			std::set<std::string>::iterator local(localDirs.find(i->first));
+			string_set_iter_t local(localDirs.find(i->first));
 			if(local == localDirs.end())
 			{
 				// Not found -- report
