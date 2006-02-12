@@ -333,10 +333,9 @@ void BackupQueries::CommandList(const std::vector<std::string> &args, const bool
 	if(args.size() > 0)
 	{
 #ifdef WIN32
-		char* buffer = ConvertConsoleToUtf8(args[0].c_str());
-		if(!buffer) return;
-		std::string storeDirEncoded(buffer);
-		delete [] buffer;
+		std::string storeDirEncoded;
+		if(!ConvertConsoleToUtf8(args[0].c_str(), storeDirEncoded))
+			return;
 #else
 		const std::string& storeDirEncoded(rStoreDir);
 #endif
@@ -467,11 +466,10 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot, const bool
 		if(!FirstLevel)
 		{
 #ifdef WIN32
-			char* buffer = ConvertUtf8ToConsole(
-				rListRoot.c_str());
-			if(!buffer) return;
-			printf("%s/", buffer);
-			delete [] buffer;
+			std::string listRootDecoded;
+			if(!ConvertUtf8ToConsole(rListRoot.c_str(), 
+				listRootDecoded)) return;
+			printf("%s/", listRootDecoded.c_str());
 #else
 			printf("%s/", rListRoot.c_str());
 #endif
@@ -479,11 +477,11 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot, const bool
 		
 #ifdef WIN32
 		{
-			char* buffer = ConvertUtf8ToConsole(
-				clear.GetClearFilename().c_str());
-			if(!buffer) return;
-			printf("%s", buffer);
-			delete [] buffer;
+			std::string fileName;
+			if(!ConvertUtf8ToConsole(
+				clear.GetClearFilename().c_str(), fileName))
+				return;
+			printf("%s", fileName.c_str());
 		}
 #else
 		printf("%s", clear.GetClearFilename().c_str());
@@ -662,11 +660,10 @@ std::string BackupQueries::GetCurrentDirectoryName()
 	{
 		r += "/";
 #ifdef WIN32
-		char* buffer = ConvertUtf8ToConsole(
-			mDirStack[l].first.c_str());
-		if(!buffer) return "unknown";
-		r += buffer;
-		delete [] buffer;
+		std::string dirName;
+		if(!ConvertUtf8ToConsole(mDirStack[l].first.c_str(), dirName))
+			return "error";
+		r += dirName;
 #else
 		r += mDirStack[l].first;
 #endif
@@ -693,10 +690,8 @@ void BackupQueries::CommandChangeDir(const std::vector<std::string> &args, const
 	}
 
 #ifdef WIN32
-	char* buffer = ConvertConsoleToUtf8(args[0].c_str());
-	if(!buffer) return;
-	std::string dirName(buffer);
-	delete [] buffer;
+	std::string dirName;
+	if(!ConvertConsoleToUtf8(args[0].c_str(), dirName)) return;
 #else
 	std::string& dirName(args[0]);
 #endif
@@ -734,10 +729,9 @@ void BackupQueries::CommandChangeLocalDir(const std::vector<std::string> &args)
 	
 	// Try changing directory
 #ifdef WIN32
-	char* buffer = ConvertConsoleToUtf8(args[0].c_str());
-	if(!buffer) return;
-	int result = ::chdir(buffer);
-	delete [] buffer;
+	std::string dirName;
+	if(!ConvertConsoleToUtf8(args[0].c_str(), dirName)) return;
+	int result = ::chdir(dirName.c_str());
 #else
 	int result = ::chdir(args[0].c_str());
 #endif
@@ -757,10 +751,8 @@ void BackupQueries::CommandChangeLocalDir(const std::vector<std::string> &args)
 	}
 
 #ifdef WIN32
-	buffer = ConvertUtf8ToConsole(wd);
-	if(!buffer) return;
-	printf("Local current directory is now '%s'\n", buffer);
-	delete [] buffer;
+	if(!ConvertUtf8ToConsole(wd, dirName)) return;
+	printf("Local current directory is now '%s'\n", dirName.c_str());
 #else
 	printf("Local current directory is now '%s'\n", wd);
 #endif
@@ -892,10 +884,10 @@ void BackupQueries::CommandGet(const std::vector<std::string> &args, const bool 
 			// Specified by name, find the object in the directory to get the ID
 			BackupStoreDirectory::Iterator i(dir);
 #ifdef WIN32
-			char* buffer = ConvertConsoleToUtf8(args[0].c_str());
-			if(!buffer) return;
-			BackupStoreFilenameClear fn(buffer);
-			delete [] buffer;
+			std::string fileName;
+			if(!ConvertConsoleToUtf8(args[0].c_str(), fileName))
+				return;
+			BackupStoreFilenameClear fn(fileName);
 #else
 			BackupStoreFilenameClear fn(args[0]);
 #endif
@@ -1147,10 +1139,8 @@ void BackupQueries::CompareLocation(const std::string &rLocation, BackupQueries:
 void BackupQueries::Compare(const std::string &rStoreDir, const std::string &rLocalDir, BackupQueries::CompareParams &rParams)
 {
 #ifdef WIN32
-	char* buffer = ConvertConsoleToUtf8(rStoreDir.c_str());
-	if(!buffer) return;
-	std::string storeDirEncoded(buffer);
-	delete [] buffer;
+	std::string storeDirEncoded;
+	if(!ConvertConsoleToUtf8(rStoreDir.c_str(), storeDirEncoded)) return;
 #else
 	const std::string& storeDirEncoded(rStoreDir);
 #endif
@@ -1169,10 +1159,8 @@ void BackupQueries::Compare(const std::string &rStoreDir, const std::string &rLo
 	}
 
 #ifdef WIN32
-	buffer = ConvertConsoleToUtf8(rLocalDir.c_str());
-	if(!buffer) return;
-	std::string localDirEncoded(buffer);
-	delete [] buffer;
+	std::string localDirEncoded;
+	if(!ConvertConsoleToUtf8(rLocalDir.c_str(), localDirEncoded)) return;
 #else
 	std::string localDirEncoded(rLocalDir);
 #endif
@@ -1196,21 +1184,11 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 #ifdef WIN32
 	// By this point, rStoreDir and rLocalDir should be in UTF-8 encoding
 
-	char* localNamePtr = ConvertUtf8ToConsole(rLocalDir.c_str());
-	char* storeNamePtr = ConvertUtf8ToConsole(rStoreDir.c_str());
+	std::string localName;
+	std::string storeName;
 
-	if (!localNamePtr || !storeNamePtr)
-	{
-		if (localNamePtr) delete [] localNamePtr;
-		if (storeNamePtr) delete [] storeNamePtr;
-		return;
-	}
-
-	std::string localName(localNamePtr);
-	std::string storeName(storeNamePtr);
-
-	delete [] localNamePtr;
-	delete [] storeNamePtr;
+	if(!ConvertUtf8ToConsole(rLocalDir.c_str(), localName)) return;
+	if(!ConvertUtf8ToConsole(rStoreDir.c_str(), storeName)) return;
 #else
 	const std::string& localName(rLocalDir);
 	const std::string& storeName(rStoreDir);
@@ -1687,10 +1665,9 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	else
 	{
 #ifdef WIN32
-		char* buffer = ConvertConsoleToUtf8(args[0].c_str());
-		if(!buffer) return;
-		std::string storeDirEncoded(buffer);
-		delete [] buffer;
+		std::string storeDirEncoded;
+		if(!ConvertConsoleToUtf8(args[0].c_str(), storeDirEncoded))
+			return;
 #else
 		const std::string& storeDirEncoded(args[0]);
 #endif
@@ -1714,10 +1691,8 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	}
 	
 #ifdef WIN32
-	char* buffer = ConvertConsoleToUtf8(args[1].c_str());
-	if(!buffer) return;
-	std::string localName(buffer);
-	delete [] buffer;
+	std::string localName;
+	if(!ConvertConsoleToUtf8(args[1].c_str(), localName)) return;
 #else
 	std::string localName(args[1]);
 #endif
@@ -1866,10 +1841,8 @@ void BackupQueries::CommandUndelete(const std::vector<std::string> &args, const 
 	}
 
 #ifdef WIN32
-	char* buffer = ConvertConsoleToUtf8(args[0].c_str());
-	if(!buffer) return;
-	std::string storeDirEncoded(buffer);
-	delete [] buffer;
+	std::string storeDirEncoded;
+	if(!ConvertConsoleToUtf8(args[0].c_str(), storeDirEncoded)) return;
 #else
 	const std::string& storeDirEncoded(rStoreDir);
 #endif
