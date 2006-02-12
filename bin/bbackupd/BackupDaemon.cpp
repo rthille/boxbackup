@@ -94,9 +94,8 @@ static const time_t MAX_SLEEP_TIME = 1024;
 //		Created: 18/2/04
 //
 // --------------------------------------------------------------------------
-unsigned int WINAPI HelperThread( LPVOID lpParam ) 
+unsigned int WINAPI HelperThread(LPVOID lpParam) 
 { 
-	// printf( "Parameter = %lu.\n", *(DWORD*)lpParam ); 
 	((BackupDaemon *)lpParam)->RunHelperThread();
 
 	return 0;
@@ -307,7 +306,7 @@ void BackupDaemon::RunHelperThread(void)
 				bool disconnect = false;
 
 				// Command to process!
-				if (command == "quit" || command == "")
+				if(command == "quit" || command == "")
 				{
 					// Close the socket.
 					disconnect = true;
@@ -320,20 +319,20 @@ void BackupDaemon::RunHelperThread(void)
 					this->mSyncIsForcedOut = false;
 					sendOK = true;
 				}
-				else if (command == "force-sync")
+				else if(command == "force-sync")
 				{
 					// Sync now (forced -- overrides any SyncAllowScript)
 					this->mDoSyncFlagOut = true;
 					this->mSyncIsForcedOut = true;
 					sendOK = true;
 				}
-				else if (command == "reload")
+				else if(command == "reload")
 				{
 					// Reload the configuration
 					SetReloadConfigWanted();
 					sendOK = true;
 				}
-				else if (command == "terminate")
+				else if(command == "terminate")
 				{
 					// Terminate the daemon cleanly
 					SetTerminateWanted();
@@ -389,7 +388,7 @@ void BackupDaemon::Run()
 	{
 		Run2();
 	}
-	catch (...)
+	catch(...)
 	{
 		FiniTimer();
 		throw;
