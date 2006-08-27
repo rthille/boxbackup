@@ -551,8 +551,16 @@ HANDLE openfile(const char *pFileName, int flags, int mode)
 
 	if (hdir == INVALID_HANDLE_VALUE)
 	{
-		::syslog(LOG_WARNING, "Failed to open file %s: "
-			"error %i", pFileName, GetLastError());
+		if (GetLastError() = ERROR_INVALID_NAME)
+		{
+			::syslog(LOG_WARNING, "Failed to open file '%s': "
+				"invalid file name", pFileName);
+		}
+		else
+		{
+			::syslog(LOG_WARNING, "Failed to open file '%s': "
+				"error %i", pFileName, GetLastError());
+		}
 		return INVALID_HANDLE_VALUE;
 	}
 
@@ -726,8 +734,16 @@ HANDLE OpenFileByNameUtf8(const char* pFileName, DWORD flags)
 		}
 		else
 		{
-			::syslog(LOG_WARNING, 
-				"Failed to open '%s': error %d", pFileName, err);
+			if (err == ERROR_ACCESS_DENIED)
+			{
+				::syslog(LOG_WARNING, "Failed to open '%s': "
+					"access denied", pFileName);
+			}
+			else
+			{
+				::syslog(LOG_WARNING, "Failed to open '%s': "
+					"error %d", pFileName, err);
+			}
 			errno = EACCES;
 		}
 
