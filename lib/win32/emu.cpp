@@ -551,7 +551,7 @@ HANDLE openfile(const char *pFileName, int flags, int mode)
 
 	if (hdir == INVALID_HANDLE_VALUE)
 	{
-		if (GetLastError() = ERROR_INVALID_NAME)
+		if (GetLastError() == ERROR_INVALID_NAME)
 		{
 			::syslog(LOG_WARNING, "Failed to open file '%s': "
 				"invalid file name", pFileName);
