@@ -469,11 +469,10 @@ bool BackupStoreCheck::CheckAndAddObject(int64_t ObjectID, const std::string &rF
 		}
 		
 		// Add to usage counts
-		int64_t s = file->GetDiscUsageInBlocks();
-		mBlocksUsed += s;
+		mBlocksUsed += size;
 		if(!isFile)
 		{
-			mBlocksInDirectories += s;
+			mBlocksInDirectories += size;
 		}
 	}
 	catch(...)
