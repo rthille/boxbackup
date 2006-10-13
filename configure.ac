@@ -111,7 +111,7 @@ AC_CHECK_HEADER([regex.h], [have_regex_h=yes])
 
 if test "$have_regex_h" = "yes"; then
   AC_DEFINE([HAVE_REGEX_H], [1], [Define to 1 if regex.h is available])
-  AC_SEARCH_LIBS([regcomp], [pcreposix])
+  AC_SEARCH_LIBS([regcomp], ["pcreposix -lpcre"])
 fi
 
 ### Checks for typedefs, structures, and compiler characteristics.
