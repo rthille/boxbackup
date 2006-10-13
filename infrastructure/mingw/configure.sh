@@ -6,8 +6,8 @@ if [ ! -r "/usr/i686-pc-mingw32/lib/libssl.a" ]; then
 	exit 2
 fi
 
-if [ ! -r "/bin/pcreposix.dll" \
-	-o ! -r "/usr/i686-pc-mingw32/lib/pcreposix.dll.a" \
+if [ ! -r "/usr/i686-pc-mingw32/lib/libpcreposix.a" \
+	-o ! -r "/usr/i686-pc-mingw32/lib/libpcre.a" \
 	-o ! -r "/usr/i686-pc-mingw32/include/regex.h" ]; then
 	echo "Error: install PCRE as instructed by" \
 		"docs/backup/mingw_build.txt" >&2
