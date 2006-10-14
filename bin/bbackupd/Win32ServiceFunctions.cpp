@@ -244,27 +244,37 @@ int InstallService(const char* pConfigFileName)
 
 	if (!newService) 
 	{
-		if (err == ERROR_SERVICE_EXISTS)
+		switch (err)
 		{
-			::syslog(LOG_ERR, "Failed to create Box Backup "
-				"service: it already exists");
+			case ERROR_SERVICE_EXISTS:
+			{
+				::syslog(LOG_ERR, "Failed to create Box Backup "
+					"service: it already exists");
+			}
+			break;
+
+			case ERROR_SERVICE_MARKED_FOR_DELETE:
+			{
+				::syslog(LOG_ERR, "Failed to create Box Backup "
+					"service: it is waiting to be deleted");
+			}
+			break;
+
+			case ERROR_DUPLICATE_SERVICE_NAME:
+			{
+				::syslog(LOG_ERR, "Failed to create Box Backup "
+					"service: a service with this name "
+					"already exists");
+			}
+			break;
+
+			default:
+			{
+				::syslog(LOG_ERR, "Failed to create Box Backup "
+					"service: error %d", err);
+			}
 		}
-		else if (err == ERROR_SERVICE_MARKED_FOR_DELETE)
-		{
-			::syslog(LOG_ERR, "Failed to create Box Backup "
-				"service: it is waiting to be deleted");
-		}
-		else if (err == ERROR_DUPLICATE_SERVICE_NAME)
-		{
-			::syslog(LOG_ERR, "Failed to create Box Backup "
-				"service: a service with this name "
-				"already exists");
-		}
-		else
-		{
-			::syslog(LOG_ERR, "Failed to create Box Backup "
-				"service: error %d", err);
-		}
+
 		return 1;
 	}
 
