@@ -237,6 +237,15 @@ void BackupClientDirectoryRecord::SyncDirectory(BackupClientDirectoryRecord::Syn
 				filename = MakeFullPath(rLocalPath, en->d_name);
 
 				#ifdef WIN32
+				// Don't stat the file just yet, to ensure
+				// that users can exclude unreadable files
+				// to suppress warnings that they are
+				// not accessible.
+				//
+				// Our emulated readdir() abuses en->d_type, 
+				// which would normally contain DT_REG, 
+				// DT_DIR, etc, but we only use it here and 
+				// prefer S_IFREG, S_IFDIR...
 				int type = en->d_type;
 				#else
 				if(::lstat(filename.c_str(), &st) != 0)
@@ -288,6 +297,8 @@ void BackupClientDirectoryRecord::SyncDirectory(BackupClientDirectoryRecord::Syn
 						"%d (%s)", type, 
 						filename.c_str());
 					#endif
+					SetErrorWhenReadingFilesystemObject(
+						rParams, filename.c_str());
 					continue;
 				}
 				
@@ -295,6 +306,8 @@ void BackupClientDirectoryRecord::SyncDirectory(BackupClientDirectoryRecord::Syn
 				// So make the information for adding to the checksum
 				
 				#ifdef WIN32
+				// We didn't stat the file before,
+				// but now we need the information.
 				if(::lstat(filename.c_str(), &st) != 0)
 				{
 					// Report the error (logs and 
