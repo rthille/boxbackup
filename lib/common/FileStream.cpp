@@ -137,8 +137,14 @@ int FileStream::Read(void *pBuffer, int NBytes, int Timeout)
 	{
 		r = numBytesRead;
 	}
+	else if (GetLastError() == ERROR_BROKEN_PIPE)
+	{
+		r = 0;
+	}
 	else
 	{
+		::syslog(LOG_ERR, "Failed to read from file: error %d",
+			GetLastError());
 		r = -1;
 	}
 #else
