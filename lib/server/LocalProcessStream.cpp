@@ -35,19 +35,22 @@
 //
 // Function
 //		Name:    LocalProcessStream(const char *, pid_t &)
-//		Purpose: Run a new process, and return a stream giving access to it's
-//				 stdin and stdout. Returns the PID of the new process -- this
-//				 must be waited on at some point to avoid zombies.
+//		Purpose: Run a new process, and return a stream giving access
+//			 to its stdin and stdout (stdout and stderr on 
+//			 Win32). Returns the PID of the new process -- this
+//			 must be waited on at some point to avoid zombies
+//			 (except on Win32).
 //		Created: 12/3/04
 //
 // --------------------------------------------------------------------------
 std::auto_ptr<IOStream> LocalProcessStream(const char *CommandLine, pid_t &rPidOut)
 {
+#ifndef WIN32
+
 	// Split up command
 	std::vector<std::string> command;
 	SplitString(std::string(CommandLine), ' ', command);
 
-#ifndef WIN32
 	// Build arguments
 	char *args[MAX_ARGUMENTS + 4];
 	{
@@ -163,8 +166,11 @@ std::auto_ptr<IOStream> LocalProcessStream(const char *CommandLine, pid_t &rPidO
 	CloseHandle(procInfo.hThread);
 	CloseHandle(writeInChild);
 
+	rPidOut = (int)(procInfo.dwProcessId);
+
 	std::auto_ptr<IOStream> stream(new FileStream(readFromChild));
 	return stream;
+
 #endif // ! WIN32
 }
 
