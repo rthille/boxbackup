@@ -102,12 +102,12 @@ typedef struct
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupQueries::DoCommand(const char *)
+//		Name:    BackupQueries::DoCommand(const char *, bool)
 //		Purpose: Perform a command
 //		Created: 2003/10/10
 //
 // --------------------------------------------------------------------------
-void BackupQueries::DoCommand(const char *Command)
+void BackupQueries::DoCommand(const char *Command, bool isFromCommandLine)
 {
 	// is the command a shell command?
 	if(Command[0] == 's' && Command[1] == 'h' && Command[2] == ' ' && Command[3] != '\0')
@@ -168,6 +168,25 @@ void BackupQueries::DoCommand(const char *Command)
 		if(!s.empty()) cmdElements.push_back(s);
 	}
 	
+	#ifdef WIN32
+	if (isFromCommandLine)
+	{
+		for (std::vector<std::string>::iterator 
+			i  = cmdElements.begin();
+			i != cmdElements.end(); i++)
+		{
+			std::string converted;
+			if (!ConvertEncoding(*i, CP_ACP, converted, 
+				GetConsoleCP()))
+			{
+				printf("Failed to convert encoding");
+				return;
+			}
+			*i = converted;
+		}
+	}
+	#endif
+		
 	// Check...
 	if(cmdElements.size() < 1)
 	{

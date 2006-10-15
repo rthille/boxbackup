@@ -36,7 +36,7 @@ private:
 	BackupQueries(const BackupQueries &);
 public:
 
-	void DoCommand(const char *Command);
+	void DoCommand(const char *Command, bool isFromCommandLine);
 
 	// Ready to stop?
 	bool Stop() {return mQuitNow;}
