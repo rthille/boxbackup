@@ -684,32 +684,53 @@ int test_bbackupd()
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 
 #ifdef WIN32
-		printf("==== Check that filenames in UTF-8 can be backed up\n");
-		std::string basedir("testfiles/TestDir1");
+		printf("\n==== Check that filenames in UTF-8 "
+			"can be backed up\n");
 
 		// We have no guarantee that a random Unicode string can be
-		// represented in the user's code page, so we go the other
-		// way, taking three random characters from the code page
-		// and converting them to Unicode. We hope that these 
-		// characters are valid in most code pages, but they probably
-		// are not in Shift-JIS, GB2312, etc. 
-		// In CP-850 they are three Danish accented characters.
-		std::string foreignCharsNative("\xe6\xf8\xe5");
+		// represented in the user's character set, so we go the 
+		// other way, taking three random characters from the 
+		// character set and converting them to Unicode. 
+		//
+		// We hope that these characters are valid in most 
+		// character sets, but they probably are not in multibyte 
+		// character sets such as Shift-JIS, GB2312, etc. This test 
+		// will probably fail if your system locale is set to 
+		// Chinese, Japanese, etc. where one of these character
+		// sets is used by default. You can check the character
+		// set for your system in Control Panel -> Regional 
+		// Options -> General -> Language Settings -> Set Default
+		// (System Locale). Because bbackupquery converts from
+		// system locale to UTF-8 via the console code page
+		// (which you can check from the Command Prompt with "chcp")
+		// they must also be valid in your code page (850 for
+		// Western Europe).
+		//
+		// In ISO-8859-1 (Danish locale) they are three Danish 
+		// accented characters, which are supported in code page
+		// 850.
+
+		std::string foreignCharsNative("\x91\x9b\x86");
 		std::string foreignCharsUnicode;
 		TEST_THAT(ConvertConsoleToUtf8(foreignCharsNative.c_str(),
 			foreignCharsUnicode));
 
+		std::string basedir("testfiles/TestDir1");
 		std::string dirname("test" + foreignCharsUnicode + "testdir");
 		std::string dirpath(basedir + "/" + dirname);
 		TEST_THAT(mkdir(dirpath.c_str(), 0) == 0);
 
 		std::string filename("test" + foreignCharsUnicode + "testfile");
 		std::string filepath(dirpath + "/" + filename);
-		FileStream fs(filepath.c_str(), O_CREAT | O_RDWR);
 
-		std::string data("hello world\n");
-		fs.Write(data.c_str(), data.size());
-		fs.Close();
+		{
+			FileStream fs(filepath.c_str(), O_CREAT | O_RDWR);
+
+			std::string data("hello world\n");
+			fs.Write(data.c_str(), data.size());
+			TEST_THAT(fs.GetPosition() == 12);
+			fs.Close();
+		}
 
 		wait_for_backup_operation();
 		// Compare to check that the file was uploaded
@@ -802,7 +823,7 @@ int test_bbackupd()
 		queryout->Close();
 
 		// Check that bbackupquery can list the dir when given
-		// on the command line in console encoding, and shows
+		// on the command line in system encoding, and shows
 		// the file in console encoding
 		command = BBACKUPQUERY " -c testfiles/bbackupd.conf "
 			"-q \"list Test1";
@@ -825,6 +846,70 @@ int test_bbackupd()
 		TEST_THAT(reader2.IsEOF());
 		TEST_THAT(found);
 		queryout->Close();
+
+		// Check that bbackupquery can compare the dir when given
+		// on the command line in system encoding.
+		command = BBACKUPQUERY " -c testfiles/bbackupd.conf "
+			"-q \"compare -cE Test1/" + systemDirName +
+			" testfiles/TestDir1/" + systemDirName + "\" quit";
+
+		compareReturnValue = ::system(command.c_str());
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+		TEST_RETURN(compareReturnValue, 1);
+
+		// Check that bbackupquery can restore the dir when given
+		// on the command line in system encoding.
+		command = BBACKUPQUERY " -c testfiles/bbackupd.conf "
+			"-q \"restore Test1/" + systemDirName +
+			" testfiles/restore-" + systemDirName + "\" quit";
+
+		compareReturnValue = ::system(command.c_str());
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+		TEST_RETURN(compareReturnValue, 0);
+
+		// Compare to make sure it was restored properly.
+		command = BBACKUPQUERY " -c testfiles/bbackupd.conf "
+			"-q \"compare -cE Test1/" + systemDirName +
+			" testfiles/restore-" + systemDirName + "\" quit";
+
+		compareReturnValue = ::system(command.c_str());
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+		TEST_RETURN(compareReturnValue, 1);
+
+		std::string fileToUnlink = "testfiles/restore-" + 
+			dirname + "/" + filename;
+		TEST_THAT(::unlink(fileToUnlink.c_str()) == 0);
+
+		// Check that bbackupquery can get the file when given
+		// on the command line in system encoding.
+		command = BBACKUPQUERY " -c testfiles/bbackupd.conf "
+			"-q \"get Test1/" + systemDirName + "/" + 
+			systemFileName + " " + "testfiles/restore-" + 
+			systemDirName + "/" + systemFileName + "\" quit";
+
+		compareReturnValue = ::system(command.c_str());
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+		TEST_RETURN(compareReturnValue, 0);
+
+		// Compare to make sure it was restored properly.
+		// The Get command does not restore attributes, so
+		// we must compare without them (-A) to succeed.
+		command = BBACKUPQUERY " -c testfiles/bbackupd.conf "
+			"-q \"compare -cAE Test1/" + systemDirName +
+			" testfiles/restore-" + systemDirName + "\" quit";
+
+		compareReturnValue = ::system(command.c_str());
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+		TEST_RETURN(compareReturnValue, 1);
+
+		// Compare without attributes. This should fail.
+		command = BBACKUPQUERY " -c testfiles/bbackupd.conf "
+			"-q \"compare -cE Test1/" + systemDirName +
+			" testfiles/restore-" + systemDirName + "\" quit";
+
+		compareReturnValue = ::system(command.c_str());
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+		TEST_RETURN(compareReturnValue, 2);
 #endif // WIN32
 
 		// Check that SyncAllowScript is executed and can pause backup
