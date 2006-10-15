@@ -468,6 +468,32 @@ std::string ConvertPathToAbsoluteUnicode(const char *pFileName)
 	return tmpStr;
 }
 
+std::string GetErrorMessage(DWORD errorCode)
+{
+	char* pMsgBuf = NULL;
+	
+	DWORD chars = FormatMessage
+	(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+		FORMAT_MESSAGE_FROM_SYSTEM,
+		NULL,
+		errorCode,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(char *)(&pMsgBuf),
+		0, NULL
+	);
+
+	if (chars == 0 || pMsgBuf == NULL)
+	{
+		return std::string("failed to get error message");
+	}
+
+	std::string out(pMsgBuf);
+	LocalFree(pMsgBuf);
+
+	return out;
+}
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -546,16 +572,9 @@ HANDLE openfile(const char *pFileName, int flags, int mode)
 
 	if (hdir == INVALID_HANDLE_VALUE)
 	{
-		if (GetLastError() == ERROR_INVALID_NAME)
-		{
-			::syslog(LOG_WARNING, "Failed to open file '%s': "
-				"invalid file name", pFileName);
-		}
-		else
-		{
-			::syslog(LOG_WARNING, "Failed to open file '%s': "
-				"error %i", pFileName, GetLastError());
-		}
+		::syslog(LOG_WARNING, "Failed to open file '%s': "
+			"%s", pFileName, 
+			GetErrorMessage(GetLastError()).c_str());
 		return INVALID_HANDLE_VALUE;
 	}
 
@@ -583,7 +602,7 @@ int emu_fstat(HANDLE hdir, struct stat * st)
 	if (!GetFileInformationByHandle(hdir, &fi))
 	{
 		::syslog(LOG_WARNING, "Failed to read file information: "
-			"error %d", GetLastError());
+			"%s", GetErrorMessage(GetLastError()).c_str());
 		errno = EACCES;
 		return -1;
 	}
@@ -591,7 +610,7 @@ int emu_fstat(HANDLE hdir, struct stat * st)
 	if (INVALID_FILE_ATTRIBUTES == fi.dwFileAttributes)
 	{
 		::syslog(LOG_WARNING, "Failed to get file attributes: "
-			"error %d", GetLastError());
+			"%s", GetErrorMessage(GetLastError()).c_str());
 		errno = EACCES;
 		return -1;
 	}
@@ -622,7 +641,7 @@ int emu_fstat(HANDLE hdir, struct stat * st)
 		if (!GetFileSizeEx(hdir, &st_size))
 		{
 			::syslog(LOG_WARNING, "Failed to get file size: "
-				"error %d", GetLastError());
+				"%s", GetErrorMessage(GetLastError()).c_str());
 			errno = EACCES;
 			return -1;
 		}
@@ -729,16 +748,9 @@ HANDLE OpenFileByNameUtf8(const char* pFileName, DWORD flags)
 		}
 		else
 		{
-			if (err == ERROR_ACCESS_DENIED)
-			{
-				::syslog(LOG_WARNING, "Failed to open '%s': "
-					"access denied", pFileName);
-			}
-			else
-			{
-				::syslog(LOG_WARNING, "Failed to open '%s': "
-					"error %d", pFileName, err);
-			}
+			::syslog(LOG_WARNING, "Failed to open '%s': "
+				"%s", pFileName, 
+				GetErrorMessage(err).c_str());
 			errno = EACCES;
 		}
 
@@ -806,7 +818,8 @@ int statfs(const char * pName, struct statfs * s)
 	if (!GetFileInformationByHandle(handle, &fi))
 	{
 		::syslog(LOG_WARNING, "Failed to get file information "
-			"for '%s': error %d", pName, GetLastError());
+			"for '%s': %s", pName,
+			GetErrorMessage(GetLastError()).c_str());
 		CloseHandle(handle);
 		errno = EACCES;
 		return -1;
@@ -859,8 +872,8 @@ int emu_utimes(const char * pName, const struct timeval times[])
 
 	if (!SetFileTime(handle, &creationTime, NULL, &modificationTime))
 	{
-		::syslog(LOG_ERR, "Failed to set times on '%s': error %d",
-			pName, GetLastError());
+		::syslog(LOG_ERR, "Failed to set times on '%s': %s", pName,
+			GetErrorMessage(GetLastError()).c_str());
 		CloseHandle(handle);
 		return 1;
 	}
@@ -902,8 +915,8 @@ int emu_chmod(const char * pName, mode_t mode)
 	DWORD attribs = GetFileAttributesW(pBuffer);
 	if (attribs == INVALID_FILE_ATTRIBUTES)
 	{
-		::syslog(LOG_ERR, "Failed to get file attributes of '%s': "
-			"error %d", pName, GetLastError());
+		::syslog(LOG_ERR, "Failed to get file attributes of '%s': %s",
+			pName, GetErrorMessage(GetLastError()).c_str());
 		errno = EACCES;
 		free(pBuffer);
 		return -1;
@@ -920,8 +933,8 @@ int emu_chmod(const char * pName, mode_t mode)
 
 	if (!SetFileAttributesW(pBuffer, attribs))
 	{
-		::syslog(LOG_ERR, "Failed to set file attributes of '%s': "
-			"error %d", pName, GetLastError());
+		::syslog(LOG_ERR, "Failed to set file attributes of '%s': %s",
+			pName, GetErrorMessage(GetLastError()).c_str());
 		errno = EACCES;
 		free(pBuffer);
 		return -1;
@@ -1190,8 +1203,8 @@ BOOL AddEventSource
 	char cmd[MAX_PATH];
 	if (GetModuleFileName(NULL, cmd, sizeof(cmd)-1) == 0)
 	{
-		::syslog(LOG_ERR, "Failed to get the program file name: "
-			"error %d", GetLastError());
+		::syslog(LOG_ERR, "Failed to get the program file name: %s",
+			GetErrorMessage(GetLastError()).c_str());
 		return FALSE;
 	}
 	cmd[sizeof(cmd)-1] = 0;
@@ -1210,8 +1223,8 @@ BOOL AddEventSource
 			 0, NULL, REG_OPTION_NON_VOLATILE,
 			 KEY_WRITE, NULL, &hk, &dwDisp)) 
 	{
-		::syslog(LOG_ERR, "Failed to create the registry key: "
-			"error %d", GetLastError()); 
+		::syslog(LOG_ERR, "Failed to create the registry key: %s",
+			GetErrorMessage(GetLastError()).c_str());
 		return FALSE;
 	}
 
@@ -1224,8 +1237,8 @@ BOOL AddEventSource
 			 (LPBYTE) exepath.c_str(),  // pointer to value data 
 			 (DWORD) (exepath.size()))) // data size
 	{
-		::syslog(LOG_ERR, "Failed to set the event message file: "
-			"error %d", GetLastError()); 
+		::syslog(LOG_ERR, "Failed to set the event message file: %s",
+			GetErrorMessage(GetLastError()).c_str());
 		RegCloseKey(hk); 
 		return FALSE;
 	}
@@ -1242,8 +1255,8 @@ BOOL AddEventSource
 			  (LPBYTE) &dwData, // pointer to value data 
 			  sizeof(DWORD)))   // length of value data 
 	{
-		::syslog(LOG_ERR, "Failed to set the supported types: "
-			"error %d", GetLastError()); 
+		::syslog(LOG_ERR, "Failed to set the supported types: %s",
+			GetErrorMessage(GetLastError()).c_str());
 		RegCloseKey(hk); 
 		return FALSE;
 	}
@@ -1258,7 +1271,7 @@ BOOL AddEventSource
 			  (DWORD) (exepath.size()))) // data size
 	{
 		::syslog(LOG_ERR, "Failed to set the category message file: "
-			"error %d", GetLastError());
+			"%s", GetErrorMessage(GetLastError()).c_str());
 		RegCloseKey(hk); 
 		return FALSE;
 	}
@@ -1270,8 +1283,8 @@ BOOL AddEventSource
 			  (LPBYTE) &dwNum, // pointer to value data 
 			  sizeof(DWORD)))  // length of value data 
 	{
-		::syslog(LOG_ERR, "Failed to set the category count: "
-			"error %d", GetLastError());
+		::syslog(LOG_ERR, "Failed to set the category count: %s",
+			GetErrorMessage(GetLastError()).c_str());
 		RegCloseKey(hk); 
 		return FALSE;
 	}
@@ -1304,7 +1317,7 @@ void openlog(const char * daemonName, int, int)
 	if (newSyslogH == NULL)
 	{
 		::syslog(LOG_ERR, "Failed to register our own event source: "
-			"error %d", GetLastError());
+			"%s", GetErrorMessage(GetLastError()).c_str());
 		return;
 	}
 
@@ -1403,8 +1416,8 @@ void syslog(int loglevel, const char *frmt, ...)
 		}
 		else
 		{
-			printf("Unable to send message to Event Log: "
-				"error %i:\r\n", (int)err);
+			printf("Unable to send message to Event Log: %s:\r\n",
+				GetErrorMessage(err).c_str());
 			fflush(stdout);
 		}
 	}
@@ -1548,7 +1561,8 @@ int emu_unlink(const char* pFileName)
 		else
 		{
 			::syslog(LOG_WARNING, "Failed to delete file "
-				"'%s': error %d", pFileName, (int)err);
+				"'%s': %s", pFileName, 
+				GetErrorMessage(err).c_str());
 			errno = ENOSYS;
 		}
 		return -1;
@@ -1564,7 +1578,7 @@ int console_read(char* pBuffer, size_t BufferSize)
 	if (hConsole == INVALID_HANDLE_VALUE)
 	{
 		::fprintf(stderr, "Failed to get a handle on standard input: "
-			"error %d\n", GetLastError());
+			"%s", GetErrorMessage(GetLastError()).c_str());
 		return -1;
 	}
 
@@ -1587,8 +1601,8 @@ int console_read(char* pBuffer, size_t BufferSize)
 			NULL // reserved
 		)) 
 	{
-		::fprintf(stderr, "Failed to read from console: error %d\n",
-			GetLastError());
+		::fprintf(stderr, "Failed to read from console: %s\n",
+			GetErrorMessage(GetLastError()).c_str());
 		return -1;
 	}
 
@@ -1684,13 +1698,13 @@ bool ConvertTime_tToFileTime(const time_t from, FILETIME *pTo)
 	// Convert the last-write time to local time.
 	if (!SystemTimeToFileTime(&stUTC, pTo))
 	{
-		syslog(LOG_ERR, "Failed to convert between time formats: "
-			"error %d", GetLastError());
+		syslog(LOG_ERR, "Failed to convert between time formats: %s",
+			GetErrorMessage(GetLastError()).c_str());
 		return false;
 	}
 
 	return true;
 }
 
-
 #endif // WIN32
+
