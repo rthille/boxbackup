@@ -71,12 +71,12 @@ private:
 	bool mExtendedLogging;
 	bool mHaveForkedHousekeeping;
 	bool mIsHousekeepingProcess;
-	
 	bool mHousekeepingInited;
-	virtual void OnIdle();
+
 	SocketStream mInterProcessCommsSocket;
 	IOStreamGetLine mInterProcessComms;
 
+	virtual void OnIdle();
 	void HousekeepingInit();
 	void RunHousekeepingIfNeeded();
 	int64_t mLastHousekeepingRun;
