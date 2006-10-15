@@ -49,6 +49,9 @@
 #include "ServerControl.h"
 #include "Configuration.h"
 #include "BackupDaemonConfigVerify.h"
+#include "IOStreamGetLine.h"
+#include "FileStream.h"
+#include "LocalProcessStream.h"
 
 #include "MemLeakFindOn.h"
 
@@ -604,7 +607,7 @@ int test_bbackupd()
 
 	// unpack the files for the initial test
 	TEST_THAT(::system("rm -rf testfiles/TestDir1") == 0);
-	TEST_THAT(::mkdir("testfiles/TestDir1") == 0);
+	TEST_THAT(::mkdir("testfiles/TestDir1", 0) == 0);
 #ifdef WIN32
 	TEST_THAT(::system("tar xzvf testfiles/spacetest1.tgz -C testfiles/TestDir1") == 0);
 #else
@@ -679,6 +682,150 @@ int test_bbackupd()
 		compareReturnValue = ::system(BBACKUPQUERY " -q -c testfiles/bbackupd.conf -l testfiles/query1.log \"compare -ac\" quit");
 		TEST_RETURN(compareReturnValue, 1);
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+
+#ifdef WIN32
+		printf("==== Check that filenames in UTF-8 can be backed up\n");
+		std::string basedir("testfiles/TestDir1");
+
+		// We have no guarantee that a random Unicode string can be
+		// represented in the user's code page, so we go the other
+		// way, taking three random characters from the code page
+		// and converting them to Unicode. We hope that these 
+		// characters are valid in most code pages, but they probably
+		// are not in Shift-JIS, GB2312, etc. 
+		// In CP-850 they are three Danish accented characters.
+		std::string foreignCharsNative("\xe6\xf8\xe5");
+		std::string foreignCharsUnicode;
+		TEST_THAT(ConvertConsoleToUtf8(foreignCharsNative.c_str(),
+			foreignCharsUnicode));
+
+		std::string dirname("test" + foreignCharsUnicode + "testdir");
+		std::string dirpath(basedir + "/" + dirname);
+		TEST_THAT(mkdir(dirpath.c_str(), 0) == 0);
+
+		std::string filename("test" + foreignCharsUnicode + "testfile");
+		std::string filepath(dirpath + "/" + filename);
+		FileStream fs(filepath.c_str(), O_CREAT | O_RDWR);
+
+		std::string data("hello world\n");
+		fs.Write(data.c_str(), data.size());
+		fs.Close();
+
+		wait_for_backup_operation();
+		// Compare to check that the file was uploaded
+		compareReturnValue = ::system(BBACKUPQUERY " -q "
+			"-c testfiles/bbackupd.conf \"compare -ac\" quit");
+		TEST_RETURN(compareReturnValue, 1);
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+
+		// Check that we can find it in directory listing
+		{
+			SocketStreamTLS conn;
+			conn.Open(context, Socket::TypeINET, "localhost", 
+				BOX_PORT_BBSTORED);
+			BackupProtocolClient protocol(conn);
+			protocol.QueryVersion(BACKUP_STORE_SERVER_VERSION);
+			protocol.QueryLogin(0x01234567, 0);
+
+			int64_t rootDirId = BackupProtocolClientListDirectory
+				::RootDirectory;
+			std::auto_ptr<BackupProtocolClientSuccess> dirreply(
+				protocol.QueryListDirectory(
+					rootDirId, false, 0, false));
+			std::auto_ptr<IOStream> dirstream(
+				protocol.ReceiveStream());
+			BackupStoreDirectory dir;
+			dir.ReadFromStream(*dirstream, protocol.GetTimeout());
+
+			int64_t baseDirId = SearchDir(dir, "Test1");
+			TEST_THAT(baseDirId != 0);
+			dirreply = protocol.QueryListDirectory(baseDirId,
+				false, 0, false);
+			dirstream = protocol.ReceiveStream();
+			dir.ReadFromStream(*dirstream, protocol.GetTimeout());
+
+			int64_t testDirId = SearchDir(dir, dirname.c_str());
+			TEST_THAT(testDirId != 0);
+			dirreply = protocol.QueryListDirectory(testDirId,
+				false, 0, false);
+			dirstream = protocol.ReceiveStream();
+			dir.ReadFromStream(*dirstream, protocol.GetTimeout());
+		
+			TEST_THAT(SearchDir(dir, filename.c_str()) != 0);
+			// Log out
+			protocol.QueryFinished();
+		}
+
+		// Check that it can be converted to the system encoding
+		// (which is what is needed on the command line)
+		std::string systemDirName;
+		TEST_THAT(ConvertEncoding(dirname.c_str(), CP_UTF8,
+			systemDirName, CP_ACP));
+
+		std::string systemFileName;
+		TEST_THAT(ConvertEncoding(filename.c_str(), CP_UTF8,
+			systemFileName, CP_ACP));
+
+		// Check that it can be converted to the console encoding
+		// (which is what we will see in the output)
+		std::string consoleDirName;
+		TEST_THAT(ConvertUtf8ToConsole(dirname.c_str(),
+			consoleDirName));
+
+		std::string consoleFileName;
+		TEST_THAT(ConvertUtf8ToConsole(filename.c_str(),
+			consoleFileName));
+
+		// Check that bbackupquery shows the dir in console encoding
+		std::string command(BBACKUPQUERY " -c testfiles/bbackupd.conf "
+			"-q \"list Test1\" quit");
+		pid_t pid;
+		std::auto_ptr<IOStream> queryout;
+		queryout = LocalProcessStream(command.c_str(), pid);
+		TEST_THAT(queryout.get() != NULL);
+		TEST_THAT(pid != -1);
+
+		IOStreamGetLine reader(*queryout);
+		std::string line;
+		bool found = false;
+		while (!reader.IsEOF())
+		{
+			TEST_THAT(reader.GetLine(line));
+			if (line.find(consoleDirName) != std::string::npos)
+			{
+				found = true;
+			}
+		}
+		TEST_THAT(!(queryout->StreamDataLeft()));
+		TEST_THAT(reader.IsEOF());
+		TEST_THAT(found);
+		queryout->Close();
+
+		// Check that bbackupquery can list the dir when given
+		// on the command line in console encoding, and shows
+		// the file in console encoding
+		command = BBACKUPQUERY " -c testfiles/bbackupd.conf "
+			"-q \"list Test1";
+		command += "/" + systemDirName + "\" quit";
+		queryout = LocalProcessStream(command.c_str(), pid);
+		TEST_THAT(queryout.get() != NULL);
+		TEST_THAT(pid != -1);
+
+		IOStreamGetLine reader2(*queryout);
+		found = false;
+		while (!reader2.IsEOF())
+		{
+			TEST_THAT(reader2.GetLine(line));
+			if (line.find(consoleFileName) != std::string::npos)
+			{
+				found = true;
+			}
+		}
+		TEST_THAT(!(queryout->StreamDataLeft()));
+		TEST_THAT(reader2.IsEOF());
+		TEST_THAT(found);
+		queryout->Close();
+#endif // WIN32
 
 		// Check that SyncAllowScript is executed and can pause backup
 		printf("==== Check that SyncAllowScript is executed and can "
