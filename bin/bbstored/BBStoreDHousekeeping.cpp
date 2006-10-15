@@ -12,7 +12,7 @@
 #include <stdio.h>
 
 #ifdef HAVE_SYSLOG_H
-#include <syslog.h>
+	#include <syslog.h>
 #endif
 
 #include "BackupStoreDaemon.h"
@@ -38,7 +38,6 @@ void BackupStoreDaemon::HousekeepingInit()
 	mLastHousekeepingRun = 0;
 }
 
-#ifndef WIN32
 void BackupStoreDaemon::HousekeepingProcess()
 {
 	HousekeepingInit();
@@ -53,7 +52,9 @@ void BackupStoreDaemon::HousekeepingProcess()
 
 		// Calculate how long should wait before doing the next housekeeping run
 		int64_t timeNow = GetCurrentBoxTime();
-		time_t secondsToGo = BoxTimeToSeconds((mLastHousekeepingRun + housekeepingInterval) - timeNow);
+		time_t secondsToGo = BoxTimeToSeconds(
+			(mLastHousekeepingRun + housekeepingInterval) - 
+			timeNow);
 		if(secondsToGo < 1) secondsToGo = 1;
 		if(secondsToGo > 60) secondsToGo = 60;
 		int32_t millisecondsToGo = ((int)secondsToGo) * 1000;
@@ -62,7 +63,6 @@ void BackupStoreDaemon::HousekeepingProcess()
 		CheckForInterProcessMsg(0 /* no account */, millisecondsToGo);
 	}
 }
-#endif
 
 void BackupStoreDaemon::RunHousekeepingIfNeeded()
 {
@@ -124,10 +124,16 @@ void BackupStoreDaemon::RunHousekeepingIfNeeded()
 				*i);
 		}
 	
-#ifndef WIN32	
+		int64_t timeNow = GetCurrentBoxTime();
+		time_t secondsToGo = BoxTimeToSeconds(
+			(mLastHousekeepingRun + housekeepingInterval) - 
+			timeNow);
+		if(secondsToGo < 1) secondsToGo = 1;
+		if(secondsToGo > 60) secondsToGo = 60;
+		int32_t millisecondsToGo = ((int)secondsToGo) * 1000;
+
 		// Check to see if there's any message pending
-		CheckForInterProcessMsg(0 /* no account */);
-#endif
+		CheckForInterProcessMsg(0 /* no account */, millisecondsToGo);
 
 		// Stop early?
 		if(StopRun())
@@ -142,7 +148,6 @@ void BackupStoreDaemon::RunHousekeepingIfNeeded()
 	SetProcessTitle("housekeeping, idle");
 }
 
-#ifdef WIN32
 void BackupStoreDaemon::OnIdle()
 {
 	if (!mHousekeepingInited)
@@ -153,7 +158,6 @@ void BackupStoreDaemon::OnIdle()
 
 	RunHousekeepingIfNeeded();
 }
-#endif
 
 // --------------------------------------------------------------------------
 //
@@ -164,7 +168,6 @@ void BackupStoreDaemon::OnIdle()
 //		Created: 11/12/03
 //
 // --------------------------------------------------------------------------
-#ifndef WIN32
 bool BackupStoreDaemon::CheckForInterProcessMsg(int AccountNum, int MaximumWaitTime)
 {
 	// First, check to see if it's EOF -- this means something has gone wrong, and the housekeeping should terminate.
@@ -208,6 +211,5 @@ bool BackupStoreDaemon::CheckForInterProcessMsg(int AccountNum, int MaximumWaitT
 	
 	return false;
 }
-#endif
 
 

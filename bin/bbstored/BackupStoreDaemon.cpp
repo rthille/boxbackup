@@ -14,7 +14,7 @@
 #include <signal.h>
 
 #ifdef HAVE_SYSLOG_H
-#include <syslog.h>
+	#include <syslog.h>
 #endif
 
 #include "BackupContext.h"
@@ -41,12 +41,9 @@ BackupStoreDaemon::BackupStoreDaemon()
 	  mpAccounts(0),
 	  mExtendedLogging(false),
 	  mHaveForkedHousekeeping(false),
-#ifdef WIN32
-	  mHousekeepingInited(false)
-#else
+	  mHousekeepingInited(false),
 	  mIsHousekeepingProcess(false),
 	  mInterProcessComms(mInterProcessCommsSocket)
-#endif
 {
 }
 
@@ -163,9 +160,13 @@ void BackupStoreDaemon::Run()
 	const Configuration &config(GetConfiguration());
 	mExtendedLogging = config.GetKeyValueBool("ExtendedLogging");
 	
-#ifndef WIN32	
+#ifdef WIN32	
+	// Housekeeping runs synchronously on Win32
+	if(false)
+#else
 	// Fork off housekeeping daemon -- must only do this the first time Run() is called
 	if(!mHaveForkedHousekeeping)
+#endif
 	{
 		// Open a socket pair for communication
 		int sv[2] = {-1,-1};
@@ -227,11 +228,9 @@ void BackupStoreDaemon::Run()
 	}
 	else
 	{
-#endif // !WIN32
 		// In server process -- use the base class to do the magic
 		ServerTLS<BOX_PORT_BBSTORED>::Run();
 		
-#ifndef WIN32	
 		// Why did it stop? Tell the housekeeping process to do the same
 		if(IsReloadConfigWanted())
 		{
@@ -242,7 +241,6 @@ void BackupStoreDaemon::Run()
 			mInterProcessCommsSocket.Write("t\n", 2);
 		}
 	}
-#endif
 }
 
 

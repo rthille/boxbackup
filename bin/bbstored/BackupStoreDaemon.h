@@ -59,11 +59,9 @@ protected:
 
 	const ConfigurationVerify *GetConfigVerify() const;
 	
-#ifndef WIN32	
 	// Housekeeping functions
 	void HousekeepingProcess();
 	bool CheckForInterProcessMsg(int AccountNum = 0, int MaximumWaitTime = 0);
-#endif
 
 	void LogConnectionStats(const char *commonName, const SocketStreamTLS &s);
 
@@ -72,15 +70,12 @@ private:
 	BackupStoreAccounts *mpAccounts;
 	bool mExtendedLogging;
 	bool mHaveForkedHousekeeping;
+	bool mIsHousekeepingProcess;
 	
-#ifdef WIN32
 	bool mHousekeepingInited;
 	virtual void OnIdle();
-#else
 	SocketStream mInterProcessCommsSocket;
 	IOStreamGetLine mInterProcessComms;
-	bool mIsHousekeepingProcess;
-#endif
 
 	void HousekeepingInit();
 	void RunHousekeepingIfNeeded();
