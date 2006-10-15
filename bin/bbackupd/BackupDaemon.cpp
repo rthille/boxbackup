@@ -2249,7 +2249,7 @@ void BackupDaemon::Location::Deserialize(Archive &rArchive)
 	else if(aMagicMarker == ARCHIVE_MAGIC_VALUE_RECURSE)
 	{
 		mpExcludeDirs = new ExcludeList;
-		if (!mpExcludeDirs)
+		if(!mpExcludeDirs)
 		{
 			throw std::bad_alloc();
 		}
