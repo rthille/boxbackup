@@ -304,14 +304,6 @@ void BackupDaemon::RunHelperThread(void)
 			SetTerminateWanted();
 			break; // this is fatal to listening thread
 		}
-		catch (...)
-		{
-			::syslog(LOG_ERR, "Failed to open command socket: "
-				"unknown error");
-			SetTerminateWanted();
-			break; // this is fatal to listening thread
-		}
-		}
 		catch(std::exception &e)
 		{
 			::syslog(LOG_ERR, "Failed to open command socket: "
