@@ -35,6 +35,9 @@
 // Must have this number of discs in the set
 #define TRANSFORM_NUMBER_DISCS_REQUIRED	3
 
+// we want to use POSIX fstat() for now, not the emulated one
+#undef fstat
+
 // --------------------------------------------------------------------------
 //
 // Function
