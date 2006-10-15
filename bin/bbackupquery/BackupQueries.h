@@ -50,7 +50,7 @@ private:
 	void CommandChangeDir(const std::vector<std::string> &args, const bool *opts);
 	void CommandChangeLocalDir(const std::vector<std::string> &args);
 	void CommandGetObject(const std::vector<std::string> &args, const bool *opts);
-	void CommandGet(const std::vector<std::string> &args, const bool *opts);
+	void CommandGet(std::vector<std::string> args, const bool *opts);
 	void CommandCompare(const std::vector<std::string> &args, const bool *opts);
 	void CommandRestore(const std::vector<std::string> &args, const bool *opts);
 	void CommandUndelete(const std::vector<std::string> &args, const bool *opts);

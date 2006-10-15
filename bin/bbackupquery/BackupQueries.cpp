@@ -890,7 +890,7 @@ void BackupQueries::CommandGetObject(const std::vector<std::string> &args, const
 //		Created: 2003/10/12
 //
 // --------------------------------------------------------------------------
-void BackupQueries::CommandGet(const std::vector<std::string> &args, const bool *opts)
+void BackupQueries::CommandGet(std::vector<std::string> args, const bool *opts)
 {
 	// At least one argument?
 	// Check args
@@ -910,12 +910,20 @@ void BackupQueries::CommandGet(const std::vector<std::string> &args, const bool 
 	// BLOCK
 	{
 #ifdef WIN32
-		std::string fileName;
-		if(!ConvertConsoleToUtf8(args[0].c_str(), fileName))
-			return;
-#else
-		std::string fileName(args[0]);
+		for (std::vector<std::string>::iterator 
+			i = args.begin(); i != args.end(); i++)
+		{
+			std::string out;
+			if(!ConvertConsoleToUtf8(i->c_str(), out))
+			{
+				fprintf(stderr, "failed to convert encoding\n");
+				return;
+			}
+			*i = out;
+		}
 #endif
+
+		std::string fileName(args[0]);
 
 		if(!opts['i'])
 		{
