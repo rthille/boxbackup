@@ -33,6 +33,9 @@ public:
 	{
 		if(mOSFileHandle < 0)
 		{
+			::syslog(LOG_ERR, "FileHandleGuard: "
+				"failed to open file '%s': error %s",
+				filename, strerror(errno));
 			THROW_EXCEPTION(CommonException, OSFileOpenError)
 		}
 	}

@@ -37,6 +37,9 @@ EventWatchFilesystemObject::EventWatchFilesystemObject(const char *Filename)
 #ifdef HAVE_KQUEUE
 	if(mDescriptor == -1)
 	{
+		::syslog(LOG_ERR, "EventWatchFilesystemObject: "
+			"Failed to open file '%s': %s",
+			Filename, strerror(errno));
 		THROW_EXCEPTION(CommonException, OSFileOpenError)
 	}
 #else

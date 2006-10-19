@@ -63,6 +63,8 @@ FileStream::FileStream(tOSFileHandle FileDescriptor)
 #endif
 	{
 		MEMLEAKFINDER_NOT_A_LEAK(this);
+		::syslog(LOG_ERR, "FileStream: called with invalid "
+			"file handle");
 		THROW_EXCEPTION(CommonException, OSFileOpenError)
 	}
 #ifdef WIN32
@@ -86,6 +88,7 @@ FileStream::FileStream(const FileStream &rToCopy)
 	if(mOSFileHandle < 0)
 	{
 		MEMLEAKFINDER_NOT_A_LEAK(this);
+		::syslog(LOG_ERR, "FileStream: copying unopened file");
 		THROW_EXCEPTION(CommonException, OSFileOpenError)
 	}
 }
