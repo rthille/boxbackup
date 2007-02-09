@@ -19,6 +19,7 @@
 #include <set>
 #include <limits.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include "BackupClientRestore.h"
 #include "autogen_BackupProtocolClient.h"
@@ -222,9 +223,34 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 		// Remove the level for the recursed directory
 		rLevel.RemoveLevel();		
 	}
+	
+	// Create the local directory, if not already done.
+	// Path and owner set later, just use restrictive owner mode.
 
-	// Create the local directory (if not already done) -- path and owner set later, just use restrictive owner mode
-	int exists = ObjectExists(rLocalDirectoryName.c_str());
+	int exists;
+
+	try
+	{
+		exists = ObjectExists(rLocalDirectoryName.c_str());
+	}
+	catch (BoxException &e)
+	{
+		::syslog(LOG_ERR, "Failed to check existence for %s: %s", 
+			rLocalDirectoryName.c_str(), e.what());
+		return Restore_UnknownError;
+	}
+	catch(std::exception &e)
+	{
+		::syslog(LOG_ERR, "Failed to check existence for %s: %s", 
+			rLocalDirectoryName.c_str(), e.what());
+		return Restore_UnknownError;
+	}
+	catch(...)
+	{
+		::syslog(LOG_ERR, "Failed to check existence for %s: "
+			"unknown error", rLocalDirectoryName.c_str());
+		return Restore_UnknownError;
+	}
 
 	switch(exists)
 	{
@@ -237,12 +263,18 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 				::printf("WARNING: File present with name '%s', removing out of the way of restored directory. Use specific restore with ID to restore this object.", rLocalDirectoryName.c_str());
 				if(::unlink(rLocalDirectoryName.c_str()) != 0)
 				{
-					THROW_EXCEPTION(CommonException, OSFileError);
+					::syslog(LOG_ERR, "Failed to delete "
+						"file %s: %s",
+						rLocalDirectoryName.c_str(),
+						strerror(errno));
+					return Restore_UnknownError;
 				}
 				TRACE1("In restore, directory name collision with file %s", rLocalDirectoryName.c_str());
 			}
-			// follow through to... (no break)
+			break;
 		case ObjectExists_NoObject:
+			// we'll create it in a second, after checking
+			// whether the parent directory exists
 			break;
 		default:
 			ASSERT(false);
@@ -256,7 +288,7 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 		parentDirectoryName.resize(parentDirectoryName.size() - 1);
 	}
 
-	int lastSlash = parentDirectoryName.rfind(DIRECTORY_SEPARATOR_ASCHAR);
+	size_t lastSlash = parentDirectoryName.rfind(DIRECTORY_SEPARATOR_ASCHAR);
 
 	if(lastSlash == std::string::npos)
 	{
@@ -271,7 +303,33 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 		// directory name and check that the resulting parent
 		// exists, otherwise the restore should fail.
 		parentDirectoryName.resize(lastSlash);
-		switch(ObjectExists(parentDirectoryName.c_str()))
+
+		int parentExists;
+
+		try
+		{
+			parentExists = ObjectExists(parentDirectoryName.c_str());
+		}
+		catch (BoxException &e)
+		{
+			::syslog(LOG_ERR, "Failed to check existence for %s: "
+				"%s", parentDirectoryName.c_str(), e.what());
+			return Restore_UnknownError;
+		}
+		catch(std::exception &e)
+		{
+			::syslog(LOG_ERR, "Failed to check existence for %s: "
+				"%s", parentDirectoryName.c_str(), e.what());
+			return Restore_UnknownError;
+		}
+		catch(...)
+		{
+			::syslog(LOG_ERR, "Failed to check existence for %s: "
+				"unknown error", parentDirectoryName.c_str());
+			return Restore_UnknownError;
+		}
+
+		switch(parentExists)
 		{
 			case ObjectExists_Dir:
 				// this is fine, do nothing
@@ -304,13 +362,39 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 		exists == ObjectExists_File) && 
 		::mkdir(rLocalDirectoryName.c_str(), S_IRWXU) != 0)
 	{
-		THROW_EXCEPTION(CommonException, OSFileError);
+		::syslog(LOG_ERR, "Failed to create directory %s: %s",
+			rLocalDirectoryName.c_str(),
+			strerror(errno));
+		return Restore_UnknownError;
 	}
-	
-	// Save the resumption information
-	Params.mResumeInfo.Save(Params.mRestoreResumeInfoFilename);
-	
-	// Fetch the directory listing from the server -- getting a list of files which is approparite to the restore type
+
+	// Save the restore info, in case it's needed later
+	try
+	{
+		Params.mResumeInfo.Save(Params.mRestoreResumeInfoFilename);
+	}
+	catch (BoxException &e)
+	{
+		::syslog(LOG_ERR, "Failed to save resume info file %s: %s", 
+			Params.mRestoreResumeInfoFilename.c_str(), e.what());
+		return Restore_UnknownError;
+	}
+	catch(std::exception &e)
+	{
+		::syslog(LOG_ERR, "Failed to save resume info file %s: %s", 
+			Params.mRestoreResumeInfoFilename.c_str(), e.what());
+		return Restore_UnknownError;
+	}
+	catch(...)
+	{
+		::syslog(LOG_ERR, "Failed to save resume info file %s: "
+			"unknown error", 
+			Params.mRestoreResumeInfoFilename.c_str());
+		return Restore_UnknownError;
+	}
+
+	// Fetch the directory listing from the server -- getting a
+	// list of files which is appropriate to the restore type
 	rConnection.QueryListDirectory(
 			DirectoryID,
 			Params.RestoreDeleted?(BackupProtocolClientListDirectory::Flags_Deleted):(BackupProtocolClientListDirectory::Flags_INCLUDE_EVERYTHING),
@@ -325,7 +409,29 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 	// Apply attributes to the directory
 	const StreamableMemBlock &dirAttrBlock(dir.GetAttributes());
 	BackupClientFileAttributes dirAttr(dirAttrBlock);
-	dirAttr.WriteAttributes(rLocalDirectoryName.c_str());
+
+	try
+	{
+		dirAttr.WriteAttributes(rLocalDirectoryName.c_str());
+	}
+	catch (BoxException &e)
+	{
+		::syslog(LOG_ERR, "Failed to restore attributes for %s: %s", 
+			rLocalDirectoryName.c_str(), e.what());
+		return Restore_UnknownError;
+	}
+	catch(std::exception &e)
+	{
+		::syslog(LOG_ERR, "Failed to restore attributes for %s: %s", 
+			rLocalDirectoryName.c_str(), e.what());
+		return Restore_UnknownError;
+	}
+	catch(...)
+	{
+		::syslog(LOG_ERR, "Failed to restore attributes for %s: "
+			"unknown error", rLocalDirectoryName.c_str());
+		return Restore_UnknownError;
+	}
 
 	int64_t bytesWrittenSinceLastRestoreInfoSave = 0;
 	
@@ -343,7 +449,14 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 				std::string localFilename(rLocalDirectoryName + DIRECTORY_SEPARATOR_ASCHAR + nm.GetClearFilename());
 				
 				// Unlink anything which already exists -- for resuming restores, we can't overwrite files already there.
-				::unlink(localFilename.c_str());
+				if(::unlink(localFilename.c_str()) == 0)
+				{
+					::syslog(LOG_ERR, "Failed to delete "
+						"file %s: %s",
+						localFilename.c_str(),
+						strerror(errno));
+					return Restore_UnknownError;
+				}
 				
 				// Request it from the store
 				rConnection.QueryGetFile(DirectoryID, en->GetObjectID());
@@ -353,17 +466,43 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 		
 				// Decode the file -- need to do different things depending on whether 
 				// the directory entry has additional attributes
-				if(en->HasAttributes())
+				try
 				{
-					// Use these attributes
-					const StreamableMemBlock &storeAttr(en->GetAttributes());
-					BackupClientFileAttributes attr(storeAttr);
-					BackupStoreFile::DecodeFile(*objectStream, localFilename.c_str(), rConnection.GetTimeout(), &attr);
+					if(en->HasAttributes())
+					{
+						// Use these attributes
+						const StreamableMemBlock &storeAttr(en->GetAttributes());
+						BackupClientFileAttributes attr(storeAttr);
+						BackupStoreFile::DecodeFile(*objectStream, localFilename.c_str(), rConnection.GetTimeout(), &attr);
+					}
+					else
+					{
+						// Use attributes stored in file
+						BackupStoreFile::DecodeFile(*objectStream, localFilename.c_str(), rConnection.GetTimeout());
+					}
 				}
-				else
+				catch (BoxException &e)
 				{
-					// Use attributes stored in file
-					BackupStoreFile::DecodeFile(*objectStream, localFilename.c_str(), rConnection.GetTimeout());
+					::syslog(LOG_ERR, "Failed to restore "
+						"file %s: %s", 
+						localFilename.c_str(), 
+						e.what());
+					return Restore_UnknownError;
+				}
+				catch(std::exception &e)
+				{
+					::syslog(LOG_ERR, "Failed to restore "
+						"file %s: %s", 
+						localFilename.c_str(), 
+						e.what());
+					return Restore_UnknownError;
+				}
+				catch(...)
+				{
+					::syslog(LOG_ERR, "Failed to restore "
+						"file %s: unknown error", 
+						localFilename.c_str());
+					return Restore_UnknownError;
 				}
 				
 				// Progress display?
@@ -378,7 +517,42 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 				
 				// Save restore info?
 				int64_t fileSize;
-				if(FileExists(localFilename.c_str(), &fileSize, true /* treat links as not existing */))
+				int exists;
+
+				try
+				{
+					exists = FileExists(
+						localFilename.c_str(),
+						&fileSize, 
+						true /* treat links as not 
+							existing */);
+				}
+				catch (BoxException &e)
+				{
+					::syslog(LOG_ERR, "Failed to determine "
+						"whether file exists: %s: %s", 
+						localFilename.c_str(), 
+						e.what());
+					return Restore_UnknownError;
+				}
+				catch(std::exception &e)
+				{
+					::syslog(LOG_ERR, "Failed to determine "
+						"whether file exists: %s: %s", 
+						localFilename.c_str(), 
+						e.what());
+					return Restore_UnknownError;
+				}
+				catch(...)
+				{
+					::syslog(LOG_ERR, "Failed to determine "
+						"whether file exists: %s: "
+						"unknown error", 
+						localFilename.c_str());
+					return Restore_UnknownError;
+				}
+
+				if(exists)
 				{
 					// File exists...
 					bytesWrittenSinceLastRestoreInfoSave += fileSize;
@@ -386,7 +560,30 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 					if(bytesWrittenSinceLastRestoreInfoSave > MAX_BYTES_WRITTEN_BETWEEN_RESTORE_INFO_SAVES)
 					{
 						// Save the restore info, in case it's needed later
-						Params.mResumeInfo.Save(Params.mRestoreResumeInfoFilename);
+						try
+						{
+							Params.mResumeInfo.Save(Params.mRestoreResumeInfoFilename);
+						}
+						catch (BoxException &e)
+						{
+							::syslog(LOG_ERR, "Failed to save resume info file %s: %s", 
+								Params.mRestoreResumeInfoFilename.c_str(), e.what());
+							return Restore_UnknownError;
+						}
+						catch(std::exception &e)
+						{
+							::syslog(LOG_ERR, "Failed to save resume info file %s: %s", 
+								Params.mRestoreResumeInfoFilename.c_str(), e.what());
+							return Restore_UnknownError;
+						}
+						catch(...)
+						{
+							::syslog(LOG_ERR, "Failed to save resume info file %s: "
+								"unknown error", 
+								Params.mRestoreResumeInfoFilename.c_str());
+							return Restore_UnknownError;
+						}
+
 						bytesWrittenSinceLastRestoreInfoSave = 0;
 					}
 				}
@@ -398,7 +595,35 @@ static int BackupClientRestoreDir(BackupProtocolClient &rConnection, int64_t Dir
 	if(bytesWrittenSinceLastRestoreInfoSave != 0)
 	{
 		// Save the restore info, in case it's needed later
-		Params.mResumeInfo.Save(Params.mRestoreResumeInfoFilename);
+		try
+		{
+			Params.mResumeInfo.Save(
+				Params.mRestoreResumeInfoFilename);
+		}
+		catch (BoxException &e)
+		{
+			::syslog(LOG_ERR, "Failed to save resume info file "
+				"%s: %s", 
+				Params.mRestoreResumeInfoFilename.c_str(),
+				e.what());
+			return Restore_UnknownError;
+		}
+		catch(std::exception &e)
+		{
+			::syslog(LOG_ERR, "Failed to save resume info file "
+				"%s: %s", 
+				Params.mRestoreResumeInfoFilename.c_str(),
+				e.what());
+			return Restore_UnknownError;
+		}
+		catch(...)
+		{
+			::syslog(LOG_ERR, "Failed to save resume info file "
+				"%s: unknown error", 
+				Params.mRestoreResumeInfoFilename.c_str());
+			return Restore_UnknownError;
+		}
+		
 		bytesWrittenSinceLastRestoreInfoSave = 0;
 	}
 
