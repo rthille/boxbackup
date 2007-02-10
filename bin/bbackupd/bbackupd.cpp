@@ -89,9 +89,9 @@ int main(int argc, const char *argv[])
 			BOX_FILE_BBACKUPD_DEFAULT_CONFIG, argc, argv);
 	}
 
-	::closelog();
-
 	delete gpDaemonService;
+
+	::closelog();
 
 	return ExitCode;
 
