@@ -288,7 +288,7 @@ public:
 						}
 					} while(p > 0);
 				}
-				#endif // !WIN32
+				#endif // WIN32
 			}
 		}
 		catch(...)
@@ -309,7 +309,7 @@ public:
 	virtual void Connection(StreamType &rStream) = 0;
 	
 protected:
-	// For checking code in dervied classes -- use if you have an algorithm which
+	// For checking code in derived classes -- use if you have an algorithm which
 	// depends on the forking model in case someone changes it later.
 	bool WillForkToHandleRequests()
 	{
