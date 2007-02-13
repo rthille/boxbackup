@@ -119,6 +119,7 @@ inline bool ServerIsAlive(int pid)
 inline int LaunchServer(const char *CommandLine, const char *pidFile)
 {
 #ifdef WIN32
+
 	PROCESS_INFORMATION procInfo;
 
 	STARTUPINFO startInfo;
@@ -157,25 +158,30 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 
 	CloseHandle(procInfo.hProcess);
 	CloseHandle(procInfo.hThread);
+
 #else // !WIN32
+
 	if(::system(CommandLine) != 0)
 	{
 		printf("Server: %s\n", CommandLine);
 		TEST_FAIL_WITH_MESSAGE("Couldn't start server");
 		return -1;
 	}
+
 #endif // WIN32
 
 	int pid = -1;
 
-#ifdef WIN32
+	#ifdef WIN32
+	// on other platforms there is no other way to get 
+	// the PID, so a NULL pidFile doesn't make sense.
+
 	if (pidFile == NULL)
 	{
-		pid = (int)procInfo.dwProcessId;
+		return (int)procInfo.dwProcessId;
 	}
-	else
-	{
-#endif
+	#endif
+
 	// time for it to start up
 	::fprintf(stdout, "Starting server: %s\n", CommandLine);
 	::fprintf(stdout, "Waiting for server to start: ");
@@ -183,14 +189,18 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 	for (int i = 0; i < 15; i++)
 	{
 		if (TestFileExists(pidFile))	
+		{
 			break;
+		}
 
 		#ifdef WIN32
 		if (!ServerIsAlive((int)procInfo.dwProcessId))
 		#else
 		if (!ServerIsAlive(pid))
 		#endif
+		{
 			break;
+		}
 
 		::fprintf(stdout, ".");
 		::fflush(stdout);
@@ -198,14 +208,17 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 	}
 
 	#ifdef WIN32
+	// on Win32 we can check whether the process is alive
+	// without even checking the PID file
+
 	if (!ServerIsAlive((int)procInfo.dwProcessId))
 	{
 		::fprintf(stdout, "server died!\n");
 		TEST_FAIL_WITH_MESSAGE("Server died!");	
 		return -1;
 	}
-	else 
 	#endif
+
 	if (!TestFileExists(pidFile))
 	{
 		::fprintf(stdout, "timed out!\n");
@@ -226,7 +239,10 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 	}
 	fclose(f);
 
-#ifdef WIN32
+	#ifdef WIN32
+	// On Win32 we can check whether the PID in the pidFile matches
+	// the one returned by the system, which it always should.
+
 	if (pid != (int)procInfo.dwProcessId)
 	{
 		printf("Server wrote wrong pid to file (%s): expected %d "
@@ -235,8 +251,7 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 		TEST_FAIL_WITH_MESSAGE("Server wrote wrong pid to file");	
 		return -1;
 	}
-	} // if (pidFile != NULL)
-#endif
+	#endif
 
 	return pid;
 }
@@ -244,10 +259,54 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 #define TestRemoteProcessMemLeaks(filename) \
 	TestRemoteProcessMemLeaksFunc(filename, __FILE__, __LINE__)
 
+inline bool HUPServer(int pid)
+{
+	if(pid == 0) return false;
+	return ::kill(pid, SIGHUP) != -1;
+}
+
+inline bool KillServerInternal(int pid)
+{
+	if(pid == 0 || pid == -1) return false;
+	TEST_THAT(::kill(pid, SIGTERM) != -1);
+}
+
+inline bool KillServer(int pid)
+{
+	KillServerInternal(pid);
+
+	for (int i = 0; i < 30; i++)
+	{
+		if (!ServerIsAlive(pid)) break;
+		::sleep(1);
+		if (!ServerIsAlive(pid)) break;
+
+		if (i == 0) 
+		{
+			printf("waiting for server to die");
+		}
+		printf(".");
+		fflush(stdout);
+	}
+
+	if (!ServerIsAlive(pid))
+	{
+		printf("done.\n");
+	}
+	else
+	{
+		printf("failed!\n");
+	}
+	fflush(stdout);
+
+	return !ServerIsAlive(pid);
+}
+
 inline void TestRemoteProcessMemLeaksFunc(const char *filename,
 	const char* file, int line)
 {
-#ifdef BOX_MEMORY_LEAK_TESTING
+	#ifdef BOX_MEMORY_LEAK_TESTING
+
 	// Does the file exist?
 	if(!TestFileExists(filename))
 	{
@@ -285,7 +344,8 @@ inline void TestRemoteProcessMemLeaksFunc(const char *filename,
 		// Delete it
 		::unlink(filename);
 	}
-#endif
+
+	#endif
 }
 
 #ifdef WIN32
