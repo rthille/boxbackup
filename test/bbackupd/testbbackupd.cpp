@@ -1699,7 +1699,7 @@ int test_bbackupd()
 		// Now we have about three seconds to work
 
 		handle = openfile("testfiles/TestDir1/lockedfile",
-			O_CREAT | O_EXCL, 0);
+			O_CREAT | O_EXCL | O_LOCK, 0);
 		TEST_THAT(handle != INVALID_HANDLE_VALUE);
 
 		if (handle != 0)
@@ -1732,7 +1732,7 @@ int test_bbackupd()
 			// open the file again, compare and check that compare
 			// reports the correct error message (and finishes)
 			handle = openfile("testfiles/TestDir1/lockedfile",
-				O_CREAT | O_EXCL, 0);
+				O_LOCK, 0);
 			TEST_THAT(handle != INVALID_HANDLE_VALUE);
 
 			compareReturnValue = ::system(BBACKUPQUERY 
