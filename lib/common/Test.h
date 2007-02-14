@@ -259,49 +259,6 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 #define TestRemoteProcessMemLeaks(filename) \
 	TestRemoteProcessMemLeaksFunc(filename, __FILE__, __LINE__)
 
-inline bool HUPServer(int pid)
-{
-	if(pid == 0) return false;
-	return ::kill(pid, SIGHUP) != -1;
-}
-
-inline bool KillServerInternal(int pid)
-{
-	if(pid == 0 || pid == -1) return false;
-	TEST_THAT(::kill(pid, SIGTERM) != -1);
-}
-
-inline bool KillServer(int pid)
-{
-	KillServerInternal(pid);
-
-	for (int i = 0; i < 30; i++)
-	{
-		if (!ServerIsAlive(pid)) break;
-		::sleep(1);
-		if (!ServerIsAlive(pid)) break;
-
-		if (i == 0) 
-		{
-			printf("waiting for server to die");
-		}
-		printf(".");
-		fflush(stdout);
-	}
-
-	if (!ServerIsAlive(pid))
-	{
-		printf("done.\n");
-	}
-	else
-	{
-		printf("failed!\n");
-	}
-	fflush(stdout);
-
-	return !ServerIsAlive(pid);
-}
-
 inline void TestRemoteProcessMemLeaksFunc(const char *filename,
 	const char* file, int line)
 {
@@ -349,14 +306,18 @@ inline void TestRemoteProcessMemLeaksFunc(const char *filename,
 }
 
 #ifdef WIN32
-#define BBACKUPCTL   "..\\..\\bin\\bbackupctl\\bbackupctl"
-#define BBACKUPD     "..\\..\\bin\\bbackupd\\bbackupd"
-#define BBACKUPQUERY "..\\..\\bin\\bbackupquery\\bbackupquery.exe"
+#define BBACKUPCTL      "..\\..\\bin\\bbackupctl\\bbackupctl.exe"
+#define BBACKUPD        "..\\..\\bin\\bbackupd\\bbackupd.exe"
+#define BBSTORED        "..\\..\\bin\\bbstored\\bbstored.exe"
+#define BBACKUPQUERY    "..\\..\\bin\\bbackupquery\\bbackupquery.exe"
+#define BBSTOREACCOUNTS "..\\..\\bin\\bbstoreaccounts\\bbstoreaccounts.exe"
 #define TEST_RETURN(actual, expected) TEST_THAT(actual == expected);
 #else
-#define BBACKUPCTL   "../../bin/bbackupctl/bbackupctl"
-#define BBACKUPD     "../../bin/bbackupd/bbackupd"
-#define BBACKUPQUERY "../../bin/bbackupquery/bbackupquery"
+#define BBACKUPCTL      "../../bin/bbackupctl/bbackupctl"
+#define BBACKUPD        "../../bin/bbackupd/bbackupd"
+#define BBSTORED        "../../bin/bbackupd/bbstored"
+#define BBACKUPQUERY    "../../bin/bbackupquery/bbackupquery"
+#define BBSTOREACCOUNTS "../../bin/bbstoreaccounts/bbstoreaccounts"
 #define TEST_RETURN(actual, expected) TEST_THAT(actual == expected*256);
 #endif
 

@@ -6,6 +6,7 @@
 #include "WinNamedPipeStream.h"
 #include "IOStreamGetLine.h"
 #include "BoxPortsAndFiles.h"
+#include "Test.h"
 
 static bool SendCommands(const std::string& rCmd)
 {
@@ -97,7 +98,7 @@ inline bool HUPServer(int pid)
 	return SendCommands("reload");
 }
 
-inline bool KillServer(int pid)
+inline bool KillServerInternal(int pid)
 {
 	HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, false, pid);
 	if (hProcess == NULL)
@@ -116,9 +117,7 @@ inline bool KillServer(int pid)
 	}
 
 	CloseHandle(hProcess);
-
-	::sleep(1);
-	return !ServerIsAlive(pid);
+	return true;
 }
 
 #else // !WIN32
@@ -129,15 +128,47 @@ inline bool HUPServer(int pid)
 	return ::kill(pid, SIGHUP) != -1;
 }
 
-inline bool KillServer(int pid)
+inline bool KillServerInternal(int pid)
 {
 	if(pid == 0 || pid == -1) return false;
-	bool KilledOK = ::kill(pid, SIGTERM) != -1;
-	TEST_THAT(KilledOK);
-	::sleep(1);
-	return !ServerIsAlive(pid);
+	bool killed = (::kill(pid, SIGTERM) != -1);
+	TEST_THAT(killed);
+	return killed;
 }
 
 #endif // WIN32
+
+inline bool KillServer(int pid)
+{
+	KillServerInternal(pid);
+
+	for (int i = 0; i < 30; i++)
+	{
+		if (!ServerIsAlive(pid)) break;
+		::sleep(1);
+		if (!ServerIsAlive(pid)) break;
+
+		if (i == 0) 
+		{
+			printf("waiting for server to die");
+		}
+
+		printf(".");
+		fflush(stdout);
+	}
+
+	if (!ServerIsAlive(pid))
+	{
+		printf("done.\n");
+	}
+	else
+	{
+		printf("failed!\n");
+	}
+
+	fflush(stdout);
+
+	return !ServerIsAlive(pid);
+}
 
 #endif // SERVER_CONTROL_H
