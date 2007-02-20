@@ -75,6 +75,7 @@
 #include "IOStreamGetLine.h"
 #include "Conversion.h"
 #include "Archive.h"
+#include "Logging.h"
 
 #include "MemLeakFindOn.h"
 
@@ -246,7 +247,7 @@ void BackupDaemon::SetupInInitialProcess()
 	// Print a warning on this platform if the CommandSocket is used.
 	if(GetConfiguration().KeyExists("CommandSocket"))
 	{
-		printf(
+		BOX_WARNING(
 				"==============================================================================\n"
 				"SECURITY WARNING: This platform cannot check the credentials of connections to\n"
 				"the command socket. This is a potential DoS security problem.\n"
@@ -299,21 +300,21 @@ void BackupDaemon::RunHelperThread(void)
 		}
 		catch (BoxException &e)
 		{
-			::syslog(LOG_ERR, "Failed to open command socket: %s",
+			BOX_ERROR("Failed to open command socket" << 
 				e.what());
 			SetTerminateWanted();
 			break; // this is fatal to listening thread
 		}
 		catch(std::exception &e)
 		{
-			::syslog(LOG_ERR, "Failed to open command socket: "
-				"%s", e.what());
+			BOX_ERROR("Failed to open command socket" <<
+				e.what());
 			SetTerminateWanted();
 			break; // this is fatal to listening thread
 		}
 		catch(...)
 		{
-			::syslog(LOG_ERR, "Failed to open command socket: "
+			BOX_ERROR("Failed to open command socket: "
 				"unknown error");
 			SetTerminateWanted();
 			break; // this is fatal to listening thread
@@ -326,7 +327,7 @@ void BackupDaemon::RunHelperThread(void)
 
 			// This next section comes from Ben's original function
 			// Log
-			::syslog(LOG_INFO, "Connection from command socket");
+			BOX_INFO("Connection from command socket");
 
 			// Send a header line summarising the configuration 
 			// and current state
@@ -450,7 +451,9 @@ void BackupDaemon::RunHelperThread(void)
 				}
 				else
 				{
-					::syslog(LOG_ERR, "Received unknown command '%s' from client", command.c_str());
+					BOX_ERROR("Received unknown command "
+						"'" << command << "' "
+						"from client");
 					sendResponse = true;
 					sendOK = false;
 				}
@@ -473,17 +476,17 @@ void BackupDaemon::RunHelperThread(void)
 		}
 		catch(BoxException &e)
 		{
-			::syslog(LOG_ERR, "Communication error with "
-				"control client: %s", e.what());
+			BOX_ERROR("Communication error with "
+				"control client: " << e.what());
 		}
 		catch(std::exception &e)
 		{
-			::syslog(LOG_ERR, "Internal error in command socket "
-				"thread: %s", e.what());
+			BOX_ERROR("Internal error in command socket "
+				"thread: " << e.what());
 		}
 		catch(...)
 		{
-			::syslog(LOG_ERR, "Communication error with control client");
+			BOX_ERROR("Communication error with control client");
 		}
 	}
 
@@ -547,14 +550,13 @@ void BackupDaemon::Run()
 			}
 			catch(std::exception &e)
 			{
-				::syslog(LOG_WARNING, "Internal error while "
+				BOX_WARNING("Internal error while "
 					"closing command socket after "
-					"another exception: %s", e.what());
+					"another exception: " << e.what());
 			}
 			catch(...)
 			{
-				::syslog(LOG_WARNING,
-					"Error closing command socket "
+				BOX_WARNING("Error closing command socket "
 					"after exception, ignored.");
 			}
 			mpCommandSocketInfo = 0;
@@ -742,7 +744,7 @@ void BackupDaemon::Run2()
 			if(deleteStoreObjectInfoFile && 
 				!DeleteStoreObjectInfo())
 			{
-				::syslog(LOG_ERR, "Failed to delete the "
+				BOX_ERROR("Failed to delete the "
 					"StoreObjectInfoFile, backup cannot "
 					"continue safely.");
 				// prevent runaway process where the logs fill up -- without this
@@ -765,7 +767,7 @@ void BackupDaemon::Run2()
 			{
 				// Set state and log start
 				SetState(State_Connected);
-				::syslog(LOG_INFO, "Beginning scan of local files");
+				BOX_NOTICE("Beginning scan of local files");
 
 				// Then create a client context object (don't just connect, as this may be unnecessary)
 				BackupClientContext clientContext(*this, tlsContext, conf.GetKeyValue("StoreHostname"),
@@ -859,7 +861,7 @@ void BackupDaemon::Run2()
 				CommitIDMapsAfterSync();
 
 				// Log
-				::syslog(LOG_INFO, "Finished scan of local files");
+				BOX_NOTICE("Finished scan of local files");
 
 				// --------------------------------------------------------------------------------------------
 
@@ -883,8 +885,8 @@ void BackupDaemon::Run2()
 			}
 			catch(std::exception &e)
 			{
-				::syslog(LOG_ERR, "Internal error during "
-					"backup run: %s", e.what());
+				BOX_ERROR("Internal error during "
+					"backup run: " << e.what());
 				errorOccurred = true;
 			}
 			catch(...)
@@ -913,26 +915,28 @@ void BackupDaemon::Run2()
 				// Handle restart?
 				if(StopRun())
 				{
-					::syslog(LOG_INFO, "Exception (%d/%d) due to signal", errorCode, errorSubCode);
+					BOX_NOTICE("Exception (" << errorCode
+						<< "/" << errorSubCode 
+						<< ") due to signal");
 					return;
 				}
 
 				// If the Berkely db files get corrupted, delete them and try again immediately
 				if(isBerkelyDbFailure)
 				{
-					::syslog(LOG_ERR, "Berkely db inode map files corrupted, deleting and restarting scan. Renamed files and directories will not be tracked until after this scan.\n");
+					BOX_ERROR("Berkely db inode map files corrupted, deleting and restarting scan. Renamed files and directories will not be tracked until after this scan.");
 					::sleep(1);
 				}
 				else
 				{
 					// Not restart/terminate, pause and retry
 					SetState(State_Error);
-					::syslog(LOG_ERR, 
-						"Exception caught (%s %d/%d), "
-						"reset state and waiting "
-						"to retry...", 
-						errorString, errorCode, 
-						errorSubCode);
+					BOX_ERROR("Exception caught ("
+						<< errorString
+						<< " " << errorCode
+						<< "/" << errorSubCode
+						<< "), reset state and "
+						"waiting to retry...");
 					::sleep(10);
 					nextSyncTime = currentSyncStartTime + 
 						SecondsToBoxTime(90) +
@@ -943,9 +947,12 @@ void BackupDaemon::Run2()
 			}
 
 			// Log the stats
-			::syslog(LOG_INFO, "File statistics: total file size uploaded %lld, bytes already on server %lld, encoded size %lld",
-				BackupStoreFile::msStats.mBytesInEncodedFiles, BackupStoreFile::msStats.mBytesAlreadyOnServer,
-				BackupStoreFile::msStats.mTotalFileStreamSize);
+			BOX_NOTICE("File statistics: total file size uploaded "
+				<< BackupStoreFile::msStats.mBytesInEncodedFiles
+				<< ", bytes already on server "
+				<< BackupStoreFile::msStats.mBytesAlreadyOnServer
+				<< ", encoded size "
+				<< BackupStoreFile::msStats.mTotalFileStreamSize);
 			BackupStoreFile::ResetStats();
 
 			// Tell anything connected to the command socket
@@ -1015,29 +1022,32 @@ int BackupDaemon::UseScriptToSeeIfSyncAllowed()
 				}
 				catch(ConversionException &e)
 				{
-					::syslog(LOG_ERR, "Invalid output "
-						"from SyncAllowScript '%s': "
-						"'%s'", 
-						conf.GetKeyValue("SyncAllowScript").c_str(),
-						line.c_str());
+					BOX_ERROR("Invalid output "
+						"from SyncAllowScript '"
+						<< conf.GetKeyValue("SyncAllowScript")
+						<< "': '" << line << "'");
 					throw;
 				}
 
-				::syslog(LOG_INFO, "Delaying sync by %d seconds (SyncAllowScript '%s')", waitInSeconds, conf.GetKeyValue("SyncAllowScript").c_str());
+				BOX_NOTICE("Delaying sync by " << waitInSeconds
+					<< " seconds (SyncAllowScript '"
+					<< conf.GetKeyValue("SyncAllowScript")
+					<< "')");
 			}
 		}
 		
 	}
 	catch(std::exception &e)
 	{
-		::syslog(LOG_ERR, "Internal error running SyncAllowScript: "
-			"%s", e.what());
+		BOX_ERROR("Internal error running SyncAllowScript: "
+			<< e.what());
 	}
 	catch(...)
 	{
 		// Ignore any exceptions
 		// Log that something bad happened
-		::syslog(LOG_ERR, "Error running SyncAllowScript '%s'", conf.GetKeyValue("SyncAllowScript").c_str());
+		BOX_ERROR("Error running SyncAllowScript '"
+			<< conf.GetKeyValue("SyncAllowScript") << "'");
 	}
 
 	// Wait and then cleanup child process, if any
@@ -1091,7 +1101,7 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 	ASSERT(mpCommandSocketInfo != 0);
 	if(mpCommandSocketInfo == 0) {::sleep(1); return;} // failure case isn't too bad
 	
-	TRACE1("Wait on command socket, delay = %lld\n", RequiredDelay);
+	BOX_TRACE("Wait on command socket, delay = " << RequiredDelay);
 	
 	try
 	{
@@ -1117,7 +1127,7 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 			{
 #ifdef PLATFORM_CANNOT_FIND_PEER_UID_OF_UNIX_SOCKET
 				bool uidOK = true;
-				::syslog(LOG_WARNING, "On this platform, no security check can be made on the credentials of peers connecting to the command socket. (bbackupctl)");
+				BOX_WARNING("On this platform, no security check can be made on the credentials of peers connecting to the command socket. (bbackupctl)");
 #else
 				// Security check -- does the process connecting to this socket have
 				// the same UID as this process?
@@ -1142,14 +1152,14 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 				if(!uidOK)
 				{
 					// Dump the connection
-					::syslog(LOG_ERR, "Incoming command connection from peer had different user ID than this process, or security check could not be completed.");
+					BOX_ERROR("Incoming command connection from peer had different user ID than this process, or security check could not be completed.");
 					mpCommandSocketInfo->mpConnectedSocket.reset();
 					return;
 				}
 				else
 				{
 					// Log
-					::syslog(LOG_INFO, "Connection from command socket");
+					BOX_INFO("Connection from command socket");
 					
 					// Send a header line summarising the configuration and current state
 					const Configuration &conf(GetConfiguration());
@@ -1187,9 +1197,9 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 		while(mpCommandSocketInfo->mpGetLine != 0 && !mpCommandSocketInfo->mpGetLine->IsEOF()
 			&& mpCommandSocketInfo->mpGetLine->GetLine(command, false /* no preprocessing */, timeout))
 		{
-			TRACE1("Receiving command '%s' over command socket\n", 
-				command.c_str());
-
+			BOX_TRACE("Receiving command '" << command 
+				<< "' over command socket");
+			
 			bool sendOK = false;
 			bool sendResponse = true;
 		
@@ -1245,8 +1255,8 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 	}
 	catch(std::exception &e)
 	{
-		::syslog(LOG_ERR, "Internal error in command socket thread: "
-			"%s", e.what());
+		BOX_ERROR("Internal error in command socket thread: "
+			<< e.what());
 		// If an error occurs, and there is a connection active, just close that
 		// connection and continue. Otherwise, let the error propagate.
 		if(mpCommandSocketInfo->mpConnectedSocket.get() == 0)
@@ -1290,7 +1300,7 @@ void BackupDaemon::CloseCommandConnection()
 #ifndef WIN32
 	try
 	{
-		TRACE0("Closing command connection\n");
+		BOX_TRACE("Closing command connection");
 		
 		if(mpCommandSocketInfo->mpGetLine)
 		{
@@ -1301,8 +1311,8 @@ void BackupDaemon::CloseCommandConnection()
 	}
 	catch(std::exception &e)
 	{
-		::syslog(LOG_ERR, "Internal error while closing command "
-			"socket: %s", e.what());
+		BOX_ERROR("Internal error while closing command "
+			"socket: " << e.what());
 	}
 	catch(...)
 	{
@@ -1350,8 +1360,8 @@ void BackupDaemon::SendSyncStartOrFinish(bool SendStart)
 		}
 		catch(std::exception &e)
 		{
-			::syslog(LOG_ERR, "Internal error while sending to "
-				"command socket client: %s", e.what());
+			BOX_ERROR("Internal error while sending to "
+				"command socket client: " << e.what());
 			CloseCommandConnection();
 		}
 		catch(...)
@@ -1454,7 +1464,7 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 		struct mntent *entry = 0;
 		while((entry = ::getmntent(mountPointsFile)) != 0)
 		{
-			TRACE1("Found mount point at %s\n", entry->mnt_dir);
+			BOX_TRACE("Found mount point at " << entry->mnt_dir);
 			mountPoints.insert(std::string(entry->mnt_dir));
 		}
 
@@ -1476,12 +1486,11 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 
 	try
 	{
-
 		// Read all the entries, and put them in the set
 		struct mnttab entry;
 		while(getmntent(mountPointsFile, &entry) == 0)
 		{
-			TRACE1("Found mount point at %s\n", entry.mnt_mountp);
+			BOX_TRACE("Found mount point at " << entry.mnt_mountp);
 			mountPoints.insert(std::string(entry.mnt_mountp));
 		}
 
@@ -1510,7 +1519,7 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 	for(std::list<std::pair<std::string, Configuration> >::const_iterator i = rLocationsConf.mSubConfigurations.begin();
 		i != rLocationsConf.mSubConfigurations.end(); ++i)
 	{
-TRACE0("new location\n");
+		BOX_TRACE("new location");
 		// Create a record for it
 		Location *ploc = new Location;
 		try
@@ -1548,19 +1557,22 @@ TRACE0("new location\n");
 				// Warn in logs if the directory isn't absolute
 				if(ploc->mPath[0] != '/')
 				{
-					::syslog(LOG_ERR, "Location path '%s' isn't absolute", ploc->mPath.c_str());
+					BOX_WARNING("Location path '"
+						<< ploc->mPath 
+						<< "' is not absolute");
 				}
 				// Go through the mount points found, and find a suitable one
 				std::string mountName("/");
 				{
 					std::set<std::string, mntLenCompare>::const_iterator i(mountPoints.begin());
-					TRACE1("%d potential mount points\n", mountPoints.size());
+					BOX_TRACE(mountPoints.size() 
+						<< " potential mount points");
 					for(; i != mountPoints.end(); ++i)
 					{
 						// Compare first n characters with the filename
 						// If it matches, the file belongs in that mount point
 						// (sorting order ensures this)
-						TRACE1("checking against mount point %s\n", i->c_str());
+						BOX_TRACE("checking against mount point " << *i);
 						if(::strncmp(i->c_str(), ploc->mPath.c_str(), i->size()) == 0)
 						{
 							// Match
@@ -1568,7 +1580,9 @@ TRACE0("new location\n");
 							break;
 						}
 					}
-					TRACE2("mount point chosen for %s is %s\n", ploc->mPath.c_str(), mountName.c_str());
+					BOX_TRACE("mount point chosen for "
+						<< ploc->mPath << " is "
+						<< mountName);
 				}
 
 #endif
@@ -1645,8 +1659,10 @@ TRACE0("new location\n");
 	// Any entries in the root directory which need deleting?
 	if(dir.GetNumberOfEntries() > 0)
 	{
-		::syslog(LOG_INFO, "%d redundant locations in root directory found, will delete from store after %d seconds.",
-			dir.GetNumberOfEntries(), BACKUP_DELETE_UNUSED_ROOT_ENTRIES_AFTER);
+		BOX_NOTICE(dir.GetNumberOfEntries() << " redundant locations "
+			"in root directory found, will delete from store "
+			"after " << BACKUP_DELETE_UNUSED_ROOT_ENTRIES_AFTER 
+			<< " seconds.");
 
 		// Store directories in list of things to delete
 		mUnusedRootDirEntries.clear();
@@ -1659,7 +1675,7 @@ TRACE0("new location\n");
 			const std::string &name(clear.GetClearFilename());
 			mUnusedRootDirEntries.push_back(std::pair<int64_t,std::string>(en->GetObjectID(), name));
 			// Log this
-			::syslog(LOG_INFO, "Unused location in root: %s", name.c_str());
+			BOX_INFO("Unused location in root: " << name);
 		}
 		ASSERT(mUnusedRootDirEntries.size() > 0);
 		// Time to delete them
@@ -1776,14 +1792,14 @@ void BackupDaemon::DeleteCorruptBerkelyDbFiles()
 		MakeMapBaseName(l, filename);
 		
 		// Delete the file
-		TRACE1("Deleting %s\n", filename.c_str());
+		BOX_TRACE("Deleting " << filename);
 		::unlink(filename.c_str());
 		
 		// Add a suffix for the new map
 		filename += ".n";
 
 		// Delete that too
-		TRACE1("Deleting %s\n", filename.c_str());
+		BOX_TRACE("Deleting " << filename);
 		::unlink(filename.c_str());
 	}
 }
@@ -1863,6 +1879,9 @@ void BackupDaemon::CommitIDMapsAfterSync()
 #endif
 		if(::rename(newmap.c_str(), target.c_str()) != 0)
 		{
+			BOX_ERROR("failed to rename ID map: " << newmap
+				<< " to " << target << ": " 
+				<< strerror(errno));
 			THROW_EXCEPTION(CommonException, OSFileError)
 		}
 	}
@@ -2015,7 +2034,7 @@ void BackupDaemon::NotifySysadmin(int Event)
 {
 	static const char *sEventNames[] = {"store-full", "read-error", 0};
 
-	TRACE1("BackupDaemon::NotifySysadmin() called, event = %d\n", Event);
+	BOX_TRACE("BackupDaemon::NotifySysadmin() called, event = " << Event);
 
 	if(Event < 0 || Event > NotifyEvent__MAX)
 	{
@@ -2033,7 +2052,9 @@ void BackupDaemon::NotifySysadmin(int Event)
 	if(!conf.KeyExists("NotifyScript"))
 	{
 		// Log, and then return
-		::syslog(LOG_ERR, "Not notifying administrator about event %s -- set NotifyScript to do this in future", sEventNames[Event]);
+		BOX_ERROR("Not notifying administrator about event "
+			<< sEventNames[Event] << " -- set NotifyScript "
+			"to do this in future");
 		return;
 	}
 
@@ -2041,12 +2062,15 @@ void BackupDaemon::NotifySysadmin(int Event)
 	std::string script(conf.GetKeyValue("NotifyScript") + ' ' + sEventNames[Event]);
 	
 	// Log what we're about to do
-	::syslog(LOG_INFO, "About to notify administrator about event %s, running script '%s'", sEventNames[Event], script.c_str());
+	BOX_NOTICE("About to notify administrator about event "
+		<< sEventNames[Event] << ", running script '"
+		<< script << "'");
 	
 	// Then do it
 	if(::system(script.c_str()) != 0)
 	{
-		::syslog(LOG_ERR, "Notify script returned an error code. ('%s')", script.c_str());
+		BOX_ERROR("Notify script returned an error code. ('"
+			<< script << "')");
 	}
 
 	// Flag that this is done so the administrator isn't constantly bombarded with lots of errors
@@ -2078,14 +2102,15 @@ void BackupDaemon::DeleteUnusedRootDirEntries(BackupClientContext &rContext)
 	}
 
 	// Entries to delete, and it's the right time to do so...
-	::syslog(LOG_INFO, "Deleting unused locations from store root...");
+	BOX_NOTICE("Deleting unused locations from store root...");
 	BackupProtocolClient &connection(rContext.GetConnection());
 	for(std::vector<std::pair<int64_t,std::string> >::iterator i(mUnusedRootDirEntries.begin()); i != mUnusedRootDirEntries.end(); ++i)
 	{
 		connection.QueryDeleteDirectory(i->first);
 		
 		// Log this
-		::syslog(LOG_INFO, "Deleted %s (ID %08llx) from store root", i->second.c_str(), i->first);
+		BOX_NOTICE("Deleted " << i->second << " (ID " << i->first
+			<< ") from store root");
 	}
 
 	// Reset state
@@ -2425,20 +2450,20 @@ bool BackupDaemon::SerializeStoreObjectInfo(int64_t aClientStoreMarker, box_time
 		//
 		//
 		aFile.Close();
-		::syslog(LOG_INFO, "Saved store object info file '%s'", 
-			StoreObjectInfoFile.c_str());
+		BOX_INFO("Saved store object info file: "
+			<< StoreObjectInfoFile);
 	}
 	catch(std::exception &e)
 	{
-		::syslog(LOG_ERR, "Internal error writing store object "
-			"info file (%s): %s",
-			StoreObjectInfoFile.c_str(), e.what());
+		BOX_ERROR("Internal error writing store object "
+			"info file (" << StoreObjectInfoFile << "): "
+			<< e.what());
 	}
 	catch(...)
 	{
-		::syslog(LOG_ERR, "Internal error writing store object "
-			"info file (%s): unknown error",
-			StoreObjectInfoFile.c_str());
+		BOX_ERROR("Internal error writing store object "
+			"info file (" << StoreObjectInfoFile << "): "
+			"unknown error");
 	}
 
 	return created;
@@ -2489,10 +2514,10 @@ bool BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 
 		if(iMagicValue != STOREOBJECTINFO_MAGIC_ID_VALUE)
 		{
-			::syslog(LOG_WARNING, "Store object info file '%s' "
+			BOX_WARNING("Store object info file "
 				"is not a valid or compatible serialised "
-				"archive. Will re-cache from store.", 
-				StoreObjectInfoFile.c_str());
+				"archive. Will re-cache from store. "
+				"(" << StoreObjectInfoFile << ")");
 			return false;
 		}
 
@@ -2504,10 +2529,10 @@ bool BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 
 		if(strMagicValue != STOREOBJECTINFO_MAGIC_ID_STRING)
 		{
-			::syslog(LOG_WARNING, "Store object info file '%s' "
+			BOX_WARNING("Store object info file "
 				"is not a valid or compatible serialised "
-				"archive. Will re-cache from store.", 
-				StoreObjectInfoFile.c_str());
+				"archive. Will re-cache from store. "
+				"(" << StoreObjectInfoFile << ")");
 			return false;
 		}
 
@@ -2520,11 +2545,10 @@ bool BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 
 		if(iVersion != STOREOBJECTINFO_VERSION)
 		{
-			::syslog(LOG_WARNING, "Store object info file '%s' "
-				"version %d unsupported. "
-				"Will re-cache from store.", 
-				StoreObjectInfoFile.c_str(), 
-				iVersion);
+			BOX_WARNING("Store object info file "
+				"version " << iVersion << " unsupported. "
+				"Will re-cache from store. "
+				"(" << StoreObjectInfoFile << ")");
 			return false;
 		}
 
@@ -2537,9 +2561,9 @@ bool BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 
 		if(lastKnownConfigModTime != GetLoadedConfigModifiedTime())
 		{
-			::syslog(LOG_WARNING, "Store object info file '%s' "
-				"out of date. Will re-cache from store", 
-				StoreObjectInfoFile.c_str());
+			BOX_WARNING("Store object info file "
+				"out of date. Will re-cache from store. "
+				"(" << StoreObjectInfoFile << ")");
 			return false;
 		}
 
@@ -2586,23 +2610,20 @@ bool BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 		//
 		//
 		aFile.Close();
-		::syslog(LOG_INFO, "Loaded store object info file '%s', "
-			"version [%d]", StoreObjectInfoFile.c_str(), 
-			iVersion);
-
+		BOX_INFO("Loaded store object info file version " << iVersion
+			<< "(" << StoreObjectInfoFile << ")");
+		
 		return true;
 	} 
 	catch(std::exception &e)
 	{
-		::syslog(LOG_ERR, "Internal error reading store object "
-			"info file (%s): %s",
-			StoreObjectInfoFile.c_str(), e.what());
+		BOX_ERROR("Internal error reading store object info file: "
+			<< StoreObjectInfoFile << ": " << e.what());
 	}
 	catch(...)
 	{
-		::syslog(LOG_ERR, "Internal error reading store object "
-			"info file (%s): unknown error",
-			StoreObjectInfoFile.c_str());
+		BOX_ERROR("Internal error reading store object info file: "
+			<< StoreObjectInfoFile << ": unknown error");
 	}
 
 	DeleteAllLocations();
@@ -2611,11 +2632,10 @@ bool BackupDaemon::DeserializeStoreObjectInfo(int64_t & aClientStoreMarker, box_
 	theLastSyncTime = 0;
 	theNextSyncTime = 0;
 
-	::syslog(LOG_WARNING, "Requested store object info file '%s' "
-		"does not exist, not accessible, or inconsistent. "
-		"Will re-cache from store.", 
-		StoreObjectInfoFile.c_str());
-
+	BOX_WARNING("Store object info file is missing, not accessible, "
+		"or inconsistent. Will re-cache from store. "
+		"(" << StoreObjectInfoFile << ")");
+	
 	return false;
 }
 
@@ -2643,9 +2663,9 @@ bool BackupDaemon::DeleteStoreObjectInfo() const
 	if(!FileExists(storeObjectInfoFile.c_str()))
 	{
 		// File doesn't exist -- so can't be deleted. But something isn't quite right, so log a message
-		::syslog(LOG_ERR, "Expected to be able to delete "
-			"store object info file '%s', but the file did not exist.",
-			storeObjectInfoFile.c_str());
+		BOX_WARNING("Store object info file did not exist when it "
+			"was supposed to. (" << storeObjectInfoFile << ")");
+
 		// Return true to stop things going around in a loop
 		return true;
 	}
@@ -2653,9 +2673,8 @@ bool BackupDaemon::DeleteStoreObjectInfo() const
 	// Actually delete it
 	if(::unlink(storeObjectInfoFile.c_str()) != 0)
 	{
-		::syslog(LOG_ERR, "Failed to delete the old "
-			"store object info file '%s': %s",
-			storeObjectInfoFile.c_str(), strerror(errno));
+		BOX_ERROR("Failed to delete the old store object info file: "
+			<< storeObjectInfoFile << ": "<< strerror(errno));
 		return false;
 	}
 
