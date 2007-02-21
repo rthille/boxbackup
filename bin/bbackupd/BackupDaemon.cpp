@@ -130,7 +130,7 @@ BackupDaemon::BackupDaemon()
 	if(mhMessageToSendEvent == INVALID_HANDLE_VALUE)
 	{
 		BOX_ERROR("Failed to create event object: error " <<
-			GetLastError);
+			GetLastError());
 		exit(1);
 	}
 
@@ -140,7 +140,7 @@ BackupDaemon::BackupDaemon()
 	if(mhCommandReceivedEvent == INVALID_HANDLE_VALUE)
 	{
 		BOX_ERROR("Failed to create event object: error " <<
-			GetLastError);
+			GetLastError());
 		exit(1);
 	}
 
