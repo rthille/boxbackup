@@ -18,9 +18,6 @@
 #ifdef HAVE_SIGNAL_H
 	#include <signal.h>
 #endif
-#ifdef HAVE_SYSLOG_H
-	#include <syslog.h>
-#endif
 #ifdef HAVE_SYS_PARAM_H
 	#include <sys/param.h>
 #endif
@@ -132,7 +129,7 @@ BackupDaemon::BackupDaemon()
 	mhMessageToSendEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	if(mhMessageToSendEvent == INVALID_HANDLE_VALUE)
 	{
-		syslog(LOG_ERR, "Failed to create event object: error %d",
+		BOX_ERROR("Failed to create event object: error " <<
 			GetLastError);
 		exit(1);
 	}
@@ -142,7 +139,7 @@ BackupDaemon::BackupDaemon()
 	mhCommandReceivedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	if(mhCommandReceivedEvent == INVALID_HANDLE_VALUE)
 	{
-		syslog(LOG_ERR, "Failed to create event object: error %d",
+		BOX_ERROR("Failed to create event object: error " <<
 			GetLastError);
 		exit(1);
 	}
@@ -396,17 +393,18 @@ void BackupDaemon::RunHelperThread(void)
 				}
 				else if(result != 1)
 				{
-					::syslog(LOG_ERR, "WaitForMultipleObjects returned invalid result %d", result);
+					BOX_ERROR("WaitForMultipleObjects returned invalid result " << result);
 					continue;
 				}
 
 				if(!readLine.GetLine(command))
 				{
-					::syslog(LOG_ERR, "Failed to read line");
+					BOX_ERROR("Failed to read line");
 					continue;
 				}
 
-				printf("Received command '%s' from client\n", command.c_str());
+				BOX_INFO("Received command " << command << 
+					" from client");
 
 				bool sendOK = false;
 				bool sendResponse = true;
@@ -1092,8 +1090,8 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 	}
 	else
 	{
-		::syslog(LOG_ERR, "Unexpected result from "
-			"WaitForSingleObject: error %d", GetLastError());
+		BOX_ERROR("Unexpected result from WaitForSingleObject: "
+			"error " << GetLastError());
 	}
 
 	return;
