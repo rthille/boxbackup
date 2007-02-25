@@ -1949,6 +1949,7 @@ int test(int argc, const char *argv[])
 
 	CloseHandle(h2);
 	CloseHandle(h1);
+	delete [] wfile;
 
 	h1 = openfile("foo", O_CREAT | O_RDWR, 0);
 	TEST_THAT(h1 != INVALID_HANDLE_VALUE);
@@ -1980,14 +1981,19 @@ int test(int argc, const char *argv[])
 	BackupClientCryptoKeys_Setup("testfiles/bbackupd.keys");	
 #endif
 	
-	// encode in some filenames -- can't do static initialisation because the key won't be set up when these are initialised
-	for(unsigned int l = 0; l < sizeof(ens_filenames) / sizeof(ens_filenames[0]); ++l)
+	// encode in some filenames -- can't do static initialisation 
+	// because the key won't be set up when these are initialised
 	{
-		ens[l].fn = BackupStoreFilenameClear(ens_filenames[l]);
-	}
-	for(unsigned int l = 0; l < sizeof(uploads_filenames) / sizeof(uploads_filenames[0]); ++l)
-	{
-		uploads[l].name = BackupStoreFilenameClear(uploads_filenames[l]);
+		MEMLEAKFINDER_NO_LEAKS
+
+		for(unsigned int l = 0; l < sizeof(ens_filenames) / sizeof(ens_filenames[0]); ++l)
+		{
+			ens[l].fn = BackupStoreFilenameClear(ens_filenames[l]);
+		}
+		for(unsigned int l = 0; l < sizeof(uploads_filenames) / sizeof(uploads_filenames[0]); ++l)
+		{
+			uploads[l].name = BackupStoreFilenameClear(uploads_filenames[l]);
+		}
 	}
 	
 	// Trace errors out
