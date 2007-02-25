@@ -65,7 +65,7 @@
 	( *(_result) = *gmtime( (_clock) ), \
 	(_result) )
 
-#define ITIMER_VIRTUAL 0
+#define ITIMER_REAL 0
 
 #ifdef _MSC_VER
 // Microsoft decided to deprecate the standard POSIX functions. Great!
@@ -214,9 +214,12 @@ int closedir(DIR *dp);
 
 HANDLE openfile(const char *filename, int flags, int mode);
 
+#define LOG_DEBUG LOG_INFO
 #define LOG_INFO 6
+#define LOG_NOTICE LOG_INFO
 #define LOG_WARNING 4
 #define LOG_ERR 3
+#define LOG_CRIT LOG_ERR
 #define LOG_PID 0
 #define LOG_LOCAL5 0
 #define LOG_LOCAL6 0
