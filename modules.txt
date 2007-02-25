@@ -13,10 +13,11 @@ lib/raidfile
 lib/crypto
 lib/server
 lib/compress
+lib/intercept
 test/common
 test/crypto		lib/crypto
 test/compress		lib/compress
-test/raidfile		lib/raidfile
+test/raidfile		lib/raidfile	lib/intercept
 test/basicserver	lib/server
 
 # IF_DISTRIBUTION(boxbackup)
@@ -37,7 +38,7 @@ test/backupstore	bin/bbstored	bin/bbstoreaccounts lib/server lib/backupstore lib
 test/backupstorefix	bin/bbstored	bin/bbstoreaccounts	lib/backupstore	lib/raidfile	bin/bbackupquery	bin/bbackupd
 test/backupstorepatch	bin/bbstored	bin/bbstoreaccounts	lib/backupstore	lib/raidfile
 test/backupdiff		lib/backupclient
-test/bbackupd		bin/bbackupd	bin/bbstored bin/bbstoreaccounts bin/bbackupquery bin/bbackupctl lib/server lib/backupstore lib/backupclient
+test/bbackupd		bin/bbackupd	bin/bbstored bin/bbstoreaccounts bin/bbackupquery bin/bbackupctl lib/server lib/backupstore lib/backupclient	lib/intercept
 
 # END_IF_DISTRIBUTION
 
