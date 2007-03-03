@@ -138,6 +138,7 @@ int SetTimerHandler(void (__cdecl *func ) (int))
 void InitTimer(void)
 {
 	assert(!gTimerInitialised);
+
 	InitializeCriticalSection(&gLock);
 	
 	// create our thread
