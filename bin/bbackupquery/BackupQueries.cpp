@@ -46,6 +46,7 @@
 #include "BackupStoreException.h"
 #include "ExcludeList.h"
 #include "BackupClientMakeExcludeList.h"
+#include "PathUtils.h"
 
 #include "MemLeakFindOn.h"
 
@@ -1420,9 +1421,8 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 			}
 
 #ifndef HAVE_VALID_DIRENT_D_TYPE
-			std::string fn(rLocalDir);
-			fn += DIRECTORY_SEPARATOR_ASCHAR;
-			fn += localDirEn->d_name;
+			std::string fn(MakeFullPath
+				(rLocalDir, localDirEn->d_name));
 			struct stat st;
 			if(::lstat(fn.c_str(), &st) != 0)
 			{
@@ -1506,10 +1506,12 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 			const std::string& fileNameDisplay(i->first);
 #endif
 
-			std::string localPathDisplay = localDirDisplay +
-				DIRECTORY_SEPARATOR + fileNameDisplay;
-			std::string storePathDisplay = storeDirDisplay +
-				"/" + fileNameDisplay;
+			std::string localPath(MakeFullPath
+				(rLocalDir, fileName));
+			std::string localPathDisplay(MakeFullPath
+				(localDirDisplay, fileNameDisplay));
+			std::string storePathDisplay
+				(storeDirDisplay + "/" + fileNameDisplay);
 
 			// Does the file exist locally?
 			string_set_iter_t local(localFiles.find(fileName));
@@ -1526,9 +1528,6 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 			{
 				try
 				{
-					// make local name of file for comparison
-					std::string localPath(rLocalDir + DIRECTORY_SEPARATOR + fileName);
-
 					// Files the same flag?
 					bool equal = true;
 					
@@ -1556,7 +1555,7 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 	
 						// Decode it
 						std::auto_ptr<BackupStoreFile::DecodedStream> fileOnServerStream;
-						// Got additional attibutes?
+						// Got additional attributes?
 						if(i->second->HasAttributes())
 						{
 							// Use these attributes
@@ -1590,6 +1589,9 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 						#endif
 
 						if(!rParams.mIgnoreAttributes &&
+						#ifdef PLATFORM_DISABLE_SYMLINK_ATTRIB_COMPARE
+						   !fileOnServerStream->IsSymLink() &&
+						#endif
 						   !localAttr.Compare(fileOnServerStream->GetAttributes(),
 								ignoreAttrModTime,
 								fileOnServerStream->IsSymLink() /* ignore modification time if it's a symlink */))
@@ -1711,12 +1713,12 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 			const std::string& fileNameDisplay(*i);
 #endif
 
-			std::string localPath(rLocalDir + 
-				DIRECTORY_SEPARATOR + *i);
-			std::string localPathDisplay(localDirDisplay +
-				DIRECTORY_SEPARATOR + fileNameDisplay);
-			std::string storePathDisplay(storeDirDisplay +
-				"/" + fileNameDisplay);
+			std::string localPath(MakeFullPath
+				(rLocalDir, *i));
+			std::string localPathDisplay(MakeFullPath
+				(localDirDisplay, fileNameDisplay));
+			std::string storePathDisplay
+				(storeDirDisplay + "/" + fileNameDisplay);
 
 			// Should this be ignored (ie is excluded)?
 			if(rParams.mpExcludeFiles == 0 || 
@@ -1752,7 +1754,7 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 		localFiles.clear();
 		storeFiles.clear();
 		
-		// Now do the directories, recusively to check subdirectories
+		// Now do the directories, recursively to check subdirectories
 		for(std::set<std::pair<std::string, BackupStoreDirectory::Entry *> >::const_iterator i = storeDirs.begin(); i != storeDirs.end(); ++i)
 		{
 #ifdef WIN32
@@ -1766,14 +1768,27 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 			const std::string& subdirNameDisplay(i->first);
 #endif
 
-			std::string localPathDisplay = localDirDisplay +
-				DIRECTORY_SEPARATOR + subdirNameDisplay;
-			std::string storePathDisplay = storeDirDisplay +
-				"/" + subdirNameDisplay;
+			std::string localPath(MakeFullPath
+				(rLocalDir, i->first));
+			std::string localPathDisplay(MakeFullPath
+				(localDirDisplay, subdirNameDisplay));
+			std::string storePathDisplay
+				(storeDirDisplay + "/" + subdirNameDisplay);
 
 			// Does the directory exist locally?
 			string_set_iter_t local(localDirs.find(i->first));
-			if(local == localDirs.end())
+			if(local == localDirs.end() &&
+				rParams.mpExcludeDirs != NULL && 
+				rParams.mpExcludeDirs->IsExcluded(localPath))
+			{
+				// Not found -- report
+				printf("Local directory '%s' is excluded, but "
+					"store directory '%s' still exists.\n",
+					localPathDisplay.c_str(),
+					storePathDisplay.c_str());
+				rParams.mDifferences ++;
+			}
+			else if(local == localDirs.end())
 			{
 				// Not found -- report
 				printf("Local directory '%s' does not exist, "
@@ -1782,10 +1797,15 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 					storePathDisplay.c_str());
 				rParams.mDifferences ++;
 			}
+			else if(rParams.mpExcludeDirs != NULL && 
+				rParams.mpExcludeDirs->IsExcluded(localPath))
+			{
+				// don't recurse into excluded directories
+			}
 			else
 			{
 				// Compare directory
-				Compare(i->second->GetObjectID(), rStoreDir + "/" + i->first, rLocalDir + DIRECTORY_SEPARATOR + i->first, rParams);
+				Compare(i->second->GetObjectID(), rStoreDir + "/" + i->first, localPath, rParams);
 				
 				// Remove from set so that we know it's been compared
 				localDirs.erase(local);
@@ -1805,15 +1825,15 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 			const std::string& fileNameDisplay(*i);
 #endif
 
-			std::string localPath = rLocalDir +
-				DIRECTORY_SEPARATOR + *i;
-			std::string storePath = rStoreDir +
-				"/" + *i;
+			std::string localPath(MakeFullPath
+				(rLocalDir, *i));
+			std::string localPathDisplay(MakeFullPath
+				(localDirDisplay, fileNameDisplay));
 
-			std::string localPathDisplay = localDirDisplay +
-				DIRECTORY_SEPARATOR + fileNameDisplay;
-			std::string storePathDisplay = storeDirDisplay +
-				"/" + fileNameDisplay;
+			std::string storePath
+				(rStoreDir + "/" + *i);
+			std::string storePathDisplay
+				(storeDirDisplay + "/" + fileNameDisplay);
 
 			// Should this be ignored (ie is excluded)?
 			if(rParams.mpExcludeDirs == 0 || !(rParams.mpExcludeDirs->IsExcluded(localPath)))
