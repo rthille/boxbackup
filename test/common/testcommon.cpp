@@ -9,7 +9,9 @@
 
 #include "Box.h"
 
+#include <errno.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "Test.h"
 #include "Configuration.h"
@@ -27,6 +29,8 @@
 #include "autogen_ConversionException.h"
 #include "CollectInBufferStream.h"
 #include "Archive.h"
+#include "Timer.h"
+#include "Logging.h"
 
 #include "MemLeakFindOn.h"
 
@@ -133,59 +137,117 @@ ConfigurationVerify verify =
 	0
 };
 
+void safe_sleep(int seconds)
+{
+#ifdef WIN32
+	Sleep(seconds * 1000);
+#else
+	struct timespec ts;
+	ts.tv_sec  = seconds;
+	ts.tv_nsec = 0;
+	while (nanosleep(&ts, &ts) == -1 && errno == EINTR)
+	{ /* sleep again */ }
+#endif
+}
+
+class TestLogger : public Logger
+{
+	private:
+	bool mTriggered;
+	Log::Level mTargetLevel;
+
+	public:
+	TestLogger(Log::Level targetLevel) 
+	: mTriggered(false), mTargetLevel(targetLevel)
+	{ 
+		Logging::Add(this);
+	}
+	~TestLogger() 
+	{
+		Logging::Remove(this);
+	}
+
+	bool IsTriggered() { return mTriggered; }
+	void Reset()       { mTriggered = false; }
+
+	virtual bool Log(Log::Level level, const std::string& rFile,
+		int line, std::string& rMessage)
+	{
+		if (level == mTargetLevel)
+		{
+			mTriggered = true;
+		}
+		return true;
+	}
+
+	virtual const char* GetType() { return "Test"; }
+	virtual void SetProgramName(const std::string& rProgramName) { }
+};
+
 int test(int argc, const char *argv[])
 {
 	// Test self-deleting temporary file streams
-	std::string tempfile("testfiles/tempfile");
-	TEST_CHECK_THROWS(InvisibleTempFileStream fs(tempfile.c_str()), 
-		CommonException, OSFileOpenError);
-	InvisibleTempFileStream fs(tempfile.c_str(), O_CREAT);
+	{
+		std::string tempfile("testfiles/tempfile");
+		TEST_CHECK_THROWS(InvisibleTempFileStream fs(tempfile.c_str()), 
+			CommonException, OSFileOpenError);
+		InvisibleTempFileStream fs(tempfile.c_str(), O_CREAT);
 
-#ifdef WIN32
-	// file is still visible under Windows
-	TEST_THAT(TestFileExists(tempfile.c_str()));
+	#ifdef WIN32
+		// file is still visible under Windows
+		TEST_THAT(TestFileExists(tempfile.c_str()));
 
-	// opening it again should work
-	InvisibleTempFileStream fs2(tempfile.c_str());
-	TEST_THAT(TestFileExists(tempfile.c_str()));
+		// opening it again should work
+		InvisibleTempFileStream fs2(tempfile.c_str());
+		TEST_THAT(TestFileExists(tempfile.c_str()));
 
-	// opening it to create should work
-	InvisibleTempFileStream fs3(tempfile.c_str(), O_CREAT);
-	TEST_THAT(TestFileExists(tempfile.c_str()));
+		// opening it to create should work
+		InvisibleTempFileStream fs3(tempfile.c_str(), O_CREAT);
+		TEST_THAT(TestFileExists(tempfile.c_str()));
 
-	// opening it to create exclusively should fail
-	TEST_CHECK_THROWS(InvisibleTempFileStream fs4(tempfile.c_str(), 
-		O_CREAT | O_EXCL), CommonException, OSFileOpenError);
+		// opening it to create exclusively should fail
+		TEST_CHECK_THROWS(InvisibleTempFileStream fs4(tempfile.c_str(), 
+			O_CREAT | O_EXCL), CommonException, OSFileOpenError);
 
-	fs2.Close();
-#else
-	// file is not visible under Unix
-	TEST_THAT(!TestFileExists(tempfile.c_str()));
+		fs2.Close();
+	#else
+		// file is not visible under Unix
+		TEST_THAT(!TestFileExists(tempfile.c_str()));
 
-	// opening it again should fail
-	TEST_CHECK_THROWS(InvisibleTempFileStream fs2(tempfile.c_str()),
-		CommonException, OSFileOpenError);
+		// opening it again should fail
+		TEST_CHECK_THROWS(InvisibleTempFileStream fs2(tempfile.c_str()),
+			CommonException, OSFileOpenError);
 
-	// opening it to create should work
-	InvisibleTempFileStream fs3(tempfile.c_str(), O_CREAT);
-	TEST_THAT(!TestFileExists(tempfile.c_str()));
+		// opening it to create should work
+		InvisibleTempFileStream fs3(tempfile.c_str(), O_CREAT);
+		TEST_THAT(!TestFileExists(tempfile.c_str()));
 
-	// opening it to create exclusively should work
-	InvisibleTempFileStream fs4(tempfile.c_str(), O_CREAT | O_EXCL);
-	TEST_THAT(!TestFileExists(tempfile.c_str()));
+		// opening it to create exclusively should work
+		InvisibleTempFileStream fs4(tempfile.c_str(), O_CREAT | O_EXCL);
+		TEST_THAT(!TestFileExists(tempfile.c_str()));
 
-	fs4.Close();
-#endif
+		fs4.Close();
+	#endif
 
-	fs.Close();
-	fs3.Close();
+		fs.Close();
+		fs3.Close();
 
-	// now that it's closed, it should be invisible on all platforms
-	TEST_THAT(!TestFileExists(tempfile.c_str()));
+		// now that it's closed, it should be invisible on all platforms
+		TEST_THAT(!TestFileExists(tempfile.c_str()));
+	}
 
-	// Test memory leak detection
+	// Test that memory leak detection doesn't crash
+	{
+		char *test = new char[1024];
+		delete [] test;
+		MemBlockStream *s = new MemBlockStream(test,12);
+		delete s;
+	}
+
 #ifdef BOX_MEMORY_LEAK_TESTING
 	{
+		Timers::Cleanup();
+
 		TEST_THAT(memleakfinder_numleaks() == 0);
 		void *block = ::malloc(12);
 		TEST_THAT(memleakfinder_numleaks() == 1);
@@ -201,9 +263,73 @@ int test(int argc, const char *argv[])
 		TEST_THAT(memleakfinder_numleaks() == 1);
 		delete [] test;
 		TEST_THAT(memleakfinder_numleaks() == 0);
+
+		Timers::Init();
 	}
 #endif // BOX_MEMORY_LEAK_TESTING
+
+	// test main() initialises timers for us, so uninitialise them
+	Timers::Cleanup();
 	
+	// Check that using timer methods without initialisation
+	// throws an exception
+	TEST_CHECK_THROWS(Timers::Add(*(Timer*)NULL), 
+		CommonException, AssertFailed);
+	TEST_CHECK_THROWS(Timers::Remove(*(Timer*)NULL), 
+		CommonException, AssertFailed);
+	// TEST_CHECK_THROWS(Timers::Signal(), CommonException, AssertFailed);
+	TEST_CHECK_THROWS(Timers::Cleanup(), CommonException, AssertFailed);
+	
+	// Check that we can initialise the timers
+	Timers::Init();
+	
+	// Check that double initialisation throws an exception
+	TEST_CHECK_THROWS(Timers::Init(), CommonException, AssertFailed);
+
+	// Check that we can clean up the timers
+	Timers::Cleanup();
+	
+	// Check that double cleanup throws an exception
+	TEST_CHECK_THROWS(Timers::Cleanup(), CommonException, AssertFailed);
+
+	Timers::Init();
+
+	Timer t0(0); // should never expire
+	Timer t1(1);
+	Timer t2(2);
+	Timer t3(3);
+	
+	TEST_THAT(!t0.HasExpired());
+	TEST_THAT(!t1.HasExpired());
+	TEST_THAT(!t2.HasExpired());
+	TEST_THAT(!t3.HasExpired());
+	
+	safe_sleep(1);
+	TEST_THAT(!t0.HasExpired());
+	TEST_THAT(t1.HasExpired());
+	TEST_THAT(!t2.HasExpired());
+	TEST_THAT(!t3.HasExpired());
+	
+	safe_sleep(1);
+	TEST_THAT(!t0.HasExpired());
+	TEST_THAT(t1.HasExpired());
+	TEST_THAT(t2.HasExpired());
+	TEST_THAT(!t3.HasExpired());
+	
+	t1 = Timer(1);
+	t2 = Timer(2);
+	TEST_THAT(!t0.HasExpired());
+	TEST_THAT(!t1.HasExpired());
+	TEST_THAT(!t2.HasExpired());
+	
+	safe_sleep(1);
+	TEST_THAT(!t0.HasExpired());
+	TEST_THAT(t1.HasExpired());
+	TEST_THAT(!t2.HasExpired());
+	TEST_THAT(t3.HasExpired());
+
+	// Leave timers initialised for rest of test.
+	// Test main() will cleanup after test finishes.
 
 	static char *testfilelines[] =
 	{
@@ -577,6 +703,8 @@ int test(int argc, const char *argv[])
 	
 	// Test ExcludeList
 	{
+		TestLogger logger(Log::WARNING);
+
 		ExcludeList elist;
 		// Check assumption
 		TEST_THAT(Configuration::MultiValueSeparator == '\x01');
@@ -634,6 +762,24 @@ int test(int argc, const char *argv[])
 		#endif
 
 		#undef CASE_SENSITIVE
+
+		TEST_THAT(!logger.IsTriggered());
+		elist.AddDefiniteEntries(std::string("/foo"));
+		TEST_THAT(!logger.IsTriggered());
+		elist.AddDefiniteEntries(std::string("/foo/"));
+		TEST_THAT(logger.IsTriggered());
+		logger.Reset();
+		elist.AddDefiniteEntries(std::string("/foo" 
+			DIRECTORY_SEPARATOR));
+		TEST_THAT(logger.IsTriggered());
+		logger.Reset();
+		elist.AddDefiniteEntries(std::string("/foo" 
+			DIRECTORY_SEPARATOR "bar\x01/foo"));
+		TEST_THAT(!logger.IsTriggered());
+		elist.AddDefiniteEntries(std::string("/foo" 
+			DIRECTORY_SEPARATOR "bar\x01/foo" 
+			DIRECTORY_SEPARATOR));
+		TEST_THAT(logger.IsTriggered());
 	}
 
 	test_conversions();
