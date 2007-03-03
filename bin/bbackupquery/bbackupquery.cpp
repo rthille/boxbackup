@@ -63,7 +63,10 @@ void PrintUsageAndExit()
 
 int main(int argc, const char *argv[])
 {
+	int returnCode = 0;
+
 	MAINHELPER_SETUP_MEMORY_LEAK_EXIT_REPORT("bbackupquery.memleaks", "bbackupquery")
+	MAINHELPER_START
 
 #ifdef WIN32
 	WSADATA info;
@@ -83,13 +86,9 @@ int main(int argc, const char *argv[])
 		BoxDebugTraceOn = false;
 	#endif
 	
-	int returnCode = 0;
-
-	MAINHELPER_START
-	
 	FILE *logFile = 0;
 
-	// Filename for configuraiton file?
+	// Filename for configuration file?
 	const char *configFilename = BOX_FILE_BBACKUPD_DEFAULT_CONFIG;
 	
 	// Flags
@@ -314,13 +313,14 @@ int main(int argc, const char *argv[])
 	
 	// Let everything be cleaned up on exit.
 	
-	MAINHELPER_END
-	
 #ifdef WIN32
 	// Clean up our sockets
-	WSACleanup();
+	// FIXME we should do this, but I get an abort() when I try
+	// WSACleanup();
 #endif
 
+	MAINHELPER_END
+	
 	return returnCode;
 }
 
