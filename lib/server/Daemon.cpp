@@ -33,6 +33,7 @@
 #include "Guards.h"
 #include "UnixUser.h"
 #include "FileModificationTime.h"
+#include "Logging.h"
 
 #include "MemLeakFindOn.h"
 
@@ -48,11 +49,11 @@ Daemon *Daemon::spDaemon = 0;
 //
 // --------------------------------------------------------------------------
 Daemon::Daemon()
-	: mpConfiguration(0),
+	: mpConfiguration(NULL),
 	  mReloadConfigWanted(false),
 	  mTerminateWanted(false)
 {
-	if(spDaemon != 0)
+	if(spDaemon != NULL)
 	{
 		THROW_EXCEPTION(ServerException, AlreadyDaemonConstructed)
 	}
@@ -79,56 +80,139 @@ Daemon::~Daemon()
 		delete mpConfiguration;
 		mpConfiguration = 0;
 	}
+
+	ASSERT(spDaemon == this);
+	spDaemon = NULL;
 }
 
 // --------------------------------------------------------------------------
 //
 // Function
 //		Name:    Daemon::Main(const char *, int, const char *[])
-//		Purpose: Starts the daemon off -- equivalent of C main() function
+//		Purpose: Parses command-line options, and then calls
+//			Main(std::string& configFile, bool singleProcess)
+//			to start the daemon.
 //		Created: 2003/07/29
 //
 // --------------------------------------------------------------------------
 int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
+{
+	// Find filename of config file
+	mConfigFileName = DefaultConfigFile;
+	bool haveConfigFile = false;
+	bool singleProcess  = false;
+	int masterLevel = Log::NOTICE; // need an int to do math with
+	char c;
+
+	while((c = getopt(argc, (char * const *)argv, "c:Dqv")) != -1)
+	{
+		switch(c)
+		{
+			case 'c':
+			{
+				mConfigFileName = optarg;
+				haveConfigFile = true;
+			}
+			break;
+
+			case 'D':
+			{
+				singleProcess = true;
+			}
+			break;
+
+			case 'q':
+			{
+				if(masterLevel == Log::NOTHING)
+				{
+					BOX_FATAL("Too many '-q': "
+						"Cannot reduce logging "
+						"level any more");
+					return 2;
+				}
+				masterLevel--;
+			}
+			break;
+
+			case 'v':
+			{
+				if(masterLevel == Log::EVERYTHING)
+				{
+					BOX_FATAL("Too many '-v': "
+						"Cannot increase logging "
+						"level any more");
+					return 2;
+				}
+				masterLevel++;
+			}
+			break;
+
+			case '?':
+			{
+				BOX_FATAL("Unknown option on command line: " 
+					<< "'" << optopt << "'");
+				return 2;
+			}
+			break;
+
+			default:
+			{
+				BOX_FATAL("Unknown error in getopt: returned "
+					<< "'" << c << "'");
+				return 1;
+			}
+		}
+	}
+
+	if (argc > optind && !haveConfigFile)
+	{
+		mConfigFileName = argv[optind]; optind++;
+	}
+
+	if (argc > optind && ::strcmp(argv[optind], "SINGLEPROCESS") == 0)
+	{
+		singleProcess = true; optind++;
+	}
+
+	if (argc > optind)
+	{
+		BOX_FATAL("Unknown parameter on command line: "
+			<< "'" << std::string(argv[optind]) << "'");
+		return 2;
+	}
+
+	Logging::SetGlobalLevel((Log::Level)masterLevel);
+
+	return Main(mConfigFileName, singleProcess);
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    Daemon::Main(const std::string& rConfigFileName,
+//			 bool singleProcess)
+//		Purpose: Starts the daemon off -- equivalent of C main() function
+//		Created: 2003/07/29
+//
+// --------------------------------------------------------------------------
+int Daemon::Main(const std::string &rConfigFileName, bool singleProcess)
 {
 	// Banner (optional)
 	{
 		const char *banner = DaemonBanner();
 		if(banner != 0)
 		{
-			printf("%s", banner);
+			BOX_NOTICE(banner);
 		}
 	}
 
 	std::string pidFileName;
 
+	mConfigFileName = rConfigFileName;
+	bool asDaemon   = !singleProcess;
+
 	try
 	{
-		// Find filename of config file
-		mConfigFileName = DefaultConfigFile;
-		if(argc >= 2)
-		{
-			// First argument is config file, or it's -c and the next arg is the config file
-			if(::strcmp(argv[1], "-c") == 0 && argc >= 3)
-			{
-				mConfigFileName = argv[2];
-			}
-			else
-			{
-				mConfigFileName = argv[1];
-			}
-		}
-		
-		// Test mode with no daemonisation?
-		bool asDaemon = true;
-		if(argc >= 3)
-		{
-			if(::strcmp(argv[2], "SINGLEPROCESS") == 0)
-			{
-				asDaemon = false;
-			}
-		}
-
 		// Load the configuration file.
 		std::string errors;
 		std::auto_ptr<Configuration> pconfig;
@@ -144,16 +228,9 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 			if(e.GetType() == CommonException::ExceptionType &&
 				e.GetSubType() == CommonException::OSFileOpenError)
 			{
-				fprintf(stderr, "%s: failed to start: "
-					"failed to open configuration file: "
-					"%s\n", DaemonName(), 
-					mConfigFileName.c_str());
-#ifdef WIN32
-				::syslog(LOG_ERR, "%s: failed to start: "
-					"failed to open configuration file: "
-					"%s", DaemonName(), 
-					mConfigFileName.c_str());
-#endif
+				BOX_FATAL("Failed to start: failed to open "
+					"configuration file: " 
+					<< mConfigFileName);
 				return 1;
 			}
 
@@ -164,14 +241,8 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 		if(pconfig.get() == 0 || !errors.empty())
 		{
 			// Tell user about errors
-			fprintf(stderr, "%s: Errors in config file %s:\n%s", 
-				DaemonName(), mConfigFileName.c_str(), 
-				errors.c_str());
-#ifdef WIN32
-			::syslog(LOG_ERR, "%s: Errors in config file %s:\n%s",
-				DaemonName(), mConfigFileName.c_str(), 
-				errors.c_str());
-#endif
+			BOX_FATAL("Failed to start: errors in configuration "
+				"file: " << mConfigFileName << ": " << errors);
 			// And give up
 			return 1;
 		}
@@ -182,18 +253,6 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 		
 		// Let the derived class have a go at setting up stuff in the initial process
 		SetupInInitialProcess();
-		
-#ifndef WIN32		
-		// Set signal handler
-		struct sigaction sa;
-		sa.sa_handler = SignalHandler;
-		sa.sa_flags = 0;
-		sigemptyset(&sa.sa_mask);		// macro
-		if(::sigaction(SIGHUP, &sa, NULL) != 0 || ::sigaction(SIGTERM, &sa, NULL) != 0)
-		{
-			THROW_EXCEPTION(ServerException, DaemoniseFailed)
-		}
-#endif // !WIN32
 		
 		// Server configuration
 		const Configuration &serverConfig(
@@ -232,7 +291,7 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 
 			default:
 				// parent
-				_exit(0);
+				// _exit(0);
 				return 0;
 				break;
 
@@ -269,14 +328,24 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 				break;
 			}
 		}
-#endif // ! WIN32
 
-		// open the log
-		::openlog(DaemonName(), LOG_PID, LOG_LOCAL6);
+		// Set signal handler
+		// Don't do this in the parent, since it might be anything
+		// (e.g. test/bbackupd)
+		
+		struct sigaction sa;
+		sa.sa_handler = SignalHandler;
+		sa.sa_flags = 0;
+		sigemptyset(&sa.sa_mask);		// macro
+		if(::sigaction(SIGHUP, &sa, NULL) != 0 || ::sigaction(SIGTERM, &sa, NULL) != 0)
+		{
+			THROW_EXCEPTION(ServerException, DaemoniseFailed)
+		}
+#endif // !WIN32
 
 		// Log the start message
-		::syslog(LOG_INFO, "Starting daemon (config: %s) (version " 
-			BOX_VERSION ")", mConfigFileName.c_str());
+		BOX_NOTICE("Starting daemon, version " << BOX_VERSION
+			<< ", config: " << mConfigFileName);
 
 		// Write PID to file
 		char pid[32];
@@ -289,7 +358,7 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 
 		if(::write(pidFile, pid, pidsize) != pidsize)
 		{
-			::syslog(LOG_ERR, "can't write pid file");
+			BOX_FATAL("can't write pid file");
 			THROW_EXCEPTION(ServerException, DaemoniseFailed)
 		}
 		
@@ -330,37 +399,24 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 			// And definitely don't try and send anything to those file descriptors
 			// -- this has in the past sent text to something which isn't expecting it.
 			TRACE_TO_STDOUT(false);
+			Logging::ToConsole(false);
 		}		
 	}
 	catch(BoxException &e)
 	{
-		fprintf(stderr, "%s: failed to start: exception %s (%d/%d)\n", 
-			DaemonName(), e.what(), e.GetType(), e.GetSubType());
-#ifdef WIN32
-		::syslog(LOG_ERR, "%s: failed to start: "
-			"exception %s (%d/%d)\n", DaemonName(), 
-			e.what(), e.GetType(), e.GetSubType());
-#endif
+		BOX_FATAL("Failed to start: exception " << e.what() 
+			<< " (" << e.GetType() 
+			<< "/"  << e.GetSubType() << ")");
 		return 1;
 	}
 	catch(std::exception &e)
 	{
-		fprintf(stderr, "%s: failed to start: exception %s\n", 
-			DaemonName(), e.what());
-#ifdef WIN32
-		::syslog(LOG_ERR, "%s: failed to start: exception %s\n", 
-			DaemonName(), e.what());
-#endif
+		BOX_FATAL("Failed to start: exception " << e.what());
 		return 1;
 	}
 	catch(...)
 	{
-		fprintf(stderr, "%s: failed to start: unknown exception\n", 
-			DaemonName());
-#ifdef WIN32
-		::syslog(LOG_ERR, "%s: failed to start: unknown exception\n", 
-			DaemonName());
-#endif
+		BOX_FATAL("Failed to start: unknown error");
 		return 1;
 	}
 
@@ -373,7 +429,7 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 	if (WSAStartup(0x0101, &info) == SOCKET_ERROR)
 	{
 		// will not run without sockets
-		::syslog(LOG_ERR, "Failed to initialise Windows Sockets");
+		BOX_FATAL("Failed to initialise Windows Sockets");
 		THROW_EXCEPTION(CommonException, Internal)
 	}
 #endif
@@ -390,9 +446,8 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 			if(mReloadConfigWanted && !mTerminateWanted)
 			{
 				// Need to reload that config file...
-				::syslog(LOG_INFO, "Reloading configuration "
-					"(config: %s)", 
-					mConfigFileName.c_str());
+				BOX_NOTICE("Reloading configuration file: "
+					<< mConfigFileName);
 				std::string errors;
 				std::auto_ptr<Configuration> pconfig = 
 					Configuration::LoadAndVerify(
@@ -403,10 +458,9 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 				if(pconfig.get() == 0 || !errors.empty())
 				{
 					// Tell user about errors
-					::syslog(LOG_ERR, "Errors in config "
-						"file %s:\n%s", 
-						mConfigFileName.c_str(),
-						errors.c_str());
+					BOX_FATAL("Error in configuration "
+						<< "file: " << mConfigFileName
+						<< ": " << errors);
 					// And give up
 					retcode = 1;
 					break;
@@ -430,25 +484,23 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 		::unlink(pidFileName.c_str());
 		
 		// Log
-		::syslog(LOG_INFO, "Terminating daemon");
+		BOX_NOTICE("Terminating daemon");
 	}
 	catch(BoxException &e)
 	{
-		::syslog(LOG_ERR, "%s: terminating due to exception %s "
-			"(%d/%d)", DaemonName(), e.what(), e.GetType(), 
-			e.GetSubType());
+		BOX_FATAL("Terminating due to exception " << e.what() 
+			<< " (" << e.GetType() 
+			<< "/"  << e.GetSubType() << ")");
 		retcode = 1;
 	}
 	catch(std::exception &e)
 	{
-		::syslog(LOG_ERR, "%s: terminating due to exception %s", 
-			DaemonName(), e.what());
+		BOX_FATAL("Terminating due to exception " << e.what());
 		retcode = 1;
 	}
 	catch(...)
 	{
-		::syslog(LOG_ERR, "%s: terminating due to unknown exception",
-			DaemonName());
+		BOX_FATAL("Terminating due to unknown exception");
 		retcode = 1;
 	}
 
