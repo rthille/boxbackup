@@ -20,7 +20,8 @@
 #endif
 
 #include <stdio.h>
- 
+#include <string>
+
 extern int failures;
 extern int first_fail_line;
 extern std::string first_fail_file;
@@ -91,6 +92,36 @@ inline int TestGetFileSize(const char *Filename)
 	return -1;
 }
 
+inline std::string ConvertPaths(const char *pCommandLine)
+{
+#ifdef WIN32
+	// convert UNIX paths to native
+
+	std::string command;
+	for (int i = 0; pCommandLine[i] != 0; i++)
+	{
+		if (pCommandLine[i] == '/')
+		{
+			command += '\\';
+		}
+		else
+		{
+			command += pCommandLine[i];
+		}
+	}
+
+#else // !WIN32
+	std::string command = pCommandLine;
+#endif
+
+	return command;
+}
+
+inline int RunCommand(const char *pCommandLine)
+{
+	return ::system(ConvertPaths(pCommandLine).c_str());
+}
+
 #ifdef WIN32
 #include <windows.h>
 #endif
@@ -116,7 +147,29 @@ inline bool ServerIsAlive(int pid)
 #endif // WIN32
 }
 
-inline int LaunchServer(const char *CommandLine, const char *pidFile)
+inline int ReadPidFile(const char *pidFile)
+{
+	if(!TestFileExists(pidFile))
+	{
+		TEST_FAIL_WITH_MESSAGE("Server didn't save PID file "
+			"(perhaps one was already running?)");	
+		return -1;
+	}
+	
+	int pid = -1;
+
+	FILE *f = fopen(pidFile, "r");
+	if(f == NULL || fscanf(f, "%d", &pid) != 1)
+	{
+		TEST_FAIL_WITH_MESSAGE("Couldn't read PID file");	
+		return -1;
+	}
+	fclose(f);
+	
+	return pid;
+}
+
+inline int LaunchServer(const char *pCommandLine, const char *pidFile)
 {
 #ifdef WIN32
 
@@ -131,7 +184,8 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 	startInfo.cbReserved2 = 0;
 	startInfo.lpReserved2 = NULL;
 
-	CHAR* tempCmd = strdup(CommandLine);
+	std::string cmd = ConvertPaths(pCommandLine);
+	CHAR* tempCmd = strdup(cmd.c_str());
 
 	DWORD result = CreateProcess
 	(
@@ -152,7 +206,7 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 	if (result == 0)
 	{
 		DWORD err = GetLastError();
-		printf("Launch failed: %s: error %d\n", CommandLine, (int)err);
+		printf("Launch failed: %s: error %d\n", pCommandLine, (int)err);
 		return -1;
 	}
 
@@ -161,9 +215,9 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 
 #else // !WIN32
 
-	if(::system(CommandLine) != 0)
+	if(RunCommand(pCommandLine) != 0)
 	{
-		printf("Server: %s\n", CommandLine);
+		printf("Server: %s\n", pCommandLine);
 		TEST_FAIL_WITH_MESSAGE("Couldn't start server");
 		return -1;
 	}
@@ -183,7 +237,7 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 	#endif
 
 	// time for it to start up
-	::fprintf(stdout, "Starting server: %s\n", CommandLine);
+	::fprintf(stdout, "Starting server: %s\n", pCommandLine);
 	::fprintf(stdout, "Waiting for server to start: ");
 
 	for (int i = 0; i < 15; i++)
@@ -230,14 +284,8 @@ inline int LaunchServer(const char *CommandLine, const char *pidFile)
 		::fprintf(stdout, "done.\n");
 	}
 
-	FILE *f = fopen(pidFile, "r");
-	if(f == NULL || fscanf(f, "%d", &pid) != 1)
-	{
-		printf("Server: %s (pidfile %s)\n", CommandLine, pidFile);
-		TEST_FAIL_WITH_MESSAGE("Couldn't read PID file");	
-		return -1;
-	}
-	fclose(f);
+	// read pid file
+	pid = ReadPidFile(pidFile);
 
 	#ifdef WIN32
 	// On Win32 we can check whether the PID in the pidFile matches
@@ -355,4 +403,3 @@ inline void wait_for_operation(int seconds)
 }
 
 #endif // TEST__H
-
