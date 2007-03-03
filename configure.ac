@@ -102,7 +102,7 @@ esac
 
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS([execinfo.h process.h pwd.h signal.h])
+AC_CHECK_HEADERS([dlfcn.h execinfo.h process.h pwd.h signal.h])
 AC_CHECK_HEADERS([syslog.h time.h])
 AC_CHECK_HEADERS([netinet/in.h])
 AC_CHECK_HEADERS([sys/param.h sys/socket.h sys/time.h sys/types.h sys/wait.h])
@@ -114,6 +114,8 @@ if test "$have_regex_h" = "yes"; then
   AC_DEFINE([HAVE_REGEX_H], [1], [Define to 1 if regex.h is available])
   AC_SEARCH_LIBS([regcomp], ["pcreposix -lpcre"])
 fi
+
+AC_SEARCH_LIBS([dlsym], ["dl"])
 
 ### Checks for typedefs, structures, and compiler characteristics.
 
@@ -166,7 +168,7 @@ AC_FUNC_CLOSEDIR_VOID
 AC_FUNC_ERROR_AT_LINE
 AC_TYPE_SIGNAL
 AC_FUNC_STAT
-AC_CHECK_FUNCS([getpeereid lchown setproctitle getpid])
+AC_CHECK_FUNCS([getpeereid lchown setproctitle getpid gettimeofday])
 # NetBSD implements kqueue too differently for us to get it fixed by 0.10
 # TODO: Remove this when NetBSD kqueue implementation is working
 netbsd_hack=`echo $target_os | sed 's/netbsd.*/netbsd/'`
@@ -246,6 +248,7 @@ AX_CONFIG_SCRIPTS([bin/bbackupd/bbackupd-config
                    bin/bbstored/bbstored-config
                    infrastructure/makebuildenv.pl
                    infrastructure/makeparcels.pl
+                   infrastructure/makedistribution.pl
                    lib/common/makeexception.pl
                    lib/raidfile/raidfile-config
                    lib/server/makeprotocol.pl
