@@ -2,6 +2,9 @@
 //	AUTOMATICALLY GENERATED FILE
 //		do not edit
 //
+//	Note that infrastructure/buildenv-testmain-template.cpp is NOT
+//	auto-generated, but test/*/_main.cpp are generated from it.
+//
 
 
 // --------------------------------------------------------------------------
@@ -23,6 +26,7 @@
 #include <stdarg.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <string>
 
 #ifdef WIN32
 	#include "emu.h"
@@ -31,6 +35,7 @@
 #endif
 
 #include "Test.h"
+#include "Timer.h"
 
 #include "MemLeakFindOn.h"
 
@@ -117,7 +122,13 @@ int main(int argc, const char *argv[])
 	}
 	try
 	{
+		#ifdef BOX_MEMORY_LEAK_TESTING
+		memleakfinder_init();
+		#endif
+
+		Timers::Init();
 		int returncode = test(argc, argv);
+		Timers::Cleanup();
 		
 		// check for memory leaks, if enabled
 		#ifdef BOX_MEMORY_LEAK_TESTING
