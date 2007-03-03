@@ -125,13 +125,13 @@ inline bool KillServerInternal(int pid)
 inline bool HUPServer(int pid)
 {
 	if(pid == 0) return false;
-	return ::kill(pid, SIGHUP) != -1;
+	return ::kill(pid, SIGHUP) == 0;
 }
 
 inline bool KillServerInternal(int pid)
 {
 	if(pid == 0 || pid == -1) return false;
-	bool killed = (::kill(pid, SIGTERM) != -1);
+	bool killed = (::kill(pid, SIGTERM) == 0);
 	TEST_THAT(killed);
 	return killed;
 }
@@ -140,7 +140,10 @@ inline bool KillServerInternal(int pid)
 
 inline bool KillServer(int pid)
 {
-	KillServerInternal(pid);
+	if (!KillServerInternal(pid))
+	{
+		return false;
+	}
 
 	for (int i = 0; i < 30; i++)
 	{
