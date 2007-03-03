@@ -12,6 +12,7 @@
 #include "MainHelper.h"
 #include "BoxPortsAndFiles.h"
 #include "BackupStoreException.h"
+#include "Logging.h"
 
 #include "MemLeakFindOn.h"
 
@@ -26,9 +27,11 @@ int main(int argc, const char *argv[])
 {
 	MAINHELPER_START
 
+	Logging::SetProgramName("Box Backup (bbackupd)");
+	Logging::ToConsole(true);
+	Logging::ToSyslog (true);
+	
 #ifdef WIN32
-
-	::openlog("Box Backup (bbackupd)", LOG_PID, LOG_LOCAL6);
 
 	if(argc == 2 &&
 		(::strcmp(argv[1], "--help") == 0 ||
@@ -66,7 +69,7 @@ int main(int argc, const char *argv[])
 
 	if (runAsWin32Service)
 	{
-		syslog(LOG_INFO, "Box Backup service starting");
+		BOX_INFO("Box Backup service starting");
 
 		char* config = NULL;
 		if (argc >= 3)
@@ -81,7 +84,7 @@ int main(int argc, const char *argv[])
 			free(config);
 		}
 
-		syslog(LOG_INFO, "Box Backup service shut down");
+		BOX_INFO("Box Backup service shut down");
 	}
 	else
 	{
