@@ -2042,7 +2042,8 @@ void BackupDaemon::SetState(int State)
 	// Something connected to the command socket, tell it about the new state
 	try
 	{
-		mpCommandSocketInfo->mpConnectedSocket->Write(newState, newStateSize);
+		mpCommandSocketInfo->mpConnectedSocket->Write(message.c_str(),
+			message.length());
 	}
 	catch(std::exception &e)
 	{
