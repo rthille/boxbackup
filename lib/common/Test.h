@@ -224,8 +224,6 @@ inline int LaunchServer(const char *pCommandLine, const char *pidFile)
 
 #endif // WIN32
 
-	int pid = -1;
-
 	#ifdef WIN32
 	// on other platforms there is no other way to get 
 	// the PID, so a NULL pidFile doesn't make sense.
@@ -249,12 +247,10 @@ inline int LaunchServer(const char *pCommandLine, const char *pidFile)
 
 		#ifdef WIN32
 		if (!ServerIsAlive((int)procInfo.dwProcessId))
-		#else
-		if (!ServerIsAlive(pid))
-		#endif
 		{
 			break;
 		}
+		#endif
 
 		::fprintf(stdout, ".");
 		::fflush(stdout);
@@ -285,7 +281,7 @@ inline int LaunchServer(const char *pCommandLine, const char *pidFile)
 	}
 
 	// read pid file
-	pid = ReadPidFile(pidFile);
+	int pid = ReadPidFile(pidFile);
 
 	#ifdef WIN32
 	// On Win32 we can check whether the PID in the pidFile matches
