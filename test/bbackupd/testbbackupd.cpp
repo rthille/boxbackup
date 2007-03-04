@@ -9,6 +9,13 @@
 
 #include "Box.h"
 
+// do not include MinGW's dirent.h on Win32, 
+// as we override some of it in lib/win32.
+
+#ifndef WIN32
+	#include <dirent.h>
+#endif
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -26,6 +33,10 @@
 #endif
 
 #include <map>
+
+#ifdef HAVE_SYSCALL
+	#include <sys/syscall.h>
+#endif
 
 #include "Test.h"
 #include "BackupClientFileAttributes.h"
@@ -52,6 +63,9 @@
 #include "IOStreamGetLine.h"
 #include "FileStream.h"
 #include "LocalProcessStream.h"
+#include "BackupDaemon.h"
+#include "Timer.h"
+#include "intercept.h"
 
 #include "MemLeakFindOn.h"
 
@@ -402,23 +416,19 @@ int test_basics()
 
 int test_setupaccount()
 {
-#ifdef WIN32
-	TEST_THAT_ABORTONFAIL(::system("..\\..\\bin\\bbstoreaccounts\\bbstoreaccounts -c testfiles/bbstored.conf create 01234567 0 1000B 2000B") == 0);
-#else
-	TEST_THAT_ABORTONFAIL(::system("../../bin/bbstoreaccounts/bbstoreaccounts -c testfiles/bbstored.conf create 01234567 0 1000B 2000B") == 0);
+	TEST_THAT_ABORTONFAIL(::system(BBSTOREACCOUNTS " -c "
+		"testfiles/bbstored.conf create 01234567 0 1000B 2000B") == 0);
 	TestRemoteProcessMemLeaks("bbstoreaccounts.memleaks");
-#endif
 	return 0;
 }
 
 int test_run_bbstored()
 {
-#ifdef WIN32
-	bbstored_pid = LaunchServer("..\\..\\bin\\bbstored\\bbstored testfiles/bbstored.conf", "testfiles/bbstored.pid");
-#else
-	bbstored_pid = LaunchServer("../../bin/bbstored/bbstored testfiles/bbstored.conf", "testfiles/bbstored.pid");
-#endif
+	bbstored_pid = LaunchServer(BBSTORED " testfiles/bbstored.conf", 
+		"testfiles/bbstored.pid");
+
 	TEST_THAT(bbstored_pid != -1 && bbstored_pid != 0);
+
 	if(bbstored_pid > 0)
 	{
 		::sleep(1);
@@ -580,6 +590,10 @@ bool set_file_time(const char* filename, FILETIME creationTime,
 	return success;
 }
 
+void intercept_setup_delay(const char *filename, unsigned int delay_after, 
+	int delay_ms, int syscall_to_delay);
+bool intercept_triggered();
+
 int64_t SearchDir(BackupStoreDirectory& rDir,
 	const std::string& rChildName)
 {
@@ -593,10 +607,150 @@ int64_t SearchDir(BackupStoreDirectory& rDir,
 	return id;
 }
 	
+int start_internal_daemon()
+{
+	// ensure that no child processes end up running tests!
+	int own_pid = getpid();
+		
+	BackupDaemon daemon;
+	const char* fake_argv[] = { "bbackupd", "testfiles/bbackupd.conf" };
+	
+	int result = daemon.Main(BOX_FILE_BBACKUPD_DEFAULT_CONFIG, 2, 
+		fake_argv);
+	
+	TEST_THAT(result == 0);
+	if (result != 0)
+	{
+		printf("Daemon exited with code %d\n", result);
+	}
+	
+	// ensure that no child processes end up running tests!
+	TEST_THAT(getpid() == own_pid);
+	if (getpid() != own_pid)
+	{
+		// abort!
+		_exit(1);
+	}
+
+	TEST_THAT(TestFileExists("testfiles/bbackupd.pid"));
+	
+	printf("Waiting for daemon to start");
+	int pid = -1;
+	
+	for (int i = 0; i < 30; i++)
+	{
+		printf(".");
+		fflush(stdout);
+		sleep(1);
+
+		pid = ReadPidFile("testfiles/bbackupd.pid");
+		if (pid > 0)
+		{
+			break;
+		}		
+	}
+	
+	printf("\n");
+
+	TEST_THAT(pid > 0);
+	return pid;
+}
+
+void stop_internal_daemon(int pid)
+{
+	TEST_THAT(KillServer(pid));
+
+	/*
+	int status;
+	TEST_THAT(waitpid(pid, &status, 0) == pid);
+	TEST_THAT(WIFEXITED(status));
+	
+	if (WIFEXITED(status))
+	{
+		TEST_THAT(WEXITSTATUS(status) == 0);
+	}
+	*/
+}
+
+static struct dirent readdir_test_dirent;
+static int readdir_test_counter = 0;
+static int readdir_stop_time = 0;
+static char stat_hook_filename[512];
+
+// First test hook, during the directory scanning stage, returns empty.
+// This will not match the directory on the store, so a sync will start.
+// We set up the next intercept for the same directory by passing NULL.
+
+struct dirent *readdir_test_hook_2(DIR *dir);
+
+#ifdef LINUX_WEIRD_LSTAT
+int lstat_test_hook(int ver, const char *file_name, struct stat *buf);
+#else
+int lstat_test_hook(const char *file_name, struct stat *buf);
+#endif
+
+struct dirent *readdir_test_hook_1(DIR *dir)
+{
+#ifndef PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
+	intercept_setup_readdir_hook(NULL, readdir_test_hook_2);
+#endif
+	return NULL;
+}
+
+// Second test hook, during the directory sync stage, keeps returning 
+// new filenames until the timer expires, then disables the intercept.
+
+struct dirent *readdir_test_hook_2(DIR *dir)
+{
+	if (time(NULL) >= readdir_stop_time)
+	{
+#ifndef PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
+		intercept_setup_readdir_hook(NULL, NULL);
+		intercept_setup_lstat_hook  (NULL, NULL);
+#endif
+		// we will not be called again.
+	}
+
+	// fill in the struct dirent appropriately
+	memset(&readdir_test_dirent, 0, sizeof(readdir_test_dirent));
+
+#ifdef HAVE_STRUCT_DIRENT_D_INO
+	readdir_test_dirent.d_ino = ++readdir_test_counter;
+#endif
+
+	snprintf(readdir_test_dirent.d_name, 
+		sizeof(readdir_test_dirent.d_name),
+		"test.%d", readdir_test_counter);
+
+	// ensure that when bbackupd stats the file, it gets the 
+	// right answer
+	snprintf(stat_hook_filename, sizeof(stat_hook_filename),
+		"testfiles/TestDir1/spacetest/d1/test.%d", 
+		readdir_test_counter);
+#ifndef PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
+	intercept_setup_lstat_hook(stat_hook_filename, lstat_test_hook);
+#endif
+
+	return &readdir_test_dirent;
+}
+
+#ifdef LINUX_WEIRD_LSTAT
+int lstat_test_hook(int ver, const char *file_name, struct stat *buf)
+#else
+int lstat_test_hook(const char *file_name, struct stat *buf)
+#endif
+{
+	// TRACE1("lstat hook triggered for %s", file_name);		
+	memset(buf, 0, sizeof(*buf));
+	buf->st_mode = S_IFREG;
+	return 0;
+}
+
 int test_bbackupd()
 {
-//	// First, wait for a normal period to make sure the last changes attributes are within a normal backup timeframe.
-//	wait_for_backup_operation();
+	// First, wait for a normal period to make sure the last changes 
+	// attributes are within a normal backup timeframe.
+	// wait_for_backup_operation();
 
 	// Connection gubbins
 	TLSContext context;
@@ -608,18 +762,290 @@ int test_bbackupd()
 	// unpack the files for the initial test
 	TEST_THAT(::system("rm -rf testfiles/TestDir1") == 0);
 	TEST_THAT(::mkdir("testfiles/TestDir1", 0) == 0);
+
 #ifdef WIN32
 	TEST_THAT(::system("tar xzvf testfiles/spacetest1.tgz -C testfiles/TestDir1") == 0);
 #else
 	TEST_THAT(::system("gzip -d < testfiles/spacetest1.tgz | ( cd testfiles/TestDir1 && tar xf - )") == 0);
 #endif
-
-#ifdef WIN32
-	int pid = LaunchServer("..\\..\\bin\\bbackupd\\bbackupd testfiles/bbackupd.conf", "testfiles/bbackupd.pid");
+	
+#ifdef PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
+	printf("Skipping intercept-based KeepAlive tests on this platform.\n");
 #else
-	int pid = LaunchServer("../../bin/bbackupd/bbackupd testfiles/bbackupd.conf", "testfiles/bbackupd.pid");
-#endif
+	{
+		#ifdef WIN32
+		#error TODO: implement threads on Win32, or this test \
+			will not finish properly
+		#endif
+
+		// bbackupd daemon will try to initialise timers itself
+		Timers::Cleanup();
+		
+		// something to diff against (empty file doesn't work)
+		int fd = open("testfiles/TestDir1/spacetest/f1", O_WRONLY);
+		TEST_THAT(fd > 0);
+		char buffer[10000];
+		TEST_THAT(write(fd, buffer, sizeof(buffer)) == sizeof(buffer));
+		TEST_THAT(close(fd) == 0);
+		
+		int pid = start_internal_daemon();
+		wait_for_backup_operation();
+		stop_internal_daemon(pid);
+
+		intercept_setup_delay("testfiles/TestDir1/spacetest/f1", 
+			0, 2000, SYS_read, 1);
+		TEST_THAT(unlink("testfiles/bbackupd.log") == 0);
+
+		pid = start_internal_daemon();
+		
+		fd = open("testfiles/TestDir1/spacetest/f1", O_WRONLY);
+		TEST_THAT(fd > 0);
+		// write again, to update the file's timestamp
+		TEST_THAT(write(fd, buffer, sizeof(buffer)) == sizeof(buffer));
+		TEST_THAT(close(fd) == 0);	
+
+		wait_for_backup_operation();
+		// can't test whether intercept was triggered, because
+		// it's in a different process.
+		// TEST_THAT(intercept_triggered());
+		stop_internal_daemon(pid);
+
+		// check that keepalive was written to logs, and
+		// diff was not aborted, i.e. upload was a diff
+		FileStream fs("testfiles/bbackupd.log", O_RDONLY);
+		IOStreamGetLine reader(fs);
+		bool found1 = false;
+
+		while (!reader.IsEOF())
+		{
+			std::string line;
+			TEST_THAT(reader.GetLine(line));
+			if (line == "Send GetBlockIndexByName(0x3,\"f1\")")
+			{
+				found1 = true;
+				break;
+			}
+		}
+
+		TEST_THAT(found1);
+		if (found1)
+		{
+			std::string line;
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receive Success(0xe)");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receiving stream, size 124");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Send GetIsAlive()");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receive IsAlive()");
+
+			TEST_THAT(reader.GetLine(line));
+			std::string comp = "Send StoreFile(0x3,";
+			TEST_THAT(line.substr(0, comp.size()) == comp);
+			comp = ",0xe,\"f1\")";
+			TEST_THAT(line.substr(line.size() - comp.size())
+				== comp);
+		}
+		
+		intercept_setup_delay("testfiles/TestDir1/spacetest/f1", 
+			0, 4000, SYS_read, 1);
+		pid = start_internal_daemon();
+		
+		fd = open("testfiles/TestDir1/spacetest/f1", O_WRONLY);
+		TEST_THAT(fd > 0);
+		// write again, to update the file's timestamp
+		TEST_THAT(write(fd, buffer, sizeof(buffer)) == sizeof(buffer));
+		TEST_THAT(close(fd) == 0);	
+
+		wait_for_backup_operation();
+		// can't test whether intercept was triggered, because
+		// it's in a different process.
+		// TEST_THAT(intercept_triggered());
+		stop_internal_daemon(pid);
+
+		// check that the diff was aborted, i.e. upload was not a diff
+		found1 = false;
+
+		while (!reader.IsEOF())
+		{
+			std::string line;
+			TEST_THAT(reader.GetLine(line));
+			if (line == "Send GetBlockIndexByName(0x3,\"f1\")")
+			{
+				found1 = true;
+				break;
+			}
+		}
+
+		TEST_THAT(found1);
+		if (found1)
+		{
+			std::string line;
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receive Success(0xf)");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receiving stream, size 124");
+
+			// delaying for 4 seconds in one step means that
+			// the diff timer and the keepalive timer will
+			// both expire, and the diff timer is honoured first,
+			// so there will be no keepalives.
+
+			TEST_THAT(reader.GetLine(line));
+			std::string comp = "Send StoreFile(0x3,";
+			TEST_THAT(line.substr(0, comp.size()) == comp);
+			comp = ",0x0,\"f1\")";
+			TEST_THAT(line.substr(line.size() - comp.size())
+				== comp);
+		}
+
+		intercept_setup_delay("testfiles/TestDir1/spacetest/f1", 
+			0, 1000, SYS_read, 3);
+		pid = start_internal_daemon();
+		
+		fd = open("testfiles/TestDir1/spacetest/f1", O_WRONLY);
+		TEST_THAT(fd > 0);
+		// write again, to update the file's timestamp
+		TEST_THAT(write(fd, buffer, sizeof(buffer)) == sizeof(buffer));
+		TEST_THAT(close(fd) == 0);	
+
+		wait_for_backup_operation();
+		// can't test whether intercept was triggered, because
+		// it's in a different process.
+		// TEST_THAT(intercept_triggered());
+		stop_internal_daemon(pid);
+
+		// check that the diff was aborted, i.e. upload was not a diff
+		found1 = false;
+
+		while (!reader.IsEOF())
+		{
+			std::string line;
+			TEST_THAT(reader.GetLine(line));
+			if (line == "Send GetBlockIndexByName(0x3,\"f1\")")
+			{
+				found1 = true;
+				break;
+			}
+		}
+
+		TEST_THAT(found1);
+		if (found1)
+		{
+			std::string line;
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receive Success(0x10)");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receiving stream, size 124");
+
+			// delaying for 3 seconds in steps of 1 second
+			// means that the keepalive timer will expire 3 times,
+			// and on the 3rd time the diff timer will expire too.
+			// The diff timer is honoured first, so there will be 
+			// only two keepalives.
+			
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Send GetIsAlive()");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receive IsAlive()");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Send GetIsAlive()");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receive IsAlive()");
+
+			TEST_THAT(reader.GetLine(line));
+			std::string comp = "Send StoreFile(0x3,";
+			TEST_THAT(line.substr(0, comp.size()) == comp);
+			comp = ",0x0,\"f1\")";
+			TEST_THAT(line.substr(line.size() - comp.size())
+				== comp);
+		}
+
+		intercept_setup_readdir_hook("testfiles/TestDir1/spacetest/d1", 
+			readdir_test_hook_1);
+		
+		// time for at least two keepalives
+		readdir_stop_time = time(NULL) + 12 + 2;
+
+		pid = start_internal_daemon();
+		
+		std::string touchfile = 
+			"testfiles/TestDir1/spacetest/d1/touch-me";
+
+		fd = open(touchfile.c_str(), O_CREAT | O_WRONLY);
+		TEST_THAT(fd > 0);
+		// write again, to update the file's timestamp
+		TEST_THAT(write(fd, buffer, sizeof(buffer)) == sizeof(buffer));
+		TEST_THAT(close(fd) == 0);	
+
+		wait_for_backup_operation();
+		// can't test whether intercept was triggered, because
+		// it's in a different process.
+		// TEST_THAT(intercept_triggered());
+		stop_internal_daemon(pid);
+
+		// check that keepalives were sent during the dir search
+		found1 = false;
+
+		// skip to next login
+		while (!reader.IsEOF())
+		{
+			std::string line;
+			TEST_THAT(reader.GetLine(line));
+			if (line == "Send ListDirectory(0x3,0xffffffff,0xc,true)")
+			{
+				found1 = true;
+				break;
+			}
+		}
+
+		TEST_THAT(found1);
+		if (found1)
+		{
+			found1 = false;
+
+			while (!reader.IsEOF())
+			{
+				std::string line;
+				TEST_THAT(reader.GetLine(line));
+				if (line == "Send ListDirectory(0x3,0xffffffff,0xc,true)")
+				{
+					found1 = true;
+					break;
+				}
+			}
+		}
+
+		if (found1)
+		{
+			std::string line;
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receive Success(0x3)");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receiving stream, size 425");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Send GetIsAlive()");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receive IsAlive()");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Send GetIsAlive()");
+			TEST_THAT(reader.GetLine(line));
+			TEST_THAT(line == "Receive IsAlive()");
+		}
+
+		TEST_THAT(unlink(touchfile.c_str()) == 0);
+
+		// restore timers for rest of tests
+		Timers::Init();
+	}
+#endif // PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
+
+	int pid = LaunchServer(BBACKUPD " testfiles/bbackupd.conf", 
+		"testfiles/bbackupd.pid");
+
 	TEST_THAT(pid != -1 && pid != 0);
+
 	if(pid > 0)
 	{
 		::sleep(1);
@@ -627,16 +1053,14 @@ int test_bbackupd()
 
 		// First, check storage space handling -- wait for file to be uploaded
 		wait_for_backup_operation();
-		//TEST_THAT_ABORTONFAIL(::system("../../bin/bbstoreaccounts/bbstoreaccounts -c testfiles/bbstored.conf info 01234567") == 0);
+
 		// Set limit to something very small
 		// About 28 blocks will be used at this point. bbackupd will only pause if the size used is
 		// greater than soft limit + 1/3 of (hard - soft). Set small values for limits accordingly.
-#ifdef WIN32
-		TEST_THAT_ABORTONFAIL(::system("..\\..\\bin\\bbstoreaccounts\\bbstoreaccounts -c testfiles/bbstored.conf setlimit 01234567 10B 40B") == 0);
-#else
-		TEST_THAT_ABORTONFAIL(::system("../../bin/bbstoreaccounts/bbstoreaccounts -c testfiles/bbstored.conf setlimit 01234567 10B 40B") == 0);
+		TEST_THAT_ABORTONFAIL(::system(BBSTOREACCOUNTS " -c "
+			"testfiles/bbstored.conf setlimit 01234567 10B 40B") 
+			== 0);
 		TestRemoteProcessMemLeaks("bbstoreaccounts.memleaks");
-#endif
 
 		// Unpack some more files
 #ifdef WIN32
@@ -644,6 +1068,7 @@ int test_bbackupd()
 #else
 		TEST_THAT(::system("gzip -d < testfiles/spacetest2.tgz | ( cd testfiles/TestDir1 && tar xf - )") == 0);
 #endif
+
 		// Delete a file and a directory
 		TEST_THAT(::unlink("testfiles/TestDir1/spacetest/d1/f3") == 0);
 		TEST_THAT(::system("rm -rf testfiles/TestDir1/spacetest/d3/d4") == 0);
@@ -655,12 +1080,10 @@ int test_bbackupd()
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 
 		// Put the limit back
-#ifdef WIN32
-		TEST_THAT_ABORTONFAIL(::system("..\\..\\bin\\bbstoreaccounts\\bbstoreaccounts -c testfiles/bbstored.conf setlimit 01234567 1000B 2000B") == 0);
-#else
-		TEST_THAT_ABORTONFAIL(::system("../../bin/bbstoreaccounts/bbstoreaccounts -c testfiles/bbstored.conf setlimit 01234567 1000B 2000B") == 0);
-		testRemoteProcessMemLeaks("bbstoreaccounts.memleaks");
-#endif
+		TEST_THAT_ABORTONFAIL(::system(BBSTOREACCOUNTS " -c "
+			"testfiles/bbstored.conf setlimit 01234567 "
+			"1000B 2000B") == 0);
+		TestRemoteProcessMemLeaks("bbstoreaccounts.memleaks");
 		
 		// Check that the notify script was run
 		TEST_THAT(TestFileExists("testfiles/notifyran.store-full.1"));
@@ -679,7 +1102,9 @@ int test_bbackupd()
 		
 		// Check that the contents of the store are the same as the contents
 		// of the disc (-a = all, -c = give result in return code)
-		compareReturnValue = ::system(BBACKUPQUERY " -q -c testfiles/bbackupd.conf -l testfiles/query1.log \"compare -ac\" quit");
+		compareReturnValue = ::system(BBACKUPQUERY " -q -c "
+			"testfiles/bbackupd.conf -l testfiles/query1.log "
+			"\"compare -ac\" quit");
 		TEST_RETURN(compareReturnValue, 1);
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 
@@ -708,7 +1133,7 @@ int test_bbackupd()
 		//
 		// In ISO-8859-1 (Danish locale) they are three Danish 
 		// accented characters, which are supported in code page
-		// 850.
+		// 850. Depending on your locale, YYMV (your yak may vomit).
 
 		std::string foreignCharsNative("\x91\x9b\x86");
 		std::string foreignCharsUnicode;
@@ -1759,9 +2184,11 @@ int test_bbackupd()
 		terminate_bbackupd(pid);
 		
 		// Start it again
-		pid = LaunchServer("../../bin/bbackupd/bbackupd "
-			"testfiles/bbackupd.conf", "testfiles/bbackupd.pid");
+		pid = LaunchServer(BBACKUPD " testfiles/bbackupd.conf", 
+			"testfiles/bbackupd.pid");
+
 		TEST_THAT(pid != -1 && pid != 0);
+
 		if(pid != -1 && pid != 0)
 		{
 			// Wait and compare
