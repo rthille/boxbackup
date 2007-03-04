@@ -14,10 +14,7 @@
 #ifdef HAVE_UNISTD_H
 	#include <unistd.h>
 #endif
-
-#ifdef HAVE_PROCESS_H
-	#include <process.h>
-#endif
+#include <process.h>
 
 #include <string>
 #include <list>
@@ -868,7 +865,7 @@ int statfs(const char * pName, struct statfs * s)
 	_ui64toa(fi.dwVolumeSerialNumber, s->f_mntonname + 1, 16);
 
 	// pseudo unix mount point
-	s->f_mntonname[0] = DIRECTORY_SEPARATOR_ASCHAR;
+	s->f_mntonname[0] = '\\';
 
 	CloseHandle(handle);   // close the handle
 
