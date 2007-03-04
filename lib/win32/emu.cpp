@@ -11,10 +11,13 @@
 #include <fcntl.h>
 #include <windows.h>
 
-#ifdef __MINGW32__
+#ifdef HAVE_UNISTD_H
 	#include <unistd.h>
 #endif
-#include <process.h>
+
+#ifdef HAVE_PROCESS_H
+	#include <process.h>
+#endif
 
 #include <string>
 #include <list>
@@ -455,7 +458,7 @@ std::string ConvertPathToAbsoluteUnicode(const char *pFileName)
 	// Absolute paths on Windows are always a drive letter
 	// followed by ':'
 	
-	if (filename[1] != ':')
+	if (filename.length() >= 2 && filename[1] != ':')
 	{
 		// Must be relative. We need to get the 
 		// current directory to make it absolute.
@@ -865,7 +868,7 @@ int statfs(const char * pName, struct statfs * s)
 	_ui64toa(fi.dwVolumeSerialNumber, s->f_mntonname + 1, 16);
 
 	// pseudo unix mount point
-	s->f_mntonname[0] = '\\';
+	s->f_mntonname[0] = DIRECTORY_SEPARATOR_ASCHAR;
 
 	CloseHandle(handle);   // close the handle
 
