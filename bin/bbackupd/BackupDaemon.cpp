@@ -72,6 +72,7 @@
 #include "IOStreamGetLine.h"
 #include "Conversion.h"
 #include "Archive.h"
+#include "Timer.h"
 #include "Logging.h"
 
 #include "MemLeakFindOn.h"
@@ -112,7 +113,8 @@ unsigned int WINAPI HelperThread(LPVOID lpParam)
 BackupDaemon::BackupDaemon()
 	: mState(BackupDaemon::State_Initialising),
 	  mpCommandSocketInfo(0),
-	  mDeleteUnusedRootDirEntriesAfter(0)
+	  mDeleteUnusedRootDirEntriesAfter(0),
+	  mLogAllFileAccess(false)
 {
 	// Only ever one instance of a daemon
 	SSLLib::Initialise();
@@ -355,6 +357,9 @@ void BackupDaemon::RunHelperThread(void)
 				HANDLE handles[2];
 				handles[0] = mhMessageToSendEvent;
 				handles[1] = rSocket.GetReadableEvent();
+				
+				BOX_TRACE("Received command '" << command 
+					<< "' over command socket");
 
 				DWORD result = WaitForMultipleObjects(
 					sizeof(handles)/sizeof(*handles),
@@ -503,21 +508,19 @@ void BackupDaemon::RunHelperThread(void)
 // --------------------------------------------------------------------------
 void BackupDaemon::Run()
 {
+	// initialise global timer mechanism
+	Timers::Init();
+	
 #ifdef WIN32
-	// init our own timer for file diff timeouts
-	InitTimer();
-
 	try
 	{
 		Run2();
 	}
 	catch(...)
 	{
-		FiniTimer();
+		Timers::Cleanup();
 		throw;
 	}
-
-	FiniTimer();
 #else // ! WIN32
 	// Ignore SIGPIPE (so that if a command connection is broken, the daemon doesn't terminate)
 	::signal(SIGPIPE, SIG_IGN);
@@ -560,6 +563,8 @@ void BackupDaemon::Run()
 			mpCommandSocketInfo = 0;
 		}
 
+		Timers::Cleanup();
+		
 		throw;
 	}
 
@@ -570,6 +575,8 @@ void BackupDaemon::Run()
 		mpCommandSocketInfo = 0;
 	}
 #endif
+	
+	Timers::Cleanup();
 }
 
 // --------------------------------------------------------------------------
@@ -593,18 +600,20 @@ void BackupDaemon::Run2()
 	// Set up the keys for various things
 	BackupClientCryptoKeys_Setup(conf.GetKeyValue("KeysFile").c_str());
 
+	// Setup various timings
+	int maximumDiffingTime = 600;
+	int keepAliveTime = 60;
+
 	// max diffing time, keep-alive time
 	if(conf.KeyExists("MaximumDiffingTime"))
 	{
-		BackupClientContext::SetMaximumDiffingTime(conf.GetKeyValueInt("MaximumDiffingTime"));
+		maximumDiffingTime = conf.GetKeyValueInt("MaximumDiffingTime");
 	}
 	if(conf.KeyExists("KeepAliveTime"))
 	{
-		BackupClientContext::SetKeepAliveTime(conf.GetKeyValueInt("KeepAliveTime"));
+		keepAliveTime = conf.GetKeyValueInt("KeepAliveTime");
 	}
 
-	// Setup various timings
-	
 	// How often to connect to the store (approximate)
 	box_time_t updateStoreInterval = SecondsToBoxTime(conf.GetKeyValueInt("UpdateStoreInterval"));
 
@@ -767,18 +776,44 @@ void BackupDaemon::Run2()
 				SetState(State_Connected);
 				BOX_NOTICE("Beginning scan of local files");
 
-				// Then create a client context object (don't just connect, as this may be unnecessary)
-				BackupClientContext clientContext(*this, tlsContext, conf.GetKeyValue("StoreHostname"),
-					conf.GetKeyValueInt("AccountNumber"), conf.GetKeyValueBool("ExtendedLogging"));
+				std::string extendedLogFile;
+				if (conf.KeyExists("ExtendedLogFile"))
+				{
+					extendedLogFile = conf.GetKeyValue(
+						"ExtendedLogFile");
+				}
+				
+				if (conf.KeyExists("LogAllFileAccess"))
+				{
+					mLogAllFileAccess = 
+						conf.GetKeyValueBool(
+							"LogAllFileAccess");
+				}
+				
+				// Then create a client context object (don't 
+				// just connect, as this may be unnecessary)
+				BackupClientContext clientContext
+				(
+					*this, 
+					tlsContext, 
+					conf.GetKeyValue("StoreHostname"),
+					conf.GetKeyValueInt("AccountNumber"), 
+					conf.GetKeyValueBool("ExtendedLogging"),
+					conf.KeyExists("ExtendedLogFile"),
+					extendedLogFile
+				);
 					
 				// Set up the sync parameters
-				BackupClientDirectoryRecord::SyncParams params(*this, clientContext);
+				BackupClientDirectoryRecord::SyncParams params(*this, *this, clientContext);
 				params.mSyncPeriodStart = syncPeriodStart;
 				params.mSyncPeriodEnd = syncPeriodEndExtended; // use potentially extended end time
 				params.mMaxUploadWait = maxUploadWait;
 				params.mFileTrackingSizeThreshold = conf.GetKeyValueInt("FileTrackingSizeThreshold");
 				params.mDiffingUploadSizeThreshold = conf.GetKeyValueInt("DiffingUploadSizeThreshold");
 				params.mMaxFileTimeInFuture = SecondsToBoxTime(conf.GetKeyValueInt("MaxFileTimeInFuture"));
+
+				clientContext.SetMaximumDiffingTime(maximumDiffingTime);
+				clientContext.SetKeepAliveTime(keepAliveTime);
 				
 				// Set store marker
 				clientContext.SetClientStoreMarker(clientStoreMarker);
@@ -1529,7 +1564,23 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 			// Read the exclude lists from the Configuration
 			ploc->mpExcludeFiles = BackupClientMakeExcludeList_Files(i->second);
 			ploc->mpExcludeDirs = BackupClientMakeExcludeList_Dirs(i->second);
-			
+			// Does this exist on the server?
+			// Remove from dir object early, so that if we fail
+			// to stat the local directory, we still don't 
+			// consider to remote one for deletion.
+			BackupStoreDirectory::Iterator iter(dir);
+			BackupStoreFilenameClear dirname(ploc->mName);	// generate the filename
+			BackupStoreDirectory::Entry *en = iter.FindMatchingClearName(dirname);
+			int64_t oid = 0;
+			if(en != 0)
+			{
+				oid = en->GetObjectID();
+				
+				// Delete the entry from the directory, so we get a list of
+				// unused root directories at the end of this.
+				dir.DeleteEntry(oid);
+			}
+		
 			// Do a fsstat on the pathname to find out which mount it's on
 			{
 
@@ -1607,26 +1658,26 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 			}
 		
 			// Does this exist on the server?
-			BackupStoreDirectory::Iterator iter(dir);
-			BackupStoreFilenameClear dirname(ploc->mName);	// generate the filename
-			BackupStoreDirectory::Entry *en = iter.FindMatchingClearName(dirname);
-			int64_t oid = 0;
-			if(en != 0)
-			{
-				oid = en->GetObjectID();
-				
-				// Delete the entry from the directory, so we get a list of
-				// unused root directories at the end of this.
-				dir.DeleteEntry(oid);
-			}
-			else
+			if(en == 0)
 			{
 				// Doesn't exist, so it has to be created on the server. Let's go!
 				// First, get the directory's attributes and modification time
 				box_time_t attrModTime = 0;
 				BackupClientFileAttributes attr;
-				attr.ReadAttributes(ploc->mPath.c_str(), true /* directories have zero mod times */,
-					0 /* not interested in mod time */, &attrModTime /* get the attribute modification time */);
+				try
+				{
+					attr.ReadAttributes(ploc->mPath.c_str(), 
+						true /* directories have zero mod times */,
+						0 /* not interested in mod time */, 
+						&attrModTime /* get the attribute modification time */);
+				}
+				catch (BoxException &e)
+				{
+					BOX_ERROR("Failed to get attributes "
+						"for path '" << ploc->mPath
+						<< "', skipping.");
+					continue;
+				}
 				
 				// Execute create directory command
 				MemBlockStream attrStream(attr);
@@ -1650,6 +1701,9 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 		{
 			delete ploc;
 			ploc = 0;
+			BOX_ERROR("Failed to setup location '"
+				<< ploc->mName << "' path '"
+				<< ploc->mPath << "'");
 			throw;
 		}
 	}
@@ -1988,11 +2042,18 @@ void BackupDaemon::SetState(int State)
 	// Something connected to the command socket, tell it about the new state
 	try
 	{
-		mpCommandSocketInfo->mpConnectedSocket->Write(message.c_str(),
-			message.length());
+		mpCommandSocketInfo->mpConnectedSocket->Write(newState, newStateSize);
+	}
+	catch(std::exception &e)
+	{
+		BOX_ERROR("Internal error while writing state "
+			"to command socket: " << e.what());
+		CloseCommandConnection();
 	}
 	catch(...)
 	{
+		BOX_ERROR("Internal error while writing state "
+			"to command socket: unknown error");
 		CloseCommandConnection();
 	}
 #endif
