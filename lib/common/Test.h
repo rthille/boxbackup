@@ -280,6 +280,9 @@ inline int LaunchServer(const char *pCommandLine, const char *pidFile)
 		::fprintf(stdout, "done.\n");
 	}
 
+	// wait a second for the pid to be written to the file
+	::sleep(1);
+
 	// read pid file
 	int pid = ReadPidFile(pidFile);
 
