@@ -10,6 +10,7 @@
 #include "Box.h"
 #include "FileStream.h"
 #include "CommonException.h"
+#include "Logging.h"
 
 #include <errno.h>
 
@@ -73,8 +74,7 @@ FileStream::FileStream(tOSFileHandle FileDescriptor)
 #endif
 	{
 		MEMLEAKFINDER_NOT_A_LEAK(this);
-		::syslog(LOG_ERR, "FileStream: called with invalid "
-			"file handle");
+		BOX_ERROR("FileStream: called with invalid file handle");
 		THROW_EXCEPTION(CommonException, OSFileOpenError)
 	}
 #ifdef WIN32
@@ -98,7 +98,7 @@ FileStream::FileStream(const FileStream &rToCopy)
 	if(mOSFileHandle < 0)
 	{
 		MEMLEAKFINDER_NOT_A_LEAK(this);
-		::syslog(LOG_ERR, "FileStream: copying unopened file");
+		BOX_ERROR("FileStream: copying unopened file");
 		THROW_EXCEPTION(CommonException, OSFileOpenError)
 	}
 }
@@ -156,8 +156,8 @@ int FileStream::Read(void *pBuffer, int NBytes, int Timeout)
 	}
 	else
 	{
-		::syslog(LOG_ERR, "Failed to read from file: error %d",
-			GetLastError());
+		BOX_ERROR("Failed to read from file: " <<
+			GetErrorMessage(GetLastError()));
 		r = -1;
 	}
 #else
