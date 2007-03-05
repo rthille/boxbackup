@@ -9,15 +9,16 @@
 
 #include <assert.h>
 #include <fcntl.h>
+#include <process.h>
 #include <windows.h>
 
 #ifdef HAVE_UNISTD_H
 	#include <unistd.h>
 #endif
-#include <process.h>
 
 #include <string>
 #include <list>
+#include <sstream>
 
 // message resource definitions for syslog()
 
@@ -502,10 +503,11 @@ std::string GetErrorMessage(DWORD errorCode)
 		return std::string("failed to get error message");
 	}
 
-	std::string out(pMsgBuf);
+	std::ostringstream line;
+	line << pMsgBuf << " (" << errorCode << ")";
 	LocalFree(pMsgBuf);
 
-	return out;
+	return line.str();
 }
 
 // --------------------------------------------------------------------------
