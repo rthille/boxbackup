@@ -21,6 +21,7 @@
 #include <new>
 
 #include "CommonException.h"
+#include "Logging.h"
 
 #include "MemLeakFindOn.h"
 
@@ -33,9 +34,8 @@ public:
 	{
 		if(mOSFileHandle < 0)
 		{
-			::syslog(LOG_ERR, "FileHandleGuard: "
-				"failed to open file '%s': error %s",
-				filename, strerror(errno));
+			BOX_ERROR("FileHandleGuard: failed to open file '" <<
+				filename << "': " << strerror(errno));
 			THROW_EXCEPTION(CommonException, OSFileOpenError)
 		}
 	}
