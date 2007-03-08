@@ -152,6 +152,7 @@ void BackupStoreDaemon::RunHousekeepingIfNeeded()
 
 void BackupStoreDaemon::OnIdle()
 {
+	#ifdef WIN32
 	if (!mHousekeepingInited)
 	{
 		HousekeepingInit();
@@ -159,6 +160,7 @@ void BackupStoreDaemon::OnIdle()
 	}
 
 	RunHousekeepingIfNeeded();
+	#endif
 }
 
 // --------------------------------------------------------------------------
