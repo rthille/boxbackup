@@ -1576,8 +1576,8 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 						}
 						
 						// Compare attributes
-						box_time_t fileModTime = 0;
 						BackupClientFileAttributes localAttr;
+						box_time_t fileModTime = 0;
 						localAttr.ReadAttributes(localPath.c_str(), false /* don't zero mod times */, &fileModTime);					
 						modifiedAfterLastSync = (fileModTime > rParams.mLatestFileUploadTime);
 						bool ignoreAttrModTime = true;
