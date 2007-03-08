@@ -95,7 +95,11 @@ FileStream::FileStream(const FileStream &rToCopy)
 	: mOSFileHandle(::dup(rToCopy.mOSFileHandle)),
 	  mIsEOF(rToCopy.mIsEOF)
 {
+#ifdef WIN32
+	if(mOSFileHandle == INVALID_HANDLE_VALUE)
+#else
 	if(mOSFileHandle < 0)
+#endif
 	{
 		MEMLEAKFINDER_NOT_A_LEAK(this);
 		BOX_ERROR("FileStream: copying unopened file");
