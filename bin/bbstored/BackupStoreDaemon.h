@@ -38,7 +38,7 @@ private:
 	BackupStoreDaemon(const BackupStoreDaemon &rToCopy);
 public:
 
-	// For BackupContext to comminicate with housekeeping process
+	// For BackupContext to communicate with housekeeping process
 	void SendMessageToHousekeepingProcess(const void *Msg, int MsgLen)
 	{
 #ifndef WIN32
@@ -73,7 +73,7 @@ private:
 	bool mHaveForkedHousekeeping;
 	bool mIsHousekeepingProcess;
 	bool mHousekeepingInited;
-
+	
 	SocketStream mInterProcessCommsSocket;
 	IOStreamGetLine mInterProcessComms;
 
