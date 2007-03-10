@@ -309,8 +309,7 @@ inline int LaunchServer(const char *pCommandLine, const char *pidFile)
 inline void TestRemoteProcessMemLeaksFunc(const char *filename,
 	const char* file, int line)
 {
-	#ifdef BOX_MEMORY_LEAK_TESTING
-
+#ifdef BOX_MEMORY_LEAK_TESTING
 	// Does the file exist?
 	if(!TestFileExists(filename))
 	{
@@ -348,8 +347,7 @@ inline void TestRemoteProcessMemLeaksFunc(const char *filename,
 		// Delete it
 		::unlink(filename);
 	}
-
-	#endif
+#endif
 }
 
 #ifdef WIN32
