@@ -269,9 +269,9 @@ public:
 					}
 				}
 
-				#ifdef WIN32
 				OnIdle();
-				#else // !WIN32
+
+				#ifndef WIN32
 				// Clean up child processes (if forking daemon)
 				if(ForkToHandleRequests)
 				{
@@ -286,7 +286,7 @@ public:
 						}
 					} while(p > 0);
 				}
-				#endif // WIN32
+				#endif // !WIN32
 			}
 		}
 		catch(...)
