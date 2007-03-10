@@ -56,9 +56,7 @@ public:
 		return "generic-stream-server";
 	}
 
-	#ifdef WIN32
 	virtual void OnIdle() { }
-	#endif
 
 	virtual void Run()
 	{
