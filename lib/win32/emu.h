@@ -141,6 +141,38 @@ inline int chown(const char * Filename, u_int32_t uid, u_int32_t gid)
 	return 0;
 }
 
+// Windows and Unix owners and groups are pretty fundamentally different.
+// Ben prefers that we kludge here rather than litter the code with #ifdefs.
+// Pretend to be root, and pretend that set...() operations succeed.
+inline int setegid(int)
+{
+	return true;
+}
+inline int seteuid(int)
+{
+	return true;
+}
+inline int setgid(int)
+{
+	return true;
+}
+inline int setuid(int)
+{
+	return true;
+}
+inline int getgid(void)
+{
+	return 0;
+}
+inline int getuid(void)
+{
+	return 0;
+}
+inline int geteuid(void)
+{
+	return 0;
+}
+
 #ifndef PATH_MAX
 #define PATH_MAX MAX_PATH
 #endif
