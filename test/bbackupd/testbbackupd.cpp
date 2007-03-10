@@ -1720,7 +1720,7 @@ int test_bbackupd()
 			compareReturnValue = ::system(BBACKUPQUERY " -q -c testfiles/bbackupd.conf -l testfiles/query3e.log \"compare -ac\" quit");
 
 			// should find differences
-			TEST_RETURN(compareReturnValue, 2);	
+			TEST_RETURN(compareReturnValue, 3);
 			TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 
 			// Check that it was reported correctly
