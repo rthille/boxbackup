@@ -67,6 +67,7 @@
 
 #include "autogen_BackupProtocolClient.h"
 #include "intercept.h"
+#include "ServerControl.h"
 
 #include "MemLeakFindOn.h"
 
@@ -80,15 +81,7 @@
 
 void wait_for_backup_operation(int seconds = TIME_TO_WAIT_FOR_BACKUP_OPERATION)
 {
-	printf("waiting: ");
-	fflush(stdout);
-	for(int l = 0; l < seconds; ++l)
-	{
-		sleep(1);
-		printf(".");
-		fflush(stdout);
-	}
-	printf("\n");
+	wait_for_operation(seconds);
 }
 
 int bbstored_pid = 0;
@@ -635,7 +628,7 @@ int start_internal_daemon()
 
 	TEST_THAT(TestFileExists("testfiles/bbackupd.pid"));
 	
-	printf("Waiting for daemon to start");
+	printf("Waiting for backup daemon to start: ");
 	int pid = -1;
 	
 	for (int i = 0; i < 30; i++)
@@ -651,7 +644,8 @@ int start_internal_daemon()
 		}		
 	}
 	
-	printf("\n");
+	printf(" done.\n");
+	fflush(stdout);
 
 	TEST_THAT(pid > 0);
 	return pid;
@@ -1463,6 +1457,39 @@ int test_bbackupd()
 		TEST_RETURN(compareReturnValue, 1);
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 		
+		// Check that store errors are reported neatly
+		printf("Create store error\n");
+		TEST_THAT(::rename("testfiles/0_0/backup/01234567/info.rf",
+			"testfiles/0_0/backup/01234567/info.rf.bak") == 0);
+		TEST_THAT(::rename("testfiles/0_1/backup/01234567/info.rf",
+			"testfiles/0_1/backup/01234567/info.rf.bak") == 0);
+		TEST_THAT(::rename("testfiles/0_2/backup/01234567/info.rf",
+			"testfiles/0_2/backup/01234567/info.rf.bak") == 0);
+		// Create a file to trigger an upload
+		{
+			int fd1 = open("testfiles/TestDir1/force-upload", 
+				O_CREAT | O_EXCL | O_WRONLY, 0700);
+			TEST_THAT(fd1 > 0);
+			TEST_THAT(write(fd1, "just do it", 10) == 10);
+			TEST_THAT(close(fd1) == 0);
+			wait_for_backup_operation(4);
+		}
+		// Wait and test...
+		wait_for_backup_operation();
+		// Check that it was reported correctly
+		TEST_THAT(TestFileExists("testfiles/notifyran.backup-error.1"));
+		// Check that the error was only reported once
+		TEST_THAT(!TestFileExists("testfiles/notifyran.backup-error.2"));
+		// Fix the store
+		TEST_THAT(::rename("testfiles/0_0/backup/01234567/info.rf.bak",
+			"testfiles/0_0/backup/01234567/info.rf") == 0);
+		TEST_THAT(::rename("testfiles/0_1/backup/01234567/info.rf.bak",
+			"testfiles/0_1/backup/01234567/info.rf") == 0);
+		TEST_THAT(::rename("testfiles/0_2/backup/01234567/info.rf.bak",
+			"testfiles/0_2/backup/01234567/info.rf") == 0);
+		// wait until bbackupd recovers from the exception
+		wait_for_backup_operation(100);
+
 		// Bad case: delete a file/symlink, replace it with a directory
 		printf("==== Replace symlink with directory, add new directory\n");
 #ifndef WIN32
@@ -1523,6 +1550,79 @@ int test_bbackupd()
 		TEST_RETURN(compareReturnValue, 1);
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 
+		// rename an untracked file over an 
+		// existing untracked file
+		printf("Rename over existing untracked file\n");
+		int fd1 = open("testfiles/TestDir1/untracked-1", 
+			O_CREAT | O_EXCL | O_WRONLY, 0700);
+		int fd2 = open("testfiles/TestDir1/untracked-2",
+			O_CREAT | O_EXCL | O_WRONLY, 0700);
+		TEST_THAT(fd1 > 0);
+		TEST_THAT(fd2 > 0);
+		TEST_THAT(write(fd1, "hello", 5) == 5);
+		TEST_THAT(close(fd1) == 0);
+		sleep(1);
+		TEST_THAT(write(fd2, "world", 5) == 5);
+		TEST_THAT(close(fd2) == 0);
+		TEST_THAT(TestFileExists("testfiles/TestDir1/untracked-1"));
+		TEST_THAT(TestFileExists("testfiles/TestDir1/untracked-2"));
+		wait_for_operation(5);
+		// back up both files
+		wait_for_backup_operation();
+		compareReturnValue = ::system(BBACKUPQUERY " -q "
+			"-c testfiles/bbackupd.conf -l testfiles/query3t.log "
+			"\"compare -ac\" quit");
+		TEST_THAT(compareReturnValue == 1*256);
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+		TEST_THAT(::rename("testfiles/TestDir1/untracked-1", 
+			"testfiles/TestDir1/untracked-2") == 0);
+		TEST_THAT(!TestFileExists("testfiles/TestDir1/untracked-1"));
+		TEST_THAT( TestFileExists("testfiles/TestDir1/untracked-2"));
+		wait_for_backup_operation();
+		compareReturnValue = ::system(BBACKUPQUERY " -q "
+			"-c testfiles/bbackupd.conf -l testfiles/query3t.log "
+			"\"compare -ac\" quit");
+		TEST_THAT(compareReturnValue == 1*256);
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+
+		// case which went wrong: rename a tracked file over an
+		// existing tracked file
+		printf("Rename over existing tracked file\n");
+		fd1 = open("testfiles/TestDir1/tracked-1", 
+			O_CREAT | O_EXCL | O_WRONLY, 0700);
+		fd2 = open("testfiles/TestDir1/tracked-2",
+			O_CREAT | O_EXCL | O_WRONLY, 0700);
+		TEST_THAT(fd1 > 0);
+		TEST_THAT(fd2 > 0);
+		char buffer[1024];
+		TEST_THAT(write(fd1, "hello", 5) == 5);
+		TEST_THAT(write(fd1, buffer, sizeof(buffer)) == sizeof(buffer));
+		TEST_THAT(close(fd1) == 0);
+		sleep(1);
+		TEST_THAT(write(fd2, "world", 5) == 5);
+		TEST_THAT(write(fd2, buffer, sizeof(buffer)) == sizeof(buffer));
+		TEST_THAT(close(fd2) == 0);
+		TEST_THAT(TestFileExists("testfiles/TestDir1/tracked-1"));
+		TEST_THAT(TestFileExists("testfiles/TestDir1/tracked-2"));
+		wait_for_operation(5);
+		// back up both files
+		wait_for_backup_operation();
+		compareReturnValue = ::system(BBACKUPQUERY " -q "
+			"-c testfiles/bbackupd.conf -l testfiles/query3u.log "
+			"\"compare -ac\" quit");
+		TEST_THAT(compareReturnValue == 1*256);
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+		TEST_THAT(::rename("testfiles/TestDir1/tracked-1", 
+			"testfiles/TestDir1/tracked-2") == 0);
+		TEST_THAT(!TestFileExists("testfiles/TestDir1/tracked-1"));
+		TEST_THAT( TestFileExists("testfiles/TestDir1/tracked-2"));
+		wait_for_backup_operation();
+		compareReturnValue = ::system(BBACKUPQUERY " -q "
+			"-c testfiles/bbackupd.conf -l testfiles/query3v.log "
+			"\"compare -ac\" quit");
+		TEST_THAT(compareReturnValue == 1*256);
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+	
 		// case which went wrong: rename a tracked file over a deleted file
 		printf("Rename an existing file over a deleted file\n");
 #ifdef WIN32
@@ -1530,7 +1630,7 @@ int test_bbackupd()
 #endif
 		TEST_THAT(::rename("testfiles/TestDir1/df9834.dsf", "testfiles/TestDir1/x1/dsfdsfs98.fd") == 0);
 		wait_for_backup_operation();
-		compareReturnValue = ::system(BBACKUPQUERY " -q -c testfiles/bbackupd.conf -l testfiles/query3s.log \"compare -ac\" quit");
+		compareReturnValue = ::system(BBACKUPQUERY " -q -c testfiles/bbackupd.conf -l testfiles/query3w.log \"compare -ac\" quit");
 		TEST_RETURN(compareReturnValue, 1);
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 		
@@ -1715,6 +1815,7 @@ int test_bbackupd()
 				TEST_THAT(fd != -1);
 				::close(fd);
 			}
+
 			// Wait and test...
 			wait_for_backup_operation();
 			compareReturnValue = ::system(BBACKUPQUERY " -q -c testfiles/bbackupd.conf -l testfiles/query3e.log \"compare -ac\" quit");
@@ -1725,7 +1826,10 @@ int test_bbackupd()
 
 			// Check that it was reported correctly
 			TEST_THAT(TestFileExists("testfiles/notifyran.read-error.1"));
+
+			// Check that the error was only reported once
 			TEST_THAT(!TestFileExists("testfiles/notifyran.read-error.2"));
+
 			// Set permissions on file and dir to stop errors in the future
 			::chmod("testfiles/TestDir1/sub23/read-fail-test-dir", 0770);
 			::chmod("testfiles/TestDir1/read-fail-test-file", 0770);
@@ -1756,6 +1860,7 @@ int test_bbackupd()
 				sleep(1);
 			}
 			printf("\n");
+			fflush(stdout);
 			
 			// Check there's a difference
 			#ifdef WIN32
@@ -1783,6 +1888,7 @@ int test_bbackupd()
 				sleep(1);
 			}
 			printf("\n");
+			fflush(stdout);
 
 			#ifdef WIN32
 			compareReturnValue = ::system("perl testfiles/extcheck2.pl A");
