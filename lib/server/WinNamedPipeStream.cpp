@@ -380,7 +380,8 @@ int WinNamedPipeStream::Read(void *pBuffer, int NBytes, int Timeout)
 			// ERROR_NO_DATA is a strange name for 
 			// "The pipe is being closed". No exception wanted.
 
-			if (err == ERROR_NO_DATA) 
+			if (err == ERROR_NO_DATA || 
+				err == ERROR_PIPE_NOT_CONNECTED) 
 			{
 				NumBytesRead = 0;
 			}
