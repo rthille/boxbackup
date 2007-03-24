@@ -337,7 +337,7 @@ int   emu_stat   (const char* pName, struct stat* st);
 int   emu_utimes (const char* pName, const struct timeval[]);
 int   emu_chmod  (const char* pName, mode_t mode);
 char* emu_getcwd (char* pBuffer,     int BufSize);
-char* emu_rename (const char* pOldName, const char* pNewName);
+int   emu_rename (const char* pOldName, const char* pNewName);
 
 #define chdir(directory)        emu_chdir  (directory)
 #define mkdir(path,     mode)   emu_mkdir  (path)

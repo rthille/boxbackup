@@ -1611,7 +1611,7 @@ int emu_unlink(const char* pFileName)
 
 int emu_rename(const char* pOldFileName, const char* pNewFileName)
 {
-	std::string OldFilePathWithUnicode = 
+	std::string OldPathWithUnicode = 
 		ConvertPathToAbsoluteUnicode(pOldFileName);
 
 	if (OldPathWithUnicode.size() == 0)
@@ -1626,7 +1626,7 @@ int emu_rename(const char* pOldFileName, const char* pNewFileName)
 		return -1;
 	}
 
-	std::string NewFilePathWithUnicode = 
+	std::string NewPathWithUnicode = 
 		ConvertPathToAbsoluteUnicode(pNewFileName);
 
 	if (NewPathWithUnicode.size() == 0)
