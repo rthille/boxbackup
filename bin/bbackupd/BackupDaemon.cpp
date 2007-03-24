@@ -74,6 +74,7 @@
 #include "Archive.h"
 #include "Timer.h"
 #include "Logging.h"
+#include "autogen_ClientException.h"
 
 #include "MemLeakFindOn.h"
 
@@ -663,38 +664,64 @@ void BackupDaemon::Run2()
 			box_time_t currentTime;
 			do
 			{
-				// Need to check the stop run thing here too, so this loop isn't run if we should be stopping
+				// Check whether we should be stopping,
+				// and don't run a sync if so.
 				if(StopRun()) break;
 				
 				currentTime = GetCurrentBoxTime();
 	
-				// Pause a while, but no more than MAX_SLEEP_TIME seconds (use the conditional because times are unsigned)
-				box_time_t requiredDelay = (nextSyncTime < currentTime)?(0):(nextSyncTime - currentTime);
-				// If there isn't automatic backup happening, set a long delay. And limit delays at the same time.
-				if(!automaticBackup || requiredDelay > SecondsToBoxTime(MAX_SLEEP_TIME))
-					requiredDelay = SecondsToBoxTime(MAX_SLEEP_TIME);
+				// Pause a while, but no more than 
+				// MAX_SLEEP_TIME seconds (use the conditional
+				// because times are unsigned)
+				box_time_t requiredDelay = 
+					(nextSyncTime < currentTime)
+					? (0)
+					: (nextSyncTime - currentTime);
 
-				// Only do the delay if there is a delay required
+				// If there isn't automatic backup happening, 
+				// set a long delay. And limit delays at the 
+				// same time.
+				if(!automaticBackup || requiredDelay > 
+					SecondsToBoxTime(MAX_SLEEP_TIME))
+				{
+					requiredDelay = SecondsToBoxTime(
+						MAX_SLEEP_TIME);
+				}
+
+				// Only delay if necessary
 				if(requiredDelay > 0)
 				{
-					// Sleep somehow. There are choices on how this should be done, depending on the state of the control connection
+					// Sleep somehow. There are choices 
+					// on how this should be done,
+					// depending on the state of the 
+					// control connection
 					if(mpCommandSocketInfo != 0)
 					{
-						// A command socket exists, so sleep by handling connections with it
-						WaitOnCommandSocket(requiredDelay, doSync, doSyncForcedByCommand);
+						// A command socket exists, 
+						// so sleep by waiting on it
+						WaitOnCommandSocket(
+							requiredDelay, doSync, 
+							doSyncForcedByCommand);
 					}
 					else
 					{
-						// No command socket or connection, just do a normal sleep
-						time_t sleepSeconds = BoxTimeToSeconds(requiredDelay);
-						::sleep((sleepSeconds <= 0)?1:sleepSeconds);
+						// No command socket or 
+						// connection, just do a 
+						// normal sleep
+						time_t sleepSeconds = 
+							BoxTimeToSeconds(
+							requiredDelay);
+						::sleep((sleepSeconds <= 0)
+							? 1
+							: sleepSeconds);
 					}
 				}
 				
 			} while((!automaticBackup || (currentTime < nextSyncTime)) && !doSync && !StopRun());
 		}
 
-		// Time of sync start, and if it's time for another sync (and we're doing automatic syncs), set the flag
+		// Time of sync start, and if it's time for another sync 
+		// (and we're doing automatic syncs), set the flag
 		box_time_t currentSyncStartTime = GetCurrentBoxTime();
 		if(automaticBackup && currentSyncStartTime >= nextSyncTime)
 		{
@@ -708,12 +735,14 @@ void BackupDaemon::Run2()
 			if(d > 0)
 			{
 				// Script has asked for a delay
-				nextSyncTime = GetCurrentBoxTime() + SecondsToBoxTime(d);
+				nextSyncTime = GetCurrentBoxTime() + 
+					SecondsToBoxTime(d);
 				doSync = false;
 			}
 		}
 
-		// Ready to sync? (but only if we're not supposed to be stopping)
+		// Ready to sync? (but only if we're not supposed 
+		// to be stopping)
 		if(doSync && !StopRun())
 		{
 			// Touch a file to record times in filesystem
@@ -727,22 +756,51 @@ void BackupDaemon::Run2()
 			
 			// Calculate the sync period of files to examine
 			box_time_t syncPeriodStart = lastSyncTime;
-			box_time_t syncPeriodEnd = currentSyncStartTime - minimumFileAge;
+			box_time_t syncPeriodEnd = currentSyncStartTime - 
+				minimumFileAge;
+
+			if(syncPeriodStart >= syncPeriodEnd &&
+				syncPeriodStart - syncPeriodEnd < minimumFileAge)
+			{
+				// This can happen if we receive a force-sync
+				// command less than minimumFileAge after
+				// the last sync. Deal with it by moving back
+				// syncPeriodStart, which should not do any
+				// damage.
+				syncPeriodStart = syncPeriodEnd -
+					SecondsToBoxTime(1);
+			}
+
+			if(syncPeriodStart >= syncPeriodEnd)
+			{
+				BOX_ERROR("Invalid (negative) sync period: "
+					"perhaps your clock is going "
+					"backwards (" << syncPeriodStart <<
+					" to " << syncPeriodEnd << ")");
+				THROW_EXCEPTION(ClientException,
+					ClockWentBackwards);
+			}
+
 			// Check logic
 			ASSERT(syncPeriodEnd > syncPeriodStart);
 			// Paranoid check on sync times
 			if(syncPeriodStart >= syncPeriodEnd) continue;
 			
-			// Adjust syncPeriodEnd to emulate snapshot behaviour properly
+			// Adjust syncPeriodEnd to emulate snapshot 
+			// behaviour properly
 			box_time_t syncPeriodEndExtended = syncPeriodEnd;
 			// Using zero min file age?
 			if(minimumFileAge == 0)
 			{
-				// Add a year on to the end of the end time, to make sure we sync
-				// files which are modified after the scan run started.
-				// Of course, they may be eligable to be synced again the next time round,
-				// but this should be OK, because the changes only upload should upload no data.
-				syncPeriodEndExtended += SecondsToBoxTime((time_t)(356*24*3600));
+				// Add a year on to the end of the end time,
+				// to make sure we sync files which are 
+				// modified after the scan run started.
+				// Of course, they may be eligible to be 
+				// synced again the next time round,
+				// but this should be OK, because the changes 
+				// only upload should upload no data.
+				syncPeriodEndExtended += SecondsToBoxTime(
+					(time_t)(356*24*3600));
 			}
 
 			// Delete the serialised store object file,
@@ -754,10 +812,8 @@ void BackupDaemon::Run2()
 				BOX_ERROR("Failed to delete the "
 					"StoreObjectInfoFile, backup cannot "
 					"continue safely.");
-				// prevent runaway process where the logs fill up -- without this
-				// the log message will be emitted in a tight loop.
-				::sleep(60); 
-				continue;
+				THROW_EXCEPTION(ClientException, 
+					FailedToDeleteStoreObjectInfoFile);
 			}
 
 			// In case the backup throws an exception,
@@ -804,13 +860,22 @@ void BackupDaemon::Run2()
 				);
 					
 				// Set up the sync parameters
-				BackupClientDirectoryRecord::SyncParams params(*this, *this, clientContext);
+				BackupClientDirectoryRecord::SyncParams params(
+					*this, *this, clientContext);
 				params.mSyncPeriodStart = syncPeriodStart;
-				params.mSyncPeriodEnd = syncPeriodEndExtended; // use potentially extended end time
+				params.mSyncPeriodEnd = syncPeriodEndExtended;
+				// use potentially extended end time
 				params.mMaxUploadWait = maxUploadWait;
-				params.mFileTrackingSizeThreshold = conf.GetKeyValueInt("FileTrackingSizeThreshold");
-				params.mDiffingUploadSizeThreshold = conf.GetKeyValueInt("DiffingUploadSizeThreshold");
-				params.mMaxFileTimeInFuture = SecondsToBoxTime(conf.GetKeyValueInt("MaxFileTimeInFuture"));
+				params.mFileTrackingSizeThreshold = 
+					conf.GetKeyValueInt(
+					"FileTrackingSizeThreshold");
+				params.mDiffingUploadSizeThreshold = 
+					conf.GetKeyValueInt(
+					"DiffingUploadSizeThreshold");
+				params.mMaxFileTimeInFuture = 
+					SecondsToBoxTime(
+						conf.GetKeyValueInt(
+							"MaxFileTimeInFuture"));
 
 				clientContext.SetMaximumDiffingTime(maximumDiffingTime);
 				clientContext.SetKeepAliveTime(keepAliveTime);
@@ -818,12 +883,17 @@ void BackupDaemon::Run2()
 				// Set store marker
 				clientContext.SetClientStoreMarker(clientStoreMarker);
 				
-				// Set up the locations, if necessary -- need to do it here so we have a (potential) connection to use
+				// Set up the locations, if necessary -- 
+				// need to do it here so we have a 
+				// (potential) connection to use
 				if(mLocations.empty())
 				{
-					const Configuration &locations(conf.GetSubConfiguration("BackupLocations"));
+					const Configuration &locations(
+						conf.GetSubConfiguration(
+							"BackupLocations"));
 					
-					// Make sure all the directory records are set up
+					// Make sure all the directory records
+					// are set up
 					SetupLocations(clientContext, locations);
 				}
 				
@@ -834,16 +904,25 @@ void BackupDaemon::Run2()
 				DeleteUnusedRootDirEntries(clientContext);
 								
 				// Go through the records, syncing them
-				for(std::vector<Location *>::const_iterator i(mLocations.begin()); i != mLocations.end(); ++i)
+				for(std::vector<Location *>::const_iterator 
+					i(mLocations.begin()); 
+					i != mLocations.end(); ++i)
 				{
-					// Set current and new ID map pointers in the context
+					// Set current and new ID map pointers
+					// in the context
 					clientContext.SetIDMaps(mCurrentIDMaps[(*i)->mIDMapIndex], mNewIDMaps[(*i)->mIDMapIndex]);
 				
-					// Set exclude lists (context doesn't take ownership)
-					clientContext.SetExcludeLists((*i)->mpExcludeFiles, (*i)->mpExcludeDirs);
+					// Set exclude lists (context doesn't
+					// take ownership)
+					clientContext.SetExcludeLists(
+						(*i)->mpExcludeFiles,
+						(*i)->mpExcludeDirs);
 
 					// Sync the directory
-					(*i)->mpDirectoryRecord->SyncDirectory(params, BackupProtocolClientListDirectory::RootDirectory, (*i)->mPath);
+					(*i)->mpDirectoryRecord->SyncDirectory(
+						params,
+						BackupProtocolClientListDirectory::RootDirectory,
+						(*i)->mPath);
 
 					// Unset exclude lists (just in case)
 					clientContext.SetExcludeLists(0, 0);
@@ -857,13 +936,14 @@ void BackupDaemon::Run2()
 				}
 				else
 				{
-					// Unset the read error flag, so the error is
-					// reported again in the future
+					// Unset the read error flag, so the						// error is reported again if it
+					// happens again
 					mNotificationsSent[NotifyEvent_ReadError] = false;
 				}
 				
-				// Perform any deletions required -- these are delayed until the end
-				// to allow renaming to happen neatly.
+				// Perform any deletions required -- these are
+				// delayed until the end to allow renaming to 
+				// happen neatly.
 				clientContext.PerformDeletions();
 
 				// Close any open connection
@@ -880,15 +960,25 @@ void BackupDaemon::Run2()
 				}
 				else
 				{
-					// The start time of the next run is the end time of this run
-					// This is only done if the storage limit wasn't exceeded (as things won't have been done properly if it was)
+					// The start time of the next run is
+					// the end time of this run.
+					// This is only done if the storage
+					// limit wasn't exceeded (as things
+					// won't have been done properly if
+					// it was)
 					lastSyncTime = syncPeriodEnd;
-					// unflag the storage full notify flag so that next time the store is full, and alert will be sent
+
+					// unflag the storage full notify flag
+					// so that next time the store is full,
+					// an alert will be sent
 					mNotificationsSent[NotifyEvent_StoreFull] = false;
 				}
 				
 				// Calculate when the next sync run should be
-				nextSyncTime = currentSyncStartTime + updateStoreInterval + Random::RandomInt(updateStoreInterval >> SYNC_PERIOD_RANDOM_EXTRA_TIME_SHIFT_BY);
+				nextSyncTime = currentSyncStartTime + 
+					updateStoreInterval + 
+					Random::RandomInt(updateStoreInterval >>
+					SYNC_PERIOD_RANDOM_EXTRA_TIME_SHIFT_BY);
 			
 				// Commit the ID Maps
 				CommitIDMapsAfterSync();
@@ -921,18 +1011,26 @@ void BackupDaemon::Run2()
 				BOX_ERROR("Internal error during "
 					"backup run: " << e.what());
 				errorOccurred = true;
+				errorString = e.what();
 			}
 			catch(...)
 			{
-				// TODO: better handling of exceptions here... need to be very careful
+				// TODO: better handling of exceptions here...
+				// need to be very careful
 				errorOccurred = true;
 			}
 			
 			if(errorOccurred)
 			{
 				// Is it a berkely db failure?
-				bool isBerkelyDbFailure = (errorCode == BackupStoreException::ExceptionType
-					&& errorSubCode == BackupStoreException::BerkelyDBFailure);
+				bool isBerkelyDbFailure = false;
+
+				if (errorCode == BackupStoreException::ExceptionType
+					&& errorSubCode == BackupStoreException::BerkelyDBFailure)
+				{
+					isBerkelyDbFailure = true;
+				}
+
 				if(isBerkelyDbFailure)
 				{
 					// Delete corrupt files
@@ -940,7 +1038,8 @@ void BackupDaemon::Run2()
 				}
 
 				// Clear state data
-				syncPeriodStart = 0;	// go back to beginning of time
+				syncPeriodStart = 0;
+				// go back to beginning of time
 				clientStoreMarker = BackupClientContext::ClientStoreMarker_NotKnown;	// no store marker, so download everything
 				DeleteAllLocations();
 				DeleteAllIDMaps();
@@ -2294,7 +2393,7 @@ void BackupDaemon::Location::Deserialize(Archive &rArchive)
 	else
 	{
 		// there is something going on here
-		THROW_EXCEPTION(CommonException, Internal)
+		THROW_EXCEPTION(ClientException, CorruptStoreObjectInfoFile);
 	}
 
 	//
@@ -2319,7 +2418,7 @@ void BackupDaemon::Location::Deserialize(Archive &rArchive)
 	else
 	{
 		// there is something going on here
-		THROW_EXCEPTION(CommonException, Internal)
+		THROW_EXCEPTION(ClientException, CorruptStoreObjectInfoFile);
 	}
 
 	//
@@ -2344,7 +2443,7 @@ void BackupDaemon::Location::Deserialize(Archive &rArchive)
 	else
 	{
 		// there is something going on here
-		THROW_EXCEPTION(CommonException, Internal)
+		THROW_EXCEPTION(ClientException, CorruptStoreObjectInfoFile);
 	}
 }
 
