@@ -43,7 +43,7 @@ make some BackupDirectoryStore objects, CheckAndFix(), then verify
 	- all old flags
 
 delete store info
-add suprious file
+add spurious file
 delete directory (should appear again)
 change container ID of directory
 delete a file
@@ -65,15 +65,9 @@ int discSetNum = 0;
 std::map<std::string, int32_t> nameToID;
 std::map<int32_t, bool> objectIsDir;
 
-#ifdef WIN32
 #define RUN_CHECK	\
-	::system("..\\..\\bin\\bbstoreaccounts\\bbstoreaccounts -c testfiles/bbstored.conf check 01234567"); \
-	::system("..\\..\\bin\\bbstoreaccounts\\bbstoreaccounts -c testfiles/bbstored.conf check 01234567 fix");
-#else
-#define RUN_CHECK	\
-	::system("../../bin/bbstoreaccounts/bbstoreaccounts -c testfiles/bbstored.conf check 01234567"); \
-	::system("../../bin/bbstoreaccounts/bbstoreaccounts -c testfiles/bbstored.conf check 01234567 fix");
-#endif
+	::system(BBSTOREACCOUNTS " -c testfiles/bbstored.conf check 01234567"); \
+	::system(BBSTOREACCOUNTS " -c testfiles/bbstored.conf check 01234567 fix");
 
 // Get ID of an object given a filename
 int32_t getID(const char *name)
@@ -272,7 +266,7 @@ void test_dir_fixing()
 		TEST_THAT(dir.CheckAndFix() == false);
 		check_dir_dep(dir, c1);
 
-		// Check that a suprious depends older ref is undone
+		// Check that a spurious depends older ref is undone
 		e2->SetDependsOlder(1);
 		TEST_THAT(dir.CheckAndFix() == true);
 		TEST_THAT(dir.CheckAndFix() == false);
@@ -297,33 +291,29 @@ int test(int argc, const char *argv[])
 	rcontroller.Initialise("testfiles/raidfile.conf");
 
 	// Create an account
-#ifdef WIN32
-	TEST_THAT_ABORTONFAIL(::system("..\\..\\bin\\bbstoreaccounts\\bbstoreaccounts -c testfiles/bbstored.conf create 01234567 0 10000B 20000B") == 0);
-#else
-	TEST_THAT_ABORTONFAIL(::system("../../bin/bbstoreaccounts/bbstoreaccounts -c testfiles/bbstored.conf create 01234567 0 10000B 20000B") == 0);
+	TEST_THAT_ABORTONFAIL(::system(BBSTOREACCOUNTS 
+		" -c testfiles/bbstored.conf "
+		"create 01234567 0 10000B 20000B") == 0);
 	TestRemoteProcessMemLeaks("bbstoreaccounts.memleaks");
-#endif
 
 	// Start the bbstored server
-#ifdef WIN32
-	int pid = LaunchServer("..\\..\\bin\\bbstored\\bbstored testfiles/bbstored.conf", "testfiles/bbstored.pid");
-#else
-	int pid = LaunchServer("../../bin/bbstored/bbstored testfiles/bbstored.conf", "testfiles/bbstored.pid");
-#endif
-
+	int pid = LaunchServer(BBSTORED " testfiles/bbstored.conf", 
+		"testfiles/bbstored.pid");
 	TEST_THAT(pid != -1 && pid != 0);
+
 	if(pid > 0)
 	{
 		::sleep(1);
 		TEST_THAT(ServerIsAlive(pid));
 
 		// Run the perl script to create the initial directories
-		TEST_THAT_ABORTONFAIL(::system(PERL_EXECUTABLE " testfiles/testbackupstorefix.pl init") == 0);
+		TEST_THAT_ABORTONFAIL(::system(PERL_EXECUTABLE 
+			" testfiles/testbackupstorefix.pl init") == 0);
 
-		int bbackupd_pid = LaunchServer(BBACKUPD
+		int bbackupd_pid = LaunchServer(BBACKUPD 
 			" testfiles/bbackupd.conf", "testfiles/bbackupd.pid");
-
 		TEST_THAT(bbackupd_pid != -1 && bbackupd_pid != 0);
+
 		if(bbackupd_pid > 0)
 		{
 			::sleep(1);
@@ -334,11 +324,11 @@ int test(int argc, const char *argv[])
 
 			// That'll do nicely, stop the server	
 			#ifdef WIN32
-			terminate_bbackupd(bbackupd_pid);
-			// implicit check for memory leaks
+				terminate_bbackupd(bbackupd_pid);
+				// implicit check for memory leaks
 			#else
-			TEST_THAT(KillServer(bbackupd_pid));
-			TestRemoteProcessMemLeaks("bbackupd.memleaks");
+				TEST_THAT(KillServer(bbackupd_pid));
+				TestRemoteProcessMemLeaks("bbackupd.memleaks");
 			#endif
 		}
 		
@@ -357,7 +347,8 @@ int test(int argc, const char *argv[])
 			char name[256];
 			while(::fgets(line, sizeof(line), f) != 0)
 			{
-				TEST_THAT(::sscanf(line, "%x %s %s", &id, flags, name) == 3);
+				TEST_THAT(::sscanf(line, "%x %s %s", &id, 
+					flags, name) == 3);
 				bool isDir = (::strcmp(flags, "-d---") == 0);
 				//TRACE3("%x,%d,%s\n", id, isDir, name);
 				MEMLEAKFINDER_NO_LEAKS;
@@ -376,7 +367,8 @@ int test(int argc, const char *argv[])
 		}
 		{
 			// Add a spurious file
-			RaidFileWrite random(discSetNum, storeRoot + "randomfile");
+			RaidFileWrite random(discSetNum, 
+				storeRoot + "randomfile");
 			random.Open();
 			random.Write("test", 4);
 			random.Commit(true);
@@ -388,7 +380,6 @@ int test(int argc, const char *argv[])
 		// Check everything is as it was
 		TEST_THAT(::system(PERL_EXECUTABLE 
 			" testfiles/testbackupstorefix.pl check 0") == 0);
-
 		// Check the random file doesn't exist
 		{
 			TEST_THAT(!RaidFileRead::FileExists(discSetNum, 
@@ -449,7 +440,9 @@ int test(int argc, const char *argv[])
 			// Fix it
 			RUN_CHECK
 			// Check
-			TEST_THAT(::system(PERL_EXECUTABLE " testfiles/testbackupstorefix.pl check 1") == 0);
+			TEST_THAT(::system(PERL_EXECUTABLE 
+				" testfiles/testbackupstorefix.pl check 1") 
+				== 0);
 
 			// Check the modified file doesn't exist
 			TEST_THAT(!RaidFileRead::FileExists(discSetNum, fn));
@@ -495,7 +488,8 @@ int test(int argc, const char *argv[])
 		// Fix it
 		RUN_CHECK
 		// Check everything is as it should be
-		TEST_THAT(::system(PERL_EXECUTABLE " testfiles/testbackupstorefix.pl check 2") == 0);
+		TEST_THAT(::system(PERL_EXECUTABLE 
+			" testfiles/testbackupstorefix.pl check 2") == 0);
 		{
 			BackupStoreDirectory dir;
 			LoadDirectory("Test1/foreomizes/stemptinevidate/ict", dir);
@@ -551,7 +545,8 @@ int test(int argc, const char *argv[])
 		// Fix it
 		RUN_CHECK
 		// Check everything is as it should be
-		TEST_THAT(::system(PERL_EXECUTABLE " testfiles/testbackupstorefix.pl check 3") == 0);
+		TEST_THAT(::system(PERL_EXECUTABLE 
+			" testfiles/testbackupstorefix.pl check 3") == 0);
 		{
 			BackupStoreDirectory dir;
 			LoadDirectory("Test1/foreomizes/stemptinevidate/ict", dir);
@@ -565,18 +560,22 @@ int test(int argc, const char *argv[])
 		// Fix it
 		RUN_CHECK
 		// Check everything is where it is predicted to be
-		TEST_THAT(::system(PERL_EXECUTABLE " testfiles/testbackupstorefix.pl check 4") == 0);
+		TEST_THAT(::system(PERL_EXECUTABLE 
+			" testfiles/testbackupstorefix.pl check 4") == 0);
 
 		// ------------------------------------------------------------------------------------------------		
 		::printf("  === Corrupt file and dir\n");
 		// File
-		CorruptObject("Test1/foreomizes/stemptinevidate/algoughtnerge", 33, "34i729834298349283479233472983sdfhasgs");
+		CorruptObject("Test1/foreomizes/stemptinevidate/algoughtnerge",
+			33, "34i729834298349283479233472983sdfhasgs");
 		// Dir
-		CorruptObject("Test1/cannes/imulatrougge/foreomizes", 23, "dsf32489sdnadf897fd2hjkesdfmnbsdfcsfoisufio2iofe2hdfkjhsf");
+		CorruptObject("Test1/cannes/imulatrougge/foreomizes",23, 
+			"dsf32489sdnadf897fd2hjkesdfmnbsdfcsfoisufio2iofe2hdfkjhsf");
 		// Fix it
 		RUN_CHECK
 		// Check everything is where it should be
-		TEST_THAT(::system(PERL_EXECUTABLE " testfiles/testbackupstorefix.pl check 5") == 0);
+		TEST_THAT(::system(PERL_EXECUTABLE 
+			" testfiles/testbackupstorefix.pl check 5") == 0);
 
 		// ------------------------------------------------------------------------------------------------		
 		::printf("  === Overwrite root with a file\n");
@@ -590,15 +589,16 @@ int test(int argc, const char *argv[])
 		// Fix it
 		RUN_CHECK
 		// Check everything is where it should be
-		TEST_THAT(::system(PERL_EXECUTABLE " testfiles/testbackupstorefix.pl reroot 6") == 0);
+		TEST_THAT(::system(PERL_EXECUTABLE 
+			" testfiles/testbackupstorefix.pl reroot 6") == 0);
 
 
 		// ------------------------------------------------------------------------------------------------		
 		// Stop server
 		TEST_THAT(KillServer(pid));
-#ifndef WIN32
-		TestRemoteProcessMemLeaks("bbstored.memleaks");
-#endif
+		#ifndef WIN32
+			TestRemoteProcessMemLeaks("bbstored.memleaks");
+		#endif
 	}
 
 	return 0;
