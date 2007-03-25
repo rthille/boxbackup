@@ -310,12 +310,10 @@ int test(int argc, const char *argv[])
 			"testfiles/clientTrustedCAs.pem");
 
 	// Create an account
-#ifdef WIN32
-	TEST_THAT_ABORTONFAIL(::system("..\\..\\bin\\bbstoreaccounts\\bbstoreaccounts -c testfiles/bbstored.conf create 01234567 0 30000B 40000B") == 0);
-#else
-	TEST_THAT_ABORTONFAIL(::system("../../bin/bbstoreaccounts/bbstoreaccounts -c testfiles/bbstored.conf create 01234567 0 30000B 40000B") == 0);
+	TEST_THAT_ABORTONFAIL(::system(BBSTOREACCOUNTS
+		" -c testfiles/bbstored.conf "
+		"create 01234567 0 30000B 40000B") == 0);
 	TestRemoteProcessMemLeaks("bbstoreaccounts.memleaks");
-#endif
 
 	// Create test files
 	create_test_files();
@@ -324,12 +322,8 @@ int test(int argc, const char *argv[])
 	test_depends_in_dirs();
 
 	// First, try logging in without an account having been created... just make sure login fails.
-#ifdef WIN32
-	int pid = LaunchServer("..\\..\\bin\\bbstored\\bbstored testfiles/bbstored.conf", "testfiles/bbstored.pid");
-#else
-	int pid = LaunchServer("../../bin/bbstored/bbstored testfiles/bbstored.conf", "testfiles/bbstored.pid");
-#endif
-
+	int pid = LaunchServer(BBSTORED " testfiles/bbstored.conf", 
+		"testfiles/bbstored.pid");
 	TEST_THAT(pid != -1 && pid != 0);
 	if(pid > 0)
 	{
@@ -582,10 +576,14 @@ int test(int argc, const char *argv[])
 			}
 
 #ifdef WIN32
+			// Cannot signal bbstored to do housekeeping now,
+			// so just wait until we're sure it's done
 			wait_for_operation(12);
 #else
-			// Send the server a restart signal, so it does housekeeping immediately, and wait for it to happen
-			::sleep(1);	// wait for old connections to terminate
+			// Send the server a restart signal, so it does 
+			// housekeeping immediately, and wait for it to happen
+			// Wait for old connections to terminate
+			::sleep(1);	
 			::kill(pid, SIGHUP);
 #endif
 
