@@ -540,7 +540,7 @@ void do_interrupted_restore(const TLSContext &context, int64_t restoredirid)
 		}
 	}
 }
-#endif
+#endif // !WIN32
 
 void force_sync()
 {
