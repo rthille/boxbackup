@@ -1120,7 +1120,6 @@ int test_bbackupd()
 			"\"compare -acQ\" quit");
 		TEST_RETURN(compareReturnValue, 1);
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
- 
 
 		TEST_THAT(ServerIsAlive(bbackupd_pid));
 		TEST_THAT(ServerIsAlive(bbstored_pid));
@@ -1166,6 +1165,70 @@ int test_bbackupd()
 
 		std::string filename("test" + foreignCharsUnicode + "testfile");
 		std::string filepath(dirpath + "/" + filename);
+
+		char cwdbuf[1024];
+		TEST_THAT(getcwd(cwdbuf, sizeof(cwdbuf)) == cwdbuf);
+		std::string cwd = cwdbuf;
+
+		// Test that our emulated chdir() works properly
+		// with relative and absolute paths
+		TEST_THAT(::chdir(dirpath.c_str()) == 0);
+		TEST_THAT(::chdir("../../..") == 0);
+		TEST_THAT(::chdir(cwd.c_str()) == 0);
+
+		// Check that it can be converted to the system encoding
+		// (which is what is needed on the command line)
+		std::string systemDirName;
+		TEST_THAT(ConvertEncoding(dirname.c_str(), CP_UTF8,
+			systemDirName, CP_ACP));
+
+		std::string systemFileName;
+		TEST_THAT(ConvertEncoding(filename.c_str(), CP_UTF8,
+			systemFileName, CP_ACP));
+
+		// Check that it can be converted to the console encoding
+		// (which is what we will see in the output)
+		std::string consoleDirName;
+		TEST_THAT(ConvertUtf8ToConsole(dirname.c_str(),
+			consoleDirName));
+
+		std::string consoleFileName;
+		TEST_THAT(ConvertUtf8ToConsole(filename.c_str(),
+			consoleFileName));
+
+		// test that bbackupd will let us lcd into the local 
+		// directory using a relative path
+		std::string command = BBACKUPQUERY " -q "
+			"-c testfiles/bbackupd.conf "
+			"\"lcd testfiles/TestDir1/" + systemDirName + "\" "
+			"quit";
+		compareReturnValue = ::system(command.c_str());
+		TEST_RETURN(compareReturnValue, 0);
+
+		// and back out again
+		command = BBACKUPQUERY " -q "
+			"-c testfiles/bbackupd.conf "
+			"\"lcd testfiles/TestDir1/" + systemDirName + "\" "
+			"\"lcd ..\" quit";
+		compareReturnValue = ::system(command.c_str());
+		TEST_RETURN(compareReturnValue, 0);
+
+		// and using an absolute path
+		command = BBACKUPQUERY " -q "
+			"-c testfiles/bbackupd.conf "
+			"\"lcd " + cwd + "/testfiles/TestDir1/" + 
+			systemDirName + "\" quit";
+		compareReturnValue = ::system(command.c_str());
+		TEST_RETURN(compareReturnValue, 0);
+
+		// and back out again
+		command = BBACKUPQUERY " -q "
+			"-c testfiles/bbackupd.conf "
+			"\"lcd " + cwd + "/testfiles/TestDir1/" + 
+			systemDirName + "\" "
+			"\"lcd ..\" quit";
+		compareReturnValue = ::system(command.c_str());
+		TEST_RETURN(compareReturnValue, 0);
 
 		{
 			FileStream fs(filepath.c_str(), O_CREAT | O_RDWR);
@@ -1221,30 +1284,11 @@ int test_bbackupd()
 			protocol.QueryFinished();
 		}
 
-		// Check that it can be converted to the system encoding
-		// (which is what is needed on the command line)
-		std::string systemDirName;
-		TEST_THAT(ConvertEncoding(dirname.c_str(), CP_UTF8,
-			systemDirName, CP_ACP));
-
-		std::string systemFileName;
-		TEST_THAT(ConvertEncoding(filename.c_str(), CP_UTF8,
-			systemFileName, CP_ACP));
-
-		// Check that it can be converted to the console encoding
-		// (which is what we will see in the output)
-		std::string consoleDirName;
-		TEST_THAT(ConvertUtf8ToConsole(dirname.c_str(),
-			consoleDirName));
-
-		std::string consoleFileName;
-		TEST_THAT(ConvertUtf8ToConsole(filename.c_str(),
-			consoleFileName));
 
 		// Check that bbackupquery shows the dir in console encoding
-		std::string command(BBACKUPQUERY " -q "
+		command = BBACKUPQUERY " -q "
 			"-c testfiles/bbackupd.conf "
-			"-q \"list Test1\" quit");
+			"-q \"list Test1\" quit";
 		pid_t bbackupquery_pid;
 		std::auto_ptr<IOStream> queryout;
 		queryout = LocalProcessStream(command.c_str(), 
@@ -1272,8 +1316,7 @@ int test_bbackupd()
 		// on the command line in system encoding, and shows
 		// the file in console encoding
 		command = BBACKUPQUERY " -c testfiles/bbackupd.conf "
-			"-q \"list Test1";
-		command += "/" + systemDirName + "\" quit";
+			"-q \"list Test1/" + systemDirName + "\" quit";
 		queryout = LocalProcessStream(command.c_str(), 
 			bbackupquery_pid);
 		TEST_THAT(queryout.get() != NULL);
@@ -1335,8 +1378,32 @@ int test_bbackupd()
 			systemDirName + "/" + systemFileName + "\" quit";
 
 		compareReturnValue = ::system(command.c_str());
-		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 		TEST_RETURN(compareReturnValue, 0);
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+
+		// And after changing directory to a relative path
+		command = BBACKUPQUERY " -c testfiles/bbackupd.conf -q "
+			"\"lcd testfiles\" "
+			"\"cd Test1/" + systemDirName + "\" " + 
+			"\"get " + systemFileName + "\" quit";
+
+		compareReturnValue = ::system(command.c_str());
+		TEST_RETURN(compareReturnValue, 0);
+		TestRemoteProcessMemLeaks("testfiles/bbackupquery.memleaks");
+
+		// cannot overwrite a file that exists, so delete it
+		std::string tmp = "testfiles/" + filename;
+		TEST_THAT(::unlink(tmp.c_str()) == 0);
+
+		// And after changing directory to an absolute path
+		command = BBACKUPQUERY " -c testfiles/bbackupd.conf -q "
+			"\"lcd " + cwd + "/testfiles\" "
+			"\"cd Test1/" + systemDirName + "\" " + 
+			"\"get " + systemFileName + "\" quit";
+
+		compareReturnValue = ::system(command.c_str());
+		TEST_RETURN(compareReturnValue, 0);
+		TestRemoteProcessMemLeaks("testfiles/bbackupquery.memleaks");
 
 		// Compare to make sure it was restored properly.
 		// The Get command does not restore attributes, so
