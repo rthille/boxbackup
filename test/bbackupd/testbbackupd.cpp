@@ -1564,8 +1564,8 @@ int test_bbackupd()
 			"-c testfiles/bbackupd.conf "
 			"-l testfiles/query2.log "
 			"\"compare -acQ\" quit");
-		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 		TEST_RETURN(compareReturnValue, 1);
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 
 		// Try a quick compare, just for fun
 		compareReturnValue = ::system(BBACKUPQUERY " -q "
