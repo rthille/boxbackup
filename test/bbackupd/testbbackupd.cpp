@@ -1848,9 +1848,12 @@ int test_bbackupd()
 			"\"compare -acQ\" quit");
 		TEST_RETURN(compareReturnValue, 1);
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+
 		#ifdef WIN32
-		TEST_THAT(::unlink("testfiles/TestDir1/tracked-2") == 0);
+			TEST_THAT(::unlink("testfiles/TestDir1/tracked-2")
+				== 0);
 		#endif
+
 		TEST_THAT(::rename("testfiles/TestDir1/tracked-1", 
 			"testfiles/TestDir1/tracked-2") == 0);
 		TEST_THAT(!TestFileExists("testfiles/TestDir1/tracked-1"));
