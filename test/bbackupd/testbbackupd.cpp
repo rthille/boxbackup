@@ -2636,8 +2636,8 @@ int test_bbackupd()
 			protocol.QueryFinished();
 
 			// Do a compare with the now undeleted files
-			compareReturnValue = ::system(BBACKUPQUERY 
-				" -q -c testfiles/bbackupd.conf "
+			compareReturnValue = ::system(BBACKUPQUERY " -q "
+				"-c testfiles/bbackupd.conf "
 				"-l testfiles/query11.log "
 				"\"compare -cEQ "
 				"Test1/x1 testfiles/restore-Test1-x1-2\" quit");
