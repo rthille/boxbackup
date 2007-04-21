@@ -712,9 +712,9 @@ struct dirent *readdir_test_hook_2(DIR *dir)
 	// fill in the struct dirent appropriately
 	memset(&readdir_test_dirent, 0, sizeof(readdir_test_dirent));
 
-#ifdef HAVE_STRUCT_DIRENT_D_INO
-	readdir_test_dirent.d_ino = ++readdir_test_counter;
-#endif
+	#ifdef HAVE_STRUCT_DIRENT_D_INO
+		readdir_test_dirent.d_ino = ++readdir_test_counter;
+	#endif
 
 	snprintf(readdir_test_dirent.d_name, 
 		sizeof(readdir_test_dirent.d_name),
@@ -1649,16 +1649,20 @@ int test_bbackupd()
 		// Bad case: delete a file/symlink, replace it with a directory
 		printf("\n==== Replace symlink with directory, "
 			"add new directory\n");
+
 		#ifndef WIN32
 			TEST_THAT(::unlink("testfiles/TestDir1/symlink-to-dir")
 				== 0);
 		#endif
+
 		TEST_THAT(::mkdir("testfiles/TestDir1/symlink-to-dir", 0755) 
 			== 0);
 		TEST_THAT(::mkdir("testfiles/TestDir1/x1/dir-to-file", 0755) 
 			== 0);
+
 		// NOTE: create a file within the directory to 
 		// avoid deletion by the housekeeping process later
+
 		#ifndef WIN32
 			TEST_THAT(::symlink("does-not-exist", 
 				"testfiles/TestDir1/x1/dir-to-file/contents") 
@@ -1680,15 +1684,19 @@ int test_bbackupd()
 
 		// And the inverse, replace a directory with a file/symlink
 		printf("\n==== Replace directory with symlink\n");
+
 		#ifndef WIN32
 			TEST_THAT(::unlink("testfiles/TestDir1/x1/dir-to-file"
 				"/contents") == 0);
 		#endif
+
 		TEST_THAT(::rmdir("testfiles/TestDir1/x1/dir-to-file") == 0);
+
 		#ifndef WIN32
 			TEST_THAT(::symlink("does-not-exist", 
 				"testfiles/TestDir1/x1/dir-to-file") == 0);
 		#endif
+
 		wait_for_backup_operation();
 		compareReturnValue = ::system(BBACKUPQUERY " -q "
 			"-c testfiles/bbackupd.conf "
@@ -1705,17 +1713,21 @@ int test_bbackupd()
 		// And then, put it back to how it was before.
 		printf("\n==== Replace symlink with directory "
 			"(which was a symlink)\n");
+
 		#ifndef WIN32
 			TEST_THAT(::unlink("testfiles/TestDir1/x1"
 				"/dir-to-file") == 0);
 		#endif
+
 		TEST_THAT(::mkdir("testfiles/TestDir1/x1/dir-to-file", 
 			0755) == 0);
+
 		#ifndef WIN32
 			TEST_THAT(::symlink("does-not-exist", 
 				"testfiles/TestDir1/x1/dir-to-file/contents2")
 				== 0);
 		#endif
+
 		wait_for_backup_operation();
 		compareReturnValue = ::system(BBACKUPQUERY " -q "
 			"-c testfiles/bbackupd.conf "
@@ -1734,15 +1746,19 @@ int test_bbackupd()
 		// This gets lots of nasty things in the store with 
 		// directories over other old directories.
 		printf("\n==== Put it all back to how it was\n");
+
 		#ifndef WIN32
-		TEST_THAT(::unlink("testfiles/TestDir1/x1/dir-to-file"
-			"/contents2") == 0);
+			TEST_THAT(::unlink("testfiles/TestDir1/x1/dir-to-file"
+				"/contents2") == 0);
 		#endif
+
 		TEST_THAT(::rmdir("testfiles/TestDir1/x1/dir-to-file") == 0);
+
 		#ifndef WIN32
-		TEST_THAT(::symlink("does-not-exist", 
-			"testfiles/TestDir1/x1/dir-to-file") == 0);
+			TEST_THAT(::symlink("does-not-exist", 
+				"testfiles/TestDir1/x1/dir-to-file") == 0);
 		#endif
+
 		wait_for_backup_operation();
 		compareReturnValue = ::system(BBACKUPQUERY " -q "
 			"-c testfiles/bbackupd.conf "
@@ -1781,9 +1797,12 @@ int test_bbackupd()
 			"\"compare -acQ\" quit");
 		TEST_RETURN(compareReturnValue, 1);
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+
 		#ifdef WIN32
-		TEST_THAT(::unlink("testfiles/TestDir1/untracked-2") == 0);
+			TEST_THAT(::unlink("testfiles/TestDir1/untracked-2")
+				== 0);
 		#endif
+
 		TEST_THAT(::rename("testfiles/TestDir1/untracked-1", 
 			"testfiles/TestDir1/untracked-2") == 0);
 		TEST_THAT(!TestFileExists("testfiles/TestDir1/untracked-1"));
