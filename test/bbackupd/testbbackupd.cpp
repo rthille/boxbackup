@@ -2663,8 +2663,8 @@ int test_bbackupd()
 			compareReturnValue = ::system(BBACKUPQUERY " -q "
 				"-c testfiles/bbackupd.conf "
 				"-l testfiles/query11.log "
-				"\"compare -cEQ "
-				"Test1/x1 testfiles/restore-Test1-x1-2\" quit");
+				"\"compare -cEQ Test1/x1 "
+				"testfiles/restore-Test1-x1-2\" quit");
 			TEST_RETURN(compareReturnValue, 1);
 			TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 		}
