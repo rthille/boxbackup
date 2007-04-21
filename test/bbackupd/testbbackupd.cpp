@@ -439,9 +439,11 @@ int test_kill_bbstored()
 	TEST_THAT(KillServer(bbstored_pid));
 	::sleep(1);
 	TEST_THAT(!ServerIsAlive(bbstored_pid));
-#ifndef WIN32
-	TestRemoteProcessMemLeaks("bbstored.memleaks");
-#endif
+
+	#ifndef WIN32
+		TestRemoteProcessMemLeaks("bbstored.memleaks");
+	#endif
+	
 	return 0;
 }
 
