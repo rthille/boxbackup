@@ -2607,7 +2607,7 @@ int test_bbackupd()
 			TEST_RETURN(compareReturnValue, 1);
 			TestRemoteProcessMemLeaks("bbackupquery.memleaks");
 		}
-#endif
+#endif // WIN32
 
 		TEST_THAT(ServerIsAlive(bbackupd_pid));
 		TEST_THAT(ServerIsAlive(bbstored_pid));
