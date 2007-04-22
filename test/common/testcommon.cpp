@@ -137,19 +137,6 @@ ConfigurationVerify verify =
 	0
 };
 
-void safe_sleep(int seconds)
-{
-#ifdef WIN32
-	Sleep(seconds * 1000);
-#else
-	struct timespec ts;
-	ts.tv_sec  = seconds;
-	ts.tv_nsec = 0;
-	while (nanosleep(&ts, &ts) == -1 && errno == EINTR)
-	{ /* sleep again */ }
-#endif
-}
-
 class TestLogger : public Logger
 {
 	private:

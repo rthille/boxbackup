@@ -419,14 +419,14 @@ int test_setupaccount()
 
 int test_run_bbstored()
 {
-	bbstored_pid = LaunchServer(BBSTORED " testfiles/bbstored.conf", 
-		"testfiles/bbstored.pid");
+	std::string cmd = BBSTORED + bbstored_args + " testfiles/bbstored.conf";
+	bbstored_pid = LaunchServer(cmd, "testfiles/bbstored.pid");
 
 	TEST_THAT(bbstored_pid != -1 && bbstored_pid != 0);
 
 	if(bbstored_pid > 0)
 	{
-		::sleep(1);
+		::safe_sleep(1);
 		TEST_THAT(ServerIsAlive(bbstored_pid));
 		return 0;	// success
 	}
@@ -437,7 +437,7 @@ int test_run_bbstored()
 int test_kill_bbstored()
 {
 	TEST_THAT(KillServer(bbstored_pid));
-	::sleep(1);
+	::safe_sleep(1);
 	TEST_THAT(!ServerIsAlive(bbstored_pid));
 
 	#ifndef WIN32
@@ -640,9 +640,13 @@ int start_internal_daemon()
 	{
 		printf(".");
 		fflush(stdout);
-		sleep(1);
+		safe_sleep(1);
 
-		pid = ReadPidFile("testfiles/bbackupd.pid");
+		if (TestFileExists("testfiles/bbackupd.pid"))
+		{
+			pid = ReadPidFile("testfiles/bbackupd.pid");
+		}
+
 		if (pid > 0)
 		{
 			break;
@@ -1043,12 +1047,12 @@ int test_bbackupd()
 	}
 #endif // PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
 
-	bbackupd_pid = LaunchServer(BBACKUPD " testfiles/bbackupd.conf", 
-		"testfiles/bbackupd.pid");
+	std::string cmd = BBACKUPD + bbackupd_args + " testfiles/bbackupd.conf";
+	bbackupd_pid = LaunchServer(cmd, "testfiles/bbackupd.pid");
 
 	TEST_THAT(bbackupd_pid != -1 && bbackupd_pid != 0);
 
-	::sleep(1);
+	::safe_sleep(1);
 
 	TEST_THAT(ServerIsAlive(bbackupd_pid));
 	TEST_THAT(ServerIsAlive(bbstored_pid));
@@ -1435,7 +1439,6 @@ int test_bbackupd()
 		if (!ServerIsAlive(bbackupd_pid)) return 1;
 		if (!ServerIsAlive(bbstored_pid)) return 1;
 
-		// Check that SyncAllowScript is executed and can pause backup
 		printf("\n==== Check that SyncAllowScript is executed and can "
 			"pause backup\n");
 		fflush(stdout);
@@ -1481,10 +1484,10 @@ int test_bbackupd()
 			// next poll should happen within the next
 			// 5 seconds (normally about 3 seconds)
 
-			sleep(1); // 2 seconds before
+			safe_sleep(1); // 2 seconds before
 			TEST_THAT(stat("testfiles" DIRECTORY_SEPARATOR 
 				"syncallowscript.notifyran.1", &st) != 0);
-			sleep(4); // 2 seconds after
+			safe_sleep(4); // 2 seconds after
 			TEST_THAT(stat("testfiles" DIRECTORY_SEPARATOR 
 				"syncallowscript.notifyran.1", &st) == 0);
 			TEST_THAT(stat("testfiles" DIRECTORY_SEPARATOR 
@@ -1493,10 +1496,10 @@ int test_bbackupd()
 			// next poll should happen within the next
 			// 10 seconds (normally about 8 seconds)
 
-			sleep(6); // 2 seconds before
+			safe_sleep(6); // 2 seconds before
 			TEST_THAT(stat("testfiles" DIRECTORY_SEPARATOR 
 				"syncallowscript.notifyran.2", &st) != 0);
-			sleep(4); // 2 seconds after
+			safe_sleep(4); // 2 seconds after
 			TEST_THAT(stat("testfiles" DIRECTORY_SEPARATOR 
 				"syncallowscript.notifyran.2", &st) == 0);
 
@@ -1520,6 +1523,7 @@ int test_bbackupd()
 			TEST_THAT(wait_time >= 8);
 			TEST_THAT(wait_time <= 12);
 
+			wait_for_sync_end();
 			// check that backup has run (compare succeeds)
 			compareReturnValue = ::system(BBACKUPQUERY " -q "
 				"-c testfiles/bbackupd.conf "
@@ -1527,6 +1531,12 @@ int test_bbackupd()
 				"\"compare -acQ\" quit");
 			TEST_RETURN(compareReturnValue, 1);
 			TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+
+			if (failures > 0)
+			{
+				// stop early to make debugging easier
+				return 1;
+			}
 		}
 
 		TEST_THAT(ServerIsAlive(bbackupd_pid));
@@ -1785,7 +1795,7 @@ int test_bbackupd()
 		TEST_THAT(fd2 > 0);
 		TEST_THAT(write(fd1, "hello", 5) == 5);
 		TEST_THAT(close(fd1) == 0);
-		sleep(1);
+		safe_sleep(1);
 		TEST_THAT(write(fd2, "world", 5) == 5);
 		TEST_THAT(close(fd2) == 0);
 		TEST_THAT(TestFileExists("testfiles/TestDir1/untracked-1"));
@@ -1835,7 +1845,7 @@ int test_bbackupd()
 		TEST_THAT(write(fd1, "hello", 5) == 5);
 		TEST_THAT(write(fd1, buffer, sizeof(buffer)) == sizeof(buffer));
 		TEST_THAT(close(fd1) == 0);
-		sleep(1);
+		safe_sleep(1);
 		TEST_THAT(write(fd2, "world", 5) == 5);
 		TEST_THAT(write(fd2, buffer, sizeof(buffer)) == sizeof(buffer));
 		TEST_THAT(close(fd2) == 0);
@@ -1920,13 +1930,13 @@ int test_bbackupd()
 			"\"compare -acQ\" quit");
 		TEST_RETURN(compareReturnValue, 1);
 		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
-
+		
 		TEST_THAT(ServerIsAlive(bbackupd_pid));
 		TEST_THAT(ServerIsAlive(bbstored_pid));
 		if (!ServerIsAlive(bbackupd_pid)) return 1;
 		if (!ServerIsAlive(bbstored_pid)) return 1;
 
-		// Check that modifying files with old timestamps 
+		// Check that modifying files with old timestamps
 		// still get added
 		printf("\n==== Modify existing file, but change timestamp "
 			"to rather old\n");
@@ -2158,7 +2168,7 @@ int test_bbackupd()
 		wait_for_sync_start();
 
 		// Then wait a second, to make sure the scan is complete
-		::sleep(1);
+		::safe_sleep(1);
 
 		{
 			// Open a file, then save something to it every second
@@ -2172,7 +2182,7 @@ int test_bbackupd()
 
 				printf(".");
 				fflush(stdout);
-				sleep(1);
+				safe_sleep(1);
 			}
 			printf("\n");
 			fflush(stdout);
@@ -2202,7 +2212,7 @@ int test_bbackupd()
 
 				printf(".");
 				fflush(stdout);
-				sleep(1);
+				safe_sleep(1);
 			}
 			printf("\n");
 			fflush(stdout);
@@ -2474,7 +2484,7 @@ int test_bbackupd()
 		wait_for_sync_start();
 
 		// Then wait a second, to make sure the scan is complete
-		::sleep(1);
+		::safe_sleep(1);
 
 		// Then modify an existing file
 		{
@@ -2754,9 +2764,8 @@ int test_bbackupd()
 		terminate_bbackupd(bbackupd_pid);
 		
 		// Start it again
-		bbackupd_pid = LaunchServer(BBACKUPD 
-			" testfiles/bbackupd.conf", 
-			"testfiles/bbackupd.pid");
+		cmd = BBACKUPD + bbackupd_args + " testfiles/bbackupd.conf";
+		bbackupd_pid = LaunchServer(cmd, "testfiles/bbackupd.pid");
 
 		TEST_THAT(bbackupd_pid != -1 && bbackupd_pid != 0);
 
