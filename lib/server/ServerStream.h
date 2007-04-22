@@ -171,18 +171,20 @@ public:
 						else if(c[0] == "unix")
 						{
 							#ifdef WIN32
-							BOX_WARNING("Ignoring request to listen on a Unix socket on Windows: " << addrlist[a]);
+								BOX_WARNING("Ignoring request to listen on a Unix socket on Windows: " << addrlist[a]);
+								delete psocket;
+								psocket = NULL;
 							#else
-							// Check arguments size
-							if(c.size() != 2)
-							{
-								THROW_EXCEPTION(ServerException, ServerStreamBadListenAddrs)
-							}
+								// Check arguments size
+								if(c.size() != 2)
+								{
+									THROW_EXCEPTION(ServerException, ServerStreamBadListenAddrs)
+								}
 
-							// unlink anything there
-							::unlink(c[1].c_str());
-							
-							psocket->Listen(Socket::TypeUNIX, c[1].c_str());
+								// unlink anything there
+								::unlink(c[1].c_str());
+								
+								psocket->Listen(Socket::TypeUNIX, c[1].c_str());
 							#endif // WIN32
 						}
 						else
