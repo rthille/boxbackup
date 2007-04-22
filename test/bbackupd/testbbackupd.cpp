@@ -2008,7 +2008,7 @@ int test_bbackupd()
 		// Wait and test
 		wait_for_sync_end();
 		wait_for_sync_end();
-
+		
 		// compare with exclusions, should not find differences
 		compareReturnValue = ::system(BBACKUPQUERY " -q "
 			"-c testfiles/bbackupd.conf "
