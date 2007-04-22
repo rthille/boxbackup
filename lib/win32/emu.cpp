@@ -504,8 +504,8 @@ std::string GetErrorMessage(DWORD errorCode)
 	}
 
 	// remove embedded newline
-	pMsgBuf[chars - 1] == 0;
-	pMsgBuf[chars - 2] == 0;
+	pMsgBuf[chars - 1] = 0;
+	pMsgBuf[chars - 2] = 0;
 
 	std::ostringstream line;
 	line << pMsgBuf << " (" << errorCode << ")";
