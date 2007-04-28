@@ -2594,7 +2594,7 @@ int test_bbackupd()
 		if (!ServerIsAlive(bbackupd_pid)) return 1;
 		if (!ServerIsAlive(bbstored_pid)) return 1;
 
-#ifndef WIN32	
+#ifndef WIN32
 		printf("\n==== Interrupted restore\n");
 		{
 			do_interrupted_restore(context, restoredirid);

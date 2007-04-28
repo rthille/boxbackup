@@ -47,6 +47,7 @@
 #include "ExcludeList.h"
 #include "BackupClientMakeExcludeList.h"
 #include "PathUtils.h"
+#include "Logging.h"
 
 #include "MemLeakFindOn.h"
 
@@ -1047,10 +1048,22 @@ void BackupQueries::CommandGet(std::vector<std::string> args, const bool *opts)
 		// Done.
 		printf("Object ID %08llx fetched sucessfully.\n", fileId);
 	}
+	catch (BoxException &e)
+	{
+		BOX_ERROR("Failed to fetch file: " << 
+			e.what());
+		::unlink(localName.c_str());
+	}
+	catch(std::exception &e)
+	{
+		BOX_ERROR("Failed to fetch file: " <<
+			e.what());
+		::unlink(localName.c_str());
+	}
 	catch(...)
 	{
+		BOX_ERROR("Failed to fetch file: unknown error");
 		::unlink(localName.c_str());
-		printf("Error occured fetching file.\n");
 	}
 }
 
@@ -1717,15 +1730,27 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir, const s
 				}
 				catch(BoxException &e)
 				{
-					printf("ERROR: (%d/%d) during file fetch and comparison for '%s'\n",
-						e.GetType(),
-						e.GetSubType(),
-						storePathDisplay.c_str());
+					BOX_ERROR("Failed to fetch and compare "
+						"'" << 
+						storePathDisplay.c_str() <<
+						"': error " << e.what() <<
+						" (" << e.GetType() <<
+						"/"  << e.GetSubType() << ")");
 					rParams.mUncheckedFiles ++;
+				}
+				catch(std::exception &e)
+				{
+					BOX_ERROR("Failed to fetch and compare "
+						"'" << 
+						storePathDisplay.c_str() <<
+						"': " << e.what());
 				}
 				catch(...)
 				{	
-					printf("ERROR: (unknown) during file fetch and comparison for '%s'\n", storePathDisplay.c_str());
+					BOX_ERROR("Failed to fetch and compare "
+						"'" << 
+						storePathDisplay.c_str() <<
+						"': unknown error");
 					rParams.mUncheckedFiles ++;
 				}
 
