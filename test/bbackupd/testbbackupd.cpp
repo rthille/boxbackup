@@ -2188,12 +2188,8 @@ int test_bbackupd()
 			fflush(stdout);
 			
 			// Check there's a difference
-			#ifdef WIN32
-			compareReturnValue = ::system("perl testfiles/"						"extcheck1.pl A");
-			#else
 			compareReturnValue = ::system("perl testfiles/"
 				"extcheck1.pl");
-			#endif
 
 			TEST_RETURN(compareReturnValue, 1);
 			TestRemoteProcessMemLeaks("bbackupquery.memleaks");
@@ -2217,13 +2213,8 @@ int test_bbackupd()
 			printf("\n");
 			fflush(stdout);
 
-			#ifdef WIN32
-			compareReturnValue = ::system("perl testfiles/"
-				"extcheck2.pl A");
-			#else
 			compareReturnValue = ::system("perl testfiles/"
 				"extcheck2.pl");
-			#endif
 
 			TEST_RETURN(compareReturnValue, 1);
 			TestRemoteProcessMemLeaks("bbackupquery.memleaks");
