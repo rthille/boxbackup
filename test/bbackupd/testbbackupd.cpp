@@ -2119,6 +2119,7 @@ int test_bbackupd()
 		{
 			// Check that read errors are reported neatly
 			printf("\n==== Add unreadable files\n");
+			
 			{
 				// Dir and file which can't be read
 				TEST_THAT(::mkdir("testfiles/TestDir1/sub23"
