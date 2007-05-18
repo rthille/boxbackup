@@ -1800,11 +1800,13 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 		}
 		catch(...)
 		{
-			delete ploc;
-			ploc = 0;
 			BOX_ERROR("Failed to setup location '"
 				<< ploc->mName << "' path '"
 				<< ploc->mPath << "'");
+
+			delete ploc;
+			ploc = NULL;
+
 			throw;
 		}
 	}
