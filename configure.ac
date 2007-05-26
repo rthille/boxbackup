@@ -122,7 +122,6 @@ fi
 
 if test "$have_pcreposix_h" = "yes"; then
   AC_DEFINE([HAVE_PCREPOSIX_H], [1], [Define to 1 if pcreposix.h is available])
-  AC_SEARCH_LIBS([regcomp], ["pcreposix -lpcre"])
 fi
 
 if test "$have_regex_h" = "yes" -o "$have_pcreposix_h" = "yes"; then
