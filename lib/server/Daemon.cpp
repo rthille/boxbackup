@@ -109,7 +109,7 @@ int Daemon::Main(const char *DefaultConfigFile, int argc, const char *argv[])
 	int masterLevel = Log::INFO; // need an int to do math with
 	#endif
 
-	signed char c;
+	signed int c;
 	optind = 0; // just in case anybody used getopt before
 
 	while((c = getopt(argc, (char * const *)argv, "c:DqvVt:Tk")) != -1)
