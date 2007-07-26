@@ -838,7 +838,8 @@ int test_bbackupd()
 		{
 			std::string line;
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Receive Success(0xe)");
+			std::string comp = "Receive Success(0x";
+			TEST_THAT(line.substr(0, comp.size()) == comp);
 			TEST_THAT(reader.GetLine(line));
 			TEST_THAT(line == "Receiving stream, size 124");
 			TEST_THAT(reader.GetLine(line));
@@ -847,9 +848,9 @@ int test_bbackupd()
 			TEST_THAT(line == "Receive IsAlive()");
 
 			TEST_THAT(reader.GetLine(line));
-			std::string comp = "Send StoreFile(0x3,";
+			comp = "Send StoreFile(0x3,";
 			TEST_THAT(line.substr(0, comp.size()) == comp);
-			comp = ",0xe,\"f1\")";
+			comp = ",\"f1\")";
 			TEST_THAT(line.substr(line.size() - comp.size())
 				== comp);
 		}
@@ -889,7 +890,8 @@ int test_bbackupd()
 		{
 			std::string line;
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Receive Success(0xf)");
+			std::string comp = "Receive Success(0x";
+			TEST_THAT(line.substr(0, comp.size()) == comp);
 			TEST_THAT(reader.GetLine(line));
 			TEST_THAT(line == "Receiving stream, size 124");
 
@@ -899,7 +901,7 @@ int test_bbackupd()
 			// so there will be no keepalives.
 
 			TEST_THAT(reader.GetLine(line));
-			std::string comp = "Send StoreFile(0x3,";
+			comp = "Send StoreFile(0x3,";
 			TEST_THAT(line.substr(0, comp.size()) == comp);
 			comp = ",0x0,\"f1\")";
 			TEST_THAT(line.substr(line.size() - comp.size())
@@ -941,7 +943,8 @@ int test_bbackupd()
 		{
 			std::string line;
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Receive Success(0x10)");
+			std::string comp = "Receive Success(0x";
+			TEST_THAT(line.substr(0, comp.size()) == comp);
 			TEST_THAT(reader.GetLine(line));
 			TEST_THAT(line == "Receiving stream, size 124");
 
@@ -961,7 +964,7 @@ int test_bbackupd()
 			TEST_THAT(line == "Receive IsAlive()");
 
 			TEST_THAT(reader.GetLine(line));
-			std::string comp = "Send StoreFile(0x3,";
+			comp = "Send StoreFile(0x3,";
 			TEST_THAT(line.substr(0, comp.size()) == comp);
 			comp = ",0x0,\"f1\")";
 			TEST_THAT(line.substr(line.size() - comp.size())
