@@ -1136,7 +1136,6 @@ int test_bbackupd()
 		if (!ServerIsAlive(bbackupd_pid)) return 1;
 		if (!ServerIsAlive(bbstored_pid)) return 1;
 
-
 		printf("\n==== Check that read-only directories and "
 			"their contents can be restored.\n");
 
