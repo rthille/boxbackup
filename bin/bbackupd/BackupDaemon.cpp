@@ -1821,12 +1821,12 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 		}
 		catch (std::exception &e)
 		{
-			delete ploc;
-			ploc = 0;
 			BOX_ERROR("Failed to configure location '"
 				<< ploc->mName << "' path '"
 				<< ploc->mPath << "': " << e.what() <<
 				": please check for previous errors");
+			delete ploc;
+			ploc = 0;
 			throw;
 		}
 		catch(...)
