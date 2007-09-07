@@ -2264,14 +2264,15 @@ void BackupDaemon::NotifySysadmin(int Event)
 
 	// Is there a notifation script?
 	const Configuration &conf(GetConfiguration());
-	if(!conf.KeyExists("NotifyScript") &&
-		Event != NotifyEvent_BackupStart &&
-		Event != NotifyEvent_BackupFinish)
+	if(!conf.KeyExists("NotifyScript"))
 	{
-		// Log, and then return
-		BOX_ERROR("Not notifying administrator about event "
-			<< sEventNames[Event] << " -- set NotifyScript "
-			"to do this in future");
+		if(Event != NotifyEvent_BackupStart &&
+			Event != NotifyEvent_BackupFinish))
+		{
+			BOX_ERROR("Not notifying administrator about event "
+				<< sEventNames[Event] << " -- set NotifyScript "
+				"to do this in future");
+		}
 		return;
 	}
 
