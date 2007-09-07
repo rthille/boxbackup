@@ -2267,7 +2267,7 @@ void BackupDaemon::NotifySysadmin(int Event)
 	if(!conf.KeyExists("NotifyScript"))
 	{
 		if(Event != NotifyEvent_BackupStart &&
-			Event != NotifyEvent_BackupFinish))
+			Event != NotifyEvent_BackupFinish)
 		{
 			BOX_ERROR("Not notifying administrator about event "
 				<< sEventNames[Event] << " -- set NotifyScript "
