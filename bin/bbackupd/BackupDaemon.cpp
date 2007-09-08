@@ -1661,22 +1661,24 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 	{
 		BOX_TRACE("new location");
 		// Create a record for it
-		Location *ploc = new Location;
+		std::auto_ptr<Location> apLoc(new Location);
+
 		try
 		{
 			// Setup names in the location record
-			ploc->mName = i->first;
-			ploc->mPath = i->second.GetKeyValue("Path");
+			apLoc->mName = i->first;
+			apLoc->mPath = i->second.GetKeyValue("Path");
 			
 			// Read the exclude lists from the Configuration
-			ploc->mpExcludeFiles = BackupClientMakeExcludeList_Files(i->second);
-			ploc->mpExcludeDirs = BackupClientMakeExcludeList_Dirs(i->second);
+			apLoc->mpExcludeFiles = BackupClientMakeExcludeList_Files(i->second);
+			apLoc->mpExcludeDirs = BackupClientMakeExcludeList_Dirs(i->second);
+
 			// Does this exist on the server?
 			// Remove from dir object early, so that if we fail
 			// to stat the local directory, we still don't 
 			// consider to remote one for deletion.
 			BackupStoreDirectory::Iterator iter(dir);
-			BackupStoreFilenameClear dirname(ploc->mName);	// generate the filename
+			BackupStoreFilenameClear dirname(apLoc->mName);	// generate the filename
 			BackupStoreDirectory::Entry *en = iter.FindMatchingClearName(dirname);
 			int64_t oid = 0;
 			if(en != 0)
@@ -1696,17 +1698,18 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 				// BSD style statfs -- includes mount point, which is nice.
 #ifdef HAVE_STRUCT_STATVFS_F_MNTONNAME
 				struct statvfs s;
-				if(::statvfs(ploc->mPath.c_str(), &s) != 0)
+				if(::statvfs(apLoc->mPath.c_str(), &s) != 0)
 #else // HAVE_STRUCT_STATVFS_F_MNTONNAME
 				struct statfs s;
-				if(::statfs(ploc->mPath.c_str(), &s) != 0)
+				if(::statfs(apLoc->mPath.c_str(), &s) != 0)
 #endif // HAVE_STRUCT_STATVFS_F_MNTONNAME
 				{
-					BOX_WARNING("Failed to stat location: "
-						<< ploc->mPath 
-						<< ": " << strerror(errno));
-					THROW_EXCEPTION(CommonException,
-						OSFileError)
+					BOX_WARNING("Failed to stat location "
+						"path '" << apLoc->mPath <<
+						"' (" << strerror(errno) <<
+						"), skipping location '" <<
+						apLoc->mName << "'");
+					continue;
 				}
 
 				// Where the filesystem is mounted
@@ -1715,10 +1718,10 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 #else // !HAVE_STRUCT_STATFS_F_MNTONNAME && !WIN32
 
 				// Warn in logs if the directory isn't absolute
-				if(ploc->mPath[0] != '/')
+				if(apLoc->mPath[0] != '/')
 				{
 					BOX_WARNING("Location path '"
-						<< ploc->mPath 
+						<< apLoc->mPath 
 						<< "' is not absolute");
 				}
 				// Go through the mount points found, and find a suitable one
@@ -1733,7 +1736,7 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 						// If it matches, the file belongs in that mount point
 						// (sorting order ensures this)
 						BOX_TRACE("checking against mount point " << *i);
-						if(::strncmp(i->c_str(), ploc->mPath.c_str(), i->size()) == 0)
+						if(::strncmp(i->c_str(), apLoc->mPath.c_str(), i->size()) == 0)
 						{
 							// Match
 							mountName = *i;
@@ -1741,7 +1744,7 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 						}
 					}
 					BOX_TRACE("mount point chosen for "
-						<< ploc->mPath << " is "
+						<< apLoc->mPath << " is "
 						<< mountName);
 				}
 
@@ -1752,12 +1755,12 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 				if(f != mounts.end())
 				{
 					// Yes -- store the index
-					ploc->mIDMapIndex = f->second;
+					apLoc->mIDMapIndex = f->second;
 				}
 				else
 				{
 					// No -- new index
-					ploc->mIDMapIndex = numIDMaps;
+					apLoc->mIDMapIndex = numIDMaps;
 					mounts[mountName] = numIDMaps;
 					
 					// Store the mount name
@@ -1777,7 +1780,7 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 				BackupClientFileAttributes attr;
 				try
 				{
-					attr.ReadAttributes(ploc->mPath.c_str(), 
+					attr.ReadAttributes(apLoc->mPath.c_str(), 
 						true /* directories have zero mod times */,
 						0 /* not interested in mod time */, 
 						&attrModTime /* get the attribute modification time */);
@@ -1785,8 +1788,9 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 				catch (BoxException &e)
 				{
 					BOX_ERROR("Failed to get attributes "
-						"for path '" << ploc->mPath
-						<< "', skipping.");
+						"for path '" << apLoc->mPath
+						<< "', skipping location '" <<
+						apLoc->mName << "'");
 					continue;
 				}
 				
@@ -1794,7 +1798,8 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 				try
 				{
 					MemBlockStream attrStream(attr);
-					std::auto_ptr<BackupProtocolClientSuccess> dirCreate(connection.QueryCreateDirectory(
+					std::auto_ptr<BackupProtocolClientSuccess>
+						dirCreate(connection.QueryCreateDirectory(
 						BackupProtocolClientListDirectory::RootDirectory,
 						attrModTime, dirname, attrStream));
 						
@@ -1804,8 +1809,9 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 				catch (BoxException &e)
 				{
 					BOX_ERROR("Failed to create remote "
-						"directory '/" << ploc->mName <<
-						"', skipping location.");
+						"directory '/" << apLoc->mName <<
+						"', skipping location '" <<
+						apLoc->mName << "'");
 					continue;
 				}
 
@@ -1814,31 +1820,25 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 			// Create and store the directory object for the root of this location
 			ASSERT(oid != 0);
 			BackupClientDirectoryRecord *precord = new BackupClientDirectoryRecord(oid, i->first);
-			ploc->mpDirectoryRecord.reset(precord);
+			apLoc->mpDirectoryRecord.reset(precord);
 			
 			// Push it back on the vector of locations
-			mLocations.push_back(ploc);
+			mLocations.push_back(apLoc.release());
 		}
 		catch (std::exception &e)
 		{
 			BOX_ERROR("Failed to configure location '"
-				<< ploc->mName << "' path '"
-				<< ploc->mPath << "': " << e.what() <<
+				<< apLoc->mName << "' path '"
+				<< apLoc->mPath << "': " << e.what() <<
 				": please check for previous errors");
-			delete ploc;
-			ploc = 0;
 			throw;
 		}
 		catch(...)
 		{
 			BOX_ERROR("Failed to configure location '"
-				<< ploc->mName << "' path '"
-				<< ploc->mPath << "': please check for "
+				<< apLoc->mName << "' path '"
+				<< apLoc->mPath << "': please check for "
 				"previous errors");
-
-			delete ploc;
-			ploc = NULL;
-
 			throw;
 		}
 	}
