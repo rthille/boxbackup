@@ -129,6 +129,14 @@ void Timers::Remove(Timer& rTimer)
 	Reschedule();
 }
 
+#define FORMAT_BOX_TIME(t) \
+	(BoxTimeToSeconds(t)) << "." << \
+	(BoxTimeToMicroSeconds(t) % MICRO_SEC_IN_SEC)
+
+#define FORMAT_MICROSECONDS(t) \
+	(int)(t / 1000000) << "." << \
+	(int)(t % 1000000)
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -175,8 +183,7 @@ void Timers::Reschedule()
 		
 			if (timeToExpiry <= 0)
 			{
-				BOX_TRACE((int)(timeNow / 1000000) << "." <<
-					(int)(timeNow % 1000000) <<
+				BOX_TRACE(FORMAT_MICROSECONDS(timeNow) <<
 					": timer " << *i << " has expired, "
 					"triggering it");
 				rTimer.OnExpire();
@@ -186,12 +193,10 @@ void Timers::Reschedule()
 			}
 			else
 			{
-				BOX_TRACE((int)(timeNow / 1000000) << "." <<
-					(int)(timeNow % 1000000) <<
+				BOX_TRACE(FORMAT_MICROSECONDS(timeNow) <<
 					": timer " << *i << " has not "
 					"expired, triggering in " <<
-					(int)(timeToExpiry / 1000000) << "." <<
-					(int)(timeToExpiry % 1000000) <<
+					FORMAT_MICROSECONDS(timeToExpiry) <<
 					" seconds");
 			}
 		}
@@ -257,22 +262,20 @@ Timer::Timer(size_t timeoutSecs)
 : mExpires(GetCurrentBoxTime() + SecondsToBoxTime(timeoutSecs)),
   mExpired(false)
 {
-	#if !defined NDEBUG && !defined WIN32
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
+	#ifndef NDEBUG
+	box_time_t timeNow = GetCurrentBoxTime();
 	if (timeoutSecs == 0)
 	{
-		BOX_TRACE(tv.tv_sec << "." << tv.tv_usec <<
+		BOX_TRACE(FORMAT_BOX_TIME(timeNow) <<
 			": timer " << this << " initialised for " <<
 			timeoutSecs << " secs, will not fire");
 	}
 	else
 	{
-		BOX_TRACE(tv.tv_sec << "." << tv.tv_usec <<
+		BOX_TRACE(FORMAT_BOX_TIME(timeNow) <<
 			": timer " << this << " initialised for " <<
 			timeoutSecs << " secs, to fire at " <<
-			(int)(mExpires / 1000000) << "." <<
-			(int)(mExpires % 1000000));
+			FORMAT_MICROSECONDS(mExpires));
 	}
 	#endif
 
@@ -288,10 +291,9 @@ Timer::Timer(size_t timeoutSecs)
 
 Timer::~Timer()
 {
-	#if !defined NDEBUG && !defined WIN32
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	BOX_TRACE(tv.tv_sec << "." << tv.tv_usec <<
+	#ifndef NDEBUG
+	box_time_t timeNow = GetCurrentBoxTime();
+	BOX_TRACE(FORMAT_BOX_TIME(timeNow) <<
 		": timer " << this << " destroyed");
 	#endif
 
@@ -302,24 +304,23 @@ Timer::Timer(const Timer& rToCopy)
 : mExpires(rToCopy.mExpires),
   mExpired(rToCopy.mExpired)
 {
-	#if !defined NDEBUG && !defined WIN32
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
+	#ifndef NDEBUG
+	box_time_t timeNow = GetCurrentBoxTime();
 	if (mExpired)
 	{
-		BOX_TRACE(tv.tv_sec << "." << tv.tv_usec <<
+		BOX_TRACE(FORMAT_BOX_TIME(timeNow) <<
 			": timer " << this << " initialised from timer " <<
 			&rToCopy << ", already expired, will not fire");
 	}
 	else if (mExpires == 0)
 	{
-		BOX_TRACE(tv.tv_sec << "." << tv.tv_usec <<
+		BOX_TRACE(FORMAT_BOX_TIME(timeNow) <<
 			": timer " << this << " initialised from timer " <<
 			&rToCopy << ", no expiry, will not fire");
 	}
 	else
 	{
-		BOX_TRACE(tv.tv_sec << "." << tv.tv_usec <<
+		BOX_TRACE(FORMAT_BOX_TIME(timeNow) <<
 			": timer " << this << " initialised from timer " <<
 			&rToCopy << " to fire at " <<
 			(int)(mExpires / 1000000) << "." <<
@@ -335,24 +336,23 @@ Timer::Timer(const Timer& rToCopy)
 
 Timer& Timer::operator=(const Timer& rToCopy)
 {
-	#if !defined NDEBUG && !defined WIN32
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
+	#ifndef NDEBUG
+	box_time_t timeNow = GetCurrentBoxTime();
 	if (rToCopy.mExpired)
 	{
-		BOX_TRACE(tv.tv_sec << "." << tv.tv_usec <<
+		BOX_TRACE(FORMAT_BOX_TIME(timeNow) <<
 			": timer " << this << " initialised from timer " <<
 			&rToCopy << ", already expired, will not fire");
 	}
 	else if (rToCopy.mExpires == 0)
 	{
-		BOX_TRACE(tv.tv_sec << "." << tv.tv_usec <<
+		BOX_TRACE(FORMAT_BOX_TIME(timeNow) <<
 			": timer " << this << " initialised from timer " <<
 			&rToCopy << ", no expiry, will not fire");
 	}
 	else
 	{
-		BOX_TRACE(tv.tv_sec << "." << tv.tv_usec <<
+		BOX_TRACE(FORMAT_BOX_TIME(timeNow) <<
 			": timer " << this << " initialised from timer " <<
 			&rToCopy << " to fire at " <<
 			(int)(rToCopy.mExpires / 1000000) << "." <<
@@ -372,11 +372,9 @@ Timer& Timer::operator=(const Timer& rToCopy)
 
 void Timer::OnExpire()
 {
-	#if !defined NDEBUG && !defined WIN32
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	BOX_TRACE(tv.tv_sec << "." << tv.tv_usec <<
-		": timer " << this << " fired");
+	#ifndef NDEBUG
+	box_time_t timeNow = GetCurrentBoxTime();
+	BOX_TRACE(FORMAT_BOX_TIME(timeNow) << ": timer " << this << " fired");
 	#endif
 
 	mExpired = true;
