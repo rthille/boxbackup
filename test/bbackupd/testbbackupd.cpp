@@ -79,6 +79,27 @@
 // two cycles and a bit
 #define TIME_TO_WAIT_FOR_BACKUP_OPERATION	12
 
+// utility macro for comparing two strings in a line
+#define TEST_EQUAL(expected, found, line) \
+{ \
+	std::string exp_str = expected; \
+	std::string found_str = found; \
+	TEST_THAT(exp_str == found_str); \
+	if(exp_str != found_str) \
+	{ \
+		printf("Expected <%s> but found <%s> in <%s>\n", \
+			exp_str.c_str(), found_str.c_str(), line.c_str()); \
+	} \
+}
+
+// utility macro for testing a line
+#define TEST_LINE(condition, line) \
+	TEST_THAT(condition); \
+	if (!(condition)) \
+	{ \
+		printf("Test failed on <%s>\n", line.c_str()); \
+	}
+
 void wait_for_backup_operation(int seconds = TIME_TO_WAIT_FOR_BACKUP_OPERATION)
 {
 	wait_for_operation(seconds);
@@ -762,7 +783,10 @@ int test_bbackupd()
 		// something to diff against (empty file doesn't work)
 		int fd = open("testfiles/TestDir1/spacetest/f1", O_WRONLY);
 		TEST_THAT(fd > 0);
+
 		char buffer[10000];
+		memset(buffer, 0, sizeof(buffer));
+
 		TEST_THAT(write(fd, buffer, sizeof(buffer)) == sizeof(buffer));
 		TEST_THAT(close(fd) == 0);
 		
@@ -770,6 +794,9 @@ int test_bbackupd()
 		wait_for_backup_operation();
 		stop_internal_daemon(pid);
 
+		// two-second delay on the first read() of f1
+		// should mean that a single keepalive is sent,
+		// and diff does not abort.
 		intercept_setup_delay("testfiles/TestDir1/spacetest/f1", 
 			0, 2000, SYS_read, 1);
 		TEST_THAT(unlink("testfiles/bbackupd.log") == 0);
@@ -811,22 +838,30 @@ int test_bbackupd()
 			std::string line;
 			TEST_THAT(reader.GetLine(line));
 			std::string comp = "Receive Success(0x";
-			TEST_THAT(line.substr(0, comp.size()) == comp);
+			TEST_EQUAL(comp, line.substr(0, comp.size()), line);
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Receiving stream, size 124");
+			TEST_EQUAL("Receiving stream, size 124", line, line);
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Send GetIsAlive()");
+			TEST_EQUAL("Send GetIsAlive()", line, line);
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Receive IsAlive()");
+			TEST_EQUAL("Receive IsAlive()", line, line);
 
 			TEST_THAT(reader.GetLine(line));
 			comp = "Send StoreFile(0x3,";
-			TEST_THAT(line.substr(0, comp.size()) == comp);
+			TEST_EQUAL(comp, line.substr(0, comp.size()), line);
 			comp = ",\"f1\")";
-			TEST_THAT(line.substr(line.size() - comp.size())
-				== comp);
+			std::string sub = line.substr(line.size() - comp.size());
+			TEST_EQUAL(comp, sub, line);
+			std::string comp2 = ",0x0,";
+			sub = line.substr(line.size() - comp.size() -
+				comp2.size() + 1, comp2.size());
+			TEST_LINE(comp2 != sub, line);
 		}
 		
+		// four-second delay on first read() of f1
+		// should mean that no keepalives were sent,
+		// because diff was immediately aborted
+		// before any matching blocks could be found.
 		intercept_setup_delay("testfiles/TestDir1/spacetest/f1", 
 			0, 4000, SYS_read, 1);
 		pid = start_internal_daemon();
@@ -874,10 +909,10 @@ int test_bbackupd()
 
 			TEST_THAT(reader.GetLine(line));
 			comp = "Send StoreFile(0x3,";
-			TEST_THAT(line.substr(0, comp.size()) == comp);
+			TEST_EQUAL(comp, line.substr(0, comp.size()), line);
 			comp = ",0x0,\"f1\")";
-			TEST_THAT(line.substr(line.size() - comp.size())
-				== comp);
+			std::string sub = line.substr(line.size() - comp.size());
+			TEST_EQUAL(comp, sub, line);
 		}
 
 		intercept_setup_delay("testfiles/TestDir1/spacetest/f1", 
@@ -935,12 +970,20 @@ int test_bbackupd()
 			TEST_THAT(reader.GetLine(line));
 			TEST_THAT(line == "Receive IsAlive()");
 
+			// but two matching blocks should have been found
+			// already, so the upload should be a diff.
+
 			TEST_THAT(reader.GetLine(line));
 			comp = "Send StoreFile(0x3,";
-			TEST_THAT(line.substr(0, comp.size()) == comp);
-			comp = ",0x0,\"f1\")";
-			TEST_THAT(line.substr(line.size() - comp.size())
-				== comp);
+			TEST_EQUAL(comp, line.substr(0, comp.size()), line);
+			comp = ",\"f1\")";
+			std::string sub = line.substr(line.size() - comp.size());
+
+			TEST_EQUAL(comp, sub, line);
+			std::string comp2 = ",0x0,";
+			sub = line.substr(line.size() - comp.size() -
+				comp2.size() + 1, comp2.size());
+			TEST_LINE(comp2 != sub, line);
 		}
 
 		intercept_setup_readdir_hook("testfiles/TestDir1/spacetest/d1", 
@@ -1002,17 +1045,17 @@ int test_bbackupd()
 		{
 			std::string line;
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Receive Success(0x3)");
+			TEST_EQUAL("Receive Success(0x3)", line, line);
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Receiving stream, size 425");
+			TEST_EQUAL("Receiving stream, size 425", line, line);
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Send GetIsAlive()");
+			TEST_EQUAL("Send GetIsAlive()", line, line);
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Receive IsAlive()");
+			TEST_EQUAL("Receive IsAlive()", line, line);
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Send GetIsAlive()");
+			TEST_EQUAL("Send GetIsAlive()", line, line);
 			TEST_THAT(reader.GetLine(line));
-			TEST_THAT(line == "Receive IsAlive()");
+			TEST_EQUAL("Receive IsAlive()", line, line);
 		}
 
 		TEST_THAT(unlink(touchfile.c_str()) == 0);
