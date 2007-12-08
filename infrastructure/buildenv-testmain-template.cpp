@@ -109,6 +109,11 @@ int main(int argc, char * const * argv)
 	// Start memory leak testing
 	MEMLEAKFINDER_START
 
+	Logging::SetGlobalLevel(Log::NOTICE);
+	Logging::SetProgramName("test");
+	Logging::ToConsole(true);
+	Logging::ToSyslog(false);
+
 #ifdef HAVE_GETOPT_H
 	struct option longopts[] = 
 	{
