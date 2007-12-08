@@ -1022,12 +1022,169 @@ int test_bbackupd()
 	}
 #endif // PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
 
-	std::string cmd = BBACKUPD + bbackupd_args + " testfiles/bbackupd.conf";
+	std::string cmd = BBACKUPD " " + bbackupd_args + 
+		" testfiles/bbackupd-temploc.conf";
+
 	bbackupd_pid = LaunchServer(cmd, "testfiles/bbackupd.pid");
-
 	TEST_THAT(bbackupd_pid != -1 && bbackupd_pid != 0);
-
 	::safe_sleep(1);
+
+	TEST_THAT(ServerIsAlive(bbackupd_pid));
+	TEST_THAT(ServerIsAlive(bbstored_pid));
+	if (!ServerIsAlive(bbackupd_pid)) return 1;
+	if (!ServerIsAlive(bbstored_pid)) return 1;
+
+	#ifndef WIN32
+	printf("\n==== Testing that absolute symlinks are not followed "
+		"during restore\n");
+
+	{
+		#define SYM_DIR "testfiles" DIRECTORY_SEPARATOR "TestDir1" \
+			DIRECTORY_SEPARATOR "symlink_test"
+
+		TEST_THAT(::mkdir(SYM_DIR, 0777) == 0);
+		TEST_THAT(::mkdir(SYM_DIR DIRECTORY_SEPARATOR "a", 0777) == 0);
+		TEST_THAT(::mkdir(SYM_DIR DIRECTORY_SEPARATOR "a"
+			DIRECTORY_SEPARATOR "subdir", 0777) == 0);
+		TEST_THAT(::mkdir(SYM_DIR DIRECTORY_SEPARATOR "b", 0777) == 0);
+
+		FILE* fp = fopen(SYM_DIR DIRECTORY_SEPARATOR "a"
+			DIRECTORY_SEPARATOR "subdir"
+			DIRECTORY_SEPARATOR "content", "w");
+		TEST_THAT(fp != NULL);
+		fputs("before\n", fp);
+		fclose(fp);
+
+		char buf[PATH_MAX];
+		TEST_THAT(getcwd(buf, sizeof(buf)) != NULL);
+		std::string path = buf;
+		path += DIRECTORY_SEPARATOR SYM_DIR 
+			DIRECTORY_SEPARATOR "a"
+			DIRECTORY_SEPARATOR "subdir";
+		TEST_THAT(symlink(path.c_str(), SYM_DIR 
+			DIRECTORY_SEPARATOR "b"
+			DIRECTORY_SEPARATOR "link") == 0);
+
+		::wait_for_operation(4);
+		::sync_and_wait();
+
+		// Check that the backup was successful, i.e. no differences
+		int compareReturnValue = ::system(BBACKUPQUERY " -q "
+			"-c testfiles/bbackupd.conf "
+			"-l testfiles/query1.log "
+			"\"compare -acQ\" quit");
+		TEST_RETURN(compareReturnValue, 1);
+		TestRemoteProcessMemLeaks("bbackupquery.memleaks");
+
+		// now stop bbackupd and update the test file,
+		// make the original directory unreadable
+		terminate_bbackupd(bbackupd_pid);
+
+		fp = fopen(SYM_DIR DIRECTORY_SEPARATOR "a"
+			DIRECTORY_SEPARATOR "subdir"
+			DIRECTORY_SEPARATOR "content", "w");
+		TEST_THAT(fp != NULL);
+		fputs("after\n", fp);
+		fclose(fp);
+
+		TEST_THAT(chmod(SYM_DIR, 0) == 0);
+
+		// check that we can restore it
+		compareReturnValue = ::system(BBACKUPQUERY " "
+			"-c testfiles/bbackupd.conf "
+			"-q \"restore Test1 testfiles/restore-symlink\" "
+			"quit");
+		TEST_RETURN(compareReturnValue, 0);
+
+		// make it accessible again
+		TEST_THAT(chmod(SYM_DIR, 0755) == 0);
+
+		// check that the original file was not overwritten
+		FileStream fs(SYM_DIR "/a/subdir/content");
+		IOStreamGetLine gl(fs);
+		std::string line;
+		TEST_THAT(gl.GetLine(line));
+		TEST_THAT(line != "before");
+		TEST_THAT(line == "after");
+
+		#undef SYM_DIR
+
+		bbackupd_pid = LaunchServer(cmd, "testfiles/bbackupd.pid");
+		TEST_THAT(bbackupd_pid != -1 && bbackupd_pid != 0);
+		::safe_sleep(1);
+
+		TEST_THAT(ServerIsAlive(bbackupd_pid));
+		TEST_THAT(ServerIsAlive(bbstored_pid));
+		if (!ServerIsAlive(bbackupd_pid)) return 1;
+		if (!ServerIsAlive(bbstored_pid)) return 1;
+	}
+	#endif // ! WIN32
+
+	printf("\n==== Testing that redundant locations are deleted on time\n");
+
+	{
+		std::auto_ptr<BackupProtocolClient> client = Connect(
+			context,
+			BackupProtocolClientLogin::Flags_ReadOnly);
+		
+		std::auto_ptr<BackupStoreDirectory> dir = ReadDirectory(
+			*client,
+			BackupProtocolClientListDirectory::RootDirectory);
+
+		// int64_t testDirId = SearchDir(*dir, "Test2");
+		// TEST_THAT(testDirId == 0);
+
+		sync_and_wait();
+
+		dir = ReadDirectory(*client,
+			BackupProtocolClientListDirectory::RootDirectory);
+		int64_t testDirId = SearchDir(*dir, "Test2");
+		TEST_THAT(testDirId != 0);
+
+		// Kill the daemon
+		terminate_bbackupd(bbackupd_pid);
+
+		cmd = BBACKUPD " " + bbackupd_args +
+			" testfiles/bbackupd.conf";
+		bbackupd_pid = LaunchServer(cmd, "testfiles/bbackupd.pid");
+
+		TEST_THAT(bbackupd_pid != -1 && bbackupd_pid != 0);
+
+		::safe_sleep(1);
+
+		TEST_THAT(ServerIsAlive(bbackupd_pid));
+		TEST_THAT(ServerIsAlive(bbstored_pid));
+		if (!ServerIsAlive(bbackupd_pid)) return 1;
+		if (!ServerIsAlive(bbstored_pid)) return 1;
+
+		// Test2 should be deleted after 10 seconds (4 runs)
+		wait_for_sync_end();
+		wait_for_sync_end();
+		wait_for_sync_end();
+
+		dir = ReadDirectory(*client,
+			BackupProtocolClientListDirectory::RootDirectory);
+		testDirId = SearchDir(*dir, "Test2");
+		TEST_THAT(testDirId != 0);
+
+		wait_for_sync_end();
+		
+		dir = ReadDirectory(*client,
+			BackupProtocolClientListDirectory::RootDirectory);
+		testDirId = SearchDir(*dir, "Test2");
+		TEST_THAT(testDirId != 0);
+
+		BackupStoreDirectory::Iterator i(*dir);
+		BackupStoreFilenameClear dirname("Test2");
+		BackupStoreDirectory::Entry *en = i.FindMatchingClearName(dirname);
+		TEST_THAT(en != 0);
+		int16_t en_flags = en->GetFlags();
+		TEST_THAT(en_flags && BackupStoreDirectory::Entry::Flags_Deleted);
+
+		// Log out.
+		client->QueryFinished();
+		sSocket.Close();
+	}
 
 	TEST_THAT(ServerIsAlive(bbackupd_pid));
 	TEST_THAT(ServerIsAlive(bbstored_pid));
@@ -2791,7 +2948,8 @@ int test_bbackupd()
 		terminate_bbackupd(bbackupd_pid);
 		
 		// Start it again
-		cmd = BBACKUPD + bbackupd_args + " testfiles/bbackupd.conf";
+		cmd = BBACKUPD " " + bbackupd_args +
+			" testfiles/bbackupd.conf";
 		bbackupd_pid = LaunchServer(cmd, "testfiles/bbackupd.pid");
 
 		TEST_THAT(bbackupd_pid != -1 && bbackupd_pid != 0);
