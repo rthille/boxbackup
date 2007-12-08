@@ -604,8 +604,23 @@ int start_internal_daemon()
 	// ensure that no child processes end up running tests!
 	int own_pid = getpid();
 		
+	// this is a quick hack to allow passing some options to the daemon
+	const char* argv[] = {
+		"dummy",
+		bbackupd_args.c_str(),
+	};
+
 	BackupDaemon daemon;
-	int result = daemon.Main("testfiles/bbackupd.conf");
+	int result;
+
+	if (bbackupd_args.size() > 0)
+	{
+		result = daemon.Main("testfiles/bbackupd.conf", 2, argv);
+	}
+	else
+	{
+		result = daemon.Main("testfiles/bbackupd.conf", 1, argv);
+	}
 	
 	TEST_THAT(result == 0);
 	if (result != 0)
@@ -862,6 +877,7 @@ int test_bbackupd()
 		// should mean that no keepalives were sent,
 		// because diff was immediately aborted
 		// before any matching blocks could be found.
+
 		intercept_setup_delay("testfiles/TestDir1/spacetest/f1", 
 			0, 4000, SYS_read, 1);
 		pid = start_internal_daemon();
@@ -913,6 +929,12 @@ int test_bbackupd()
 			comp = ",0x0,\"f1\")";
 			std::string sub = line.substr(line.size() - comp.size());
 			TEST_EQUAL(comp, sub, line);
+		}
+
+		if (failures > 0)
+		{
+			// stop early to make debugging easier
+			return 1;
 		}
 
 		intercept_setup_delay("testfiles/TestDir1/spacetest/f1", 
@@ -986,6 +1008,12 @@ int test_bbackupd()
 			TEST_LINE(comp2 != sub, line);
 		}
 
+		if (failures > 0)
+		{
+			// stop early to make debugging easier
+			return 1;
+		}
+
 		intercept_setup_readdir_hook("testfiles/TestDir1/spacetest/d1", 
 			readdir_test_hook_1);
 		
@@ -1056,6 +1084,12 @@ int test_bbackupd()
 			TEST_EQUAL("Send GetIsAlive()", line, line);
 			TEST_THAT(reader.GetLine(line));
 			TEST_EQUAL("Receive IsAlive()", line, line);
+		}
+
+		if (failures > 0)
+		{
+			// stop early to make debugging easier
+			return 1;
 		}
 
 		TEST_THAT(unlink(touchfile.c_str()) == 0);
