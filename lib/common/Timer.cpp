@@ -39,9 +39,16 @@ void Timers::Init()
 		InitTimer();
 		SetTimerHandler(Timers::SignalHandler);
 	#else
-		sighandler_t oldHandler = ::signal(SIGALRM, 
-			Timers::SignalHandler);
-		ASSERT(oldHandler == 0);
+		struct sigaction newact, oldact;
+		newact.sa_handler = Timers::SignalHandler;
+		newact.sa_flags = SA_RESTART;
+		sigemptyset(&newact.sa_mask);
+		if (::sigaction(SIGALRM, &newact, &oldact) != 0)
+		{
+			BOX_ERROR("Failed to install signal handler");
+			THROW_EXCEPTION(CommonException, Internal);
+		}
+		ASSERT(oldact.sa_handler == 0);
 	#endif // WIN32 && !PLATFORM_CYGWIN
 	
 	spTimers = new std::vector<Timer*>;
@@ -70,8 +77,16 @@ void Timers::Cleanup()
 		int result = ::setitimer(ITIMER_REAL, &timeout, NULL);
 		ASSERT(result == 0);
 
-		sighandler_t oldHandler = ::signal(SIGALRM, NULL);
-		ASSERT(oldHandler == Timers::SignalHandler);
+		struct sigaction newact, oldact;
+		newact.sa_handler = SIG_DFL;
+		newact.sa_flags = SA_RESTART;
+		sigemptyset(&(newact.sa_mask));
+		if (::sigaction(SIGALRM, &newact, &oldact) != 0)
+		{
+			BOX_ERROR("Failed to remove signal handler");
+			THROW_EXCEPTION(CommonException, Internal);
+		}
+		ASSERT(oldact.sa_handler == Timers::SignalHandler);
 	#endif // WIN32 && !PLATFORM_CYGWIN
 
 	spTimers->clear();
@@ -154,10 +169,21 @@ void Timers::Reschedule()
 	}
 
 	#ifndef WIN32
-	if (::signal(SIGALRM, Timers::SignalHandler) != Timers::SignalHandler)
-	{
-		THROW_EXCEPTION(CommonException, Internal)
-	}
+		struct sigaction oldact;
+		if (::sigaction(SIGALRM, NULL, &oldact) != 0)
+		{
+			BOX_ERROR("Failed to check signal handler");
+			THROW_EXCEPTION(CommonException, Internal)
+		}
+
+		ASSERT(oldact.sa_handler == Timers::SignalHandler);
+
+		if (oldact.sa_handler != Timers::SignalHandler)
+		{
+			printf("Signal handler was %p, expected %p\n", 
+				oldact.sa_handler, Timers::SignalHandler);
+			THROW_EXCEPTION(CommonException, Internal)
+		}
 	#endif
 
 	// Clear the reschedule-needed flag to false before we start.
