@@ -872,7 +872,14 @@ int test_bbackupd()
 				comp2.size() + 1, comp2.size());
 			TEST_LINE(comp2 != sub, line);
 		}
-		
+	
+		if (failures > 0)
+		{
+			// stop early to make debugging easier
+			Timers::Init();
+			return 1;
+		}
+	
 		// four-second delay on first read() of f1
 		// should mean that no keepalives were sent,
 		// because diff was immediately aborted
@@ -934,6 +941,7 @@ int test_bbackupd()
 		if (failures > 0)
 		{
 			// stop early to make debugging easier
+			Timers::Init();
 			return 1;
 		}
 
@@ -1011,6 +1019,7 @@ int test_bbackupd()
 		if (failures > 0)
 		{
 			// stop early to make debugging easier
+			Timers::Init();
 			return 1;
 		}
 
@@ -1089,6 +1098,7 @@ int test_bbackupd()
 		if (failures > 0)
 		{
 			// stop early to make debugging easier
+			Timers::Init();
 			return 1;
 		}
 
