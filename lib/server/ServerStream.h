@@ -227,13 +227,17 @@ public:
 
 				if(psocket)
 				{
-					// Get the incomming connection (with zero wait time)
+					// Get the incoming connection
+					// (with zero wait time)
 					std::string logMessage;
 					std::auto_ptr<StreamType> connection(psocket->Accept(0, &logMessage));
 
 					// Was there one (there should be...)
 					if(connection.get())
 					{
+						// Log who connected
+						BOX_NOTICE(logMessage);
+
 						// Since this is a template parameter, the if() will be optimised out by the compiler
 						#ifndef WIN32 // no fork on Win32
 						if(ForkToHandleRequests && !IsSingleProcess())
@@ -270,9 +274,6 @@ public:
 								// parent daemon process
 								break;
 							}
-							
-							// Log it
-							BOX_WARNING("Error message from child process " << pid << ": " << logMessage);
 						}
 						else
 						{
