@@ -1806,7 +1806,7 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 #ifdef HAVE_STRUCT_STATVFS_F_MNTONNAME
 				struct statvfs s;
 				if(::statvfs(apLoc->mPath.c_str(), &s) != 0)
-#else // HAVE_STRUCT_STATVFS_F_MNTONNAME
+#else // !HAVE_STRUCT_STATVFS_F_MNTONNAME
 				struct statfs s;
 				if(::statfs(apLoc->mPath.c_str(), &s) != 0)
 #endif // HAVE_STRUCT_STATVFS_F_MNTONNAME
