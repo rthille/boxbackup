@@ -983,6 +983,9 @@ void BackupDaemon::Run2()
 					SecondsToBoxTime(
 						conf.GetKeyValueInt(
 							"MaxFileTimeInFuture"));
+				mDeleteRedundantLocationsAfter =
+					conf.GetKeyValueInt(
+						"DeleteRedundantLocationsAfter");
 
 				clientContext.SetMaximumDiffingTime(maximumDiffingTime);
 				clientContext.SetKeepAliveTime(keepAliveTime);
@@ -1766,7 +1769,7 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 	for(std::list<std::pair<std::string, Configuration> >::const_iterator i = rLocationsConf.mSubConfigurations.begin();
 		i != rLocationsConf.mSubConfigurations.end(); ++i)
 	{
-		BOX_TRACE("new location");
+		BOX_TRACE("new location: " << i->first);
 		// Create a record for it
 		std::auto_ptr<Location> apLoc(new Location);
 
@@ -1938,6 +1941,8 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 				<< apLoc->mName << "' path '"
 				<< apLoc->mPath << "': " << e.what() <<
 				": please check for previous errors");
+			delete ploc;
+			ploc = 0;
 			throw;
 		}
 		catch(...)
@@ -1953,6 +1958,23 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 	// Any entries in the root directory which need deleting?
 	if(dir.GetNumberOfEntries() > 0)
 	{
+		box_time_t now = GetCurrentBoxTime();
+
+		// This should reset the timer if the list of unused
+		// locations changes, but it will not if the number of
+		// unused locations does not change, but the locations
+		// do change, e.g. one mysteriously appears and another
+		// mysteriously appears. (FIXME)
+		if (dir.GetNumberOfEntries() != mUnusedRootDirEntries.size() ||
+			mDeleteUnusedRootDirEntriesAfter == 0)
+		{
+			mDeleteUnusedRootDirEntriesAfter = now + 
+				SecondsToBoxTime(mDeleteRedundantLocationsAfter);
+		}
+
+		int secs = BoxTimeToSeconds(mDeleteUnusedRootDirEntriesAfter
+			- now);
+
 		BOX_NOTICE(dir.GetNumberOfEntries() << " redundant locations "
 			"in root directory found, will delete from store "
 			"after " << BACKUP_DELETE_UNUSED_ROOT_ENTRIES_AFTER 

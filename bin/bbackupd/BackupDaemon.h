@@ -166,6 +166,8 @@ private:
 	std::vector<BackupClientInodeToIDMap *> mCurrentIDMaps;
 	std::vector<BackupClientInodeToIDMap *> mNewIDMaps;
 	
+	int mDeleteRedundantLocationsAfter;
+
 	// For the command socket
 	class CommandSocketInfo
 	{
