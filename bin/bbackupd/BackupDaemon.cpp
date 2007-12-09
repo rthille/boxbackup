@@ -1977,8 +1977,7 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 
 		BOX_NOTICE(dir.GetNumberOfEntries() << " redundant locations "
 			"in root directory found, will delete from store "
-			"after " << BACKUP_DELETE_UNUSED_ROOT_ENTRIES_AFTER 
-			<< " seconds.");
+			"after " << secs << " seconds.");
 
 		// Store directories in list of things to delete
 		mUnusedRootDirEntries.clear();
@@ -1989,14 +1988,13 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 			// Add name to list
 			BackupStoreFilenameClear clear(en->GetName());
 			const std::string &name(clear.GetClearFilename());
-			mUnusedRootDirEntries.push_back(std::pair<int64_t,std::string>(en->GetObjectID(), name));
+			mUnusedRootDirEntries.push_back(
+				std::pair<int64_t,std::string>
+				(en->GetObjectID(), name));
 			// Log this
 			BOX_INFO("Unused location in root: " << name);
 		}
 		ASSERT(mUnusedRootDirEntries.size() > 0);
-		// Time to delete them
-		mDeleteUnusedRootDirEntriesAfter =
-			GetCurrentBoxTime() + SecondsToBoxTime(BACKUP_DELETE_UNUSED_ROOT_ENTRIES_AFTER);
 	}
 }
 
@@ -2438,16 +2436,27 @@ void BackupDaemon::NotifySysadmin(int Event)
 // --------------------------------------------------------------------------
 void BackupDaemon::DeleteUnusedRootDirEntries(BackupClientContext &rContext)
 {
-	if(mUnusedRootDirEntries.empty() || mDeleteUnusedRootDirEntriesAfter == 0)
+	if(mUnusedRootDirEntries.empty())
 	{
-		// Nothing to do.
+		BOX_INFO("Not deleting unused entries - none in list");
 		return;
 	}
 	
-	// Check time
-	if(GetCurrentBoxTime() < mDeleteUnusedRootDirEntriesAfter)
+	if(mDeleteUnusedRootDirEntriesAfter == 0)
 	{
-		// Too early to delete files
+		BOX_INFO("Not deleting unused entries - "
+			"zero delete time (bad)");
+		return;
+	}
+
+	// Check time
+	box_time_t now = GetCurrentBoxTime();
+	if(now < mDeleteUnusedRootDirEntriesAfter)
+	{
+		int secs = BoxTimeToSeconds(mDeleteUnusedRootDirEntriesAfter
+			- now);
+		BOX_INFO("Not deleting unused entries - too early ("
+			<< secs << " seconds remaining)");
 		return;
 	}
 
