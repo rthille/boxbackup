@@ -1941,8 +1941,6 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 				<< apLoc->mName << "' path '"
 				<< apLoc->mPath << "': " << e.what() <<
 				": please check for previous errors");
-			delete ploc;
-			ploc = 0;
 			throw;
 		}
 		catch(...)
