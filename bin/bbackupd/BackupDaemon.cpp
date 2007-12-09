@@ -2369,10 +2369,11 @@ void BackupDaemon::NotifySysadmin(int Event)
 		return;
 	}
 
-	// Is there a notifation script?
+	// Is there a notification script?
 	const Configuration &conf(GetConfiguration());
 	if(!conf.KeyExists("NotifyScript"))
 	{
+		// Log, and then return
 		if(Event != NotifyEvent_BackupStart &&
 			Event != NotifyEvent_BackupFinish)
 		{
