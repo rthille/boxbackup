@@ -47,7 +47,8 @@
 	std::internal << \
 	std::setw(10) << \
 	std::setfill('0') << \
-	(accno)
+	(accno) \\
+	std::dec
 
 #define BOX_FORMAT_OBJECTID(objectid) \
 	std::hex << \
