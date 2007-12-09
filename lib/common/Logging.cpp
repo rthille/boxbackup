@@ -264,6 +264,7 @@ bool Console::Log(Log::Level level, const std::string& rFile,
 	msg += rMessage;
 
 	fprintf(target, "%s\n", msg.c_str());
+	fflush(target);
 	
 	return true;
 }
