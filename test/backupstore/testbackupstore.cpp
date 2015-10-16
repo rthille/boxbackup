@@ -141,6 +141,32 @@ static const char *uploads_filenames[] = {"49587fds", "cvhjhj324", "sdfcscs324",
 #define UNLINK_IF_EXISTS(filename) \
 	if (FileExists(filename)) { TEST_THAT(unlink(filename) == 0); }
 
+int s3simulator_pid = 0;
+
+bool StartSimulator()
+{
+	s3simulator_pid = StartDaemon(s3simulator_pid,
+		"../../bin/s3simulator/s3simulator " + bbstored_args +
+		" testfiles/s3simulator.conf", "testfiles/s3simulator.pid");
+	return s3simulator_pid != 0;
+}
+
+bool StopSimulator()
+{
+	bool result = StopDaemon(s3simulator_pid, "testfiles/s3simulator.pid",
+		"s3simulator.memleaks", true);
+	s3simulator_pid = 0;
+	return result;
+}
+
+bool kill_running_daemons()
+{
+	TEST_THAT_OR(::system("test ! -r testfiles/s3simulator.pid || "
+		"kill `cat testfiles/s3simulator.pid`") == 0, FAIL);
+	TEST_THAT_OR(::system("rm -f testfiles/s3simulator.pid") == 0, FAIL);
+	return true;
+}
+
 //! Simplifies calling setUp() with the current function name in each test.
 #define SETUP_TEST_BACKUPSTORE() \
 	SETUP(); \
@@ -3232,6 +3258,39 @@ bool test_read_write_attr_streamformat()
 	TEARDOWN_TEST_BACKUPSTORE();
 }
 
+bool test_s3backupfilesystem(Configuration& config, S3BackupAccountControl& s3control)
+{
+	SETUP_TEST_BACKUPSTORE();
+
+	// Test that S3BackupFileSystem returns a RevisionID based on the ETag (MD5
+	// checksum) of the file.
+	// rand() is platform-specific, so we can't rely on it to generate files with a
+	// particular ETag, so we write the file ourselves instead.
+	{
+		FileStream fs("testfiles/store/subdir/0.file", O_CREAT | O_WRONLY | O_BINARY);
+		for(int i = 0; i < 455; i++)
+		{
+			char c = (char)i;
+			fs.Write(&c, 1);
+		}
+	}
+
+	const Configuration s3config = config.GetSubConfiguration("S3Store");
+	S3Client client(s3config);
+	HTTPResponse response = client.HeadObject("/subdir/0.file");
+	client.CheckResponse(response, "Failed to get file /subdir/0.file");
+
+	std::string etag = response.GetHeaderValue("etag");
+	TEST_EQUAL("\"447baac70b0149224b4f48daedf5266f\"", etag);
+
+	S3BackupFileSystem fs(config, "/subdir/", DEFAULT_S3_CACHE_DIR, client);
+	int64_t revision_id = 0, expected_id = 0x447baac70b014922;
+	TEST_THAT(fs.ObjectExists(0, &revision_id));
+	TEST_EQUAL(expected_id, revision_id);
+
+	TEARDOWN_TEST_BACKUPSTORE();
+}
+
 int test(int argc, const char *argv[])
 {
 	TEST_THAT(test_open_files_with_limited_win32_permissions());
@@ -3274,6 +3333,26 @@ int test(int argc, const char *argv[])
 		for(int l = 0; l < ATTR3_SIZE; ++l) {attr3[l] = r.next();}
 	}
 
+	context.Initialise(false /* client */,
+			"testfiles/clientCerts.pem",
+			"testfiles/clientPrivKey.pem",
+			"testfiles/clientTrustedCAs.pem");
+
+	std::auto_ptr<Configuration> s3config = load_config_file(
+		DEFAULT_BBACKUPD_CONFIG_FILE, BackupDaemonConfigVerify);
+	// Use an auto_ptr so we can release it, and thus the lock, before stopping the
+	// daemon on which locking relies:
+	std::auto_ptr<S3BackupAccountControl> ap_s3control(
+		new S3BackupAccountControl(*s3config));
+
+	std::auto_ptr<Configuration> storeconfig = load_config_file(
+		DEFAULT_BBSTORED_CONFIG_FILE, BackupConfigFileVerify);
+	BackupStoreAccountControl storecontrol(*storeconfig, 0x01234567);
+
+	TEST_THAT(kill_running_daemons());
+	TEST_THAT(StartSimulator());
+	TEST_THAT(test_s3backupfilesystem(*s3config, *ap_s3control));
+
 	TEST_THAT(test_filename_encoding());
 	TEST_THAT(test_temporary_refcount_db_is_independent());
 	TEST_THAT(test_bbstoreaccounts_create());
@@ -3285,11 +3364,6 @@ int test(int argc, const char *argv[])
 	TEST_THAT(test_symlinks());
 	TEST_THAT(test_store_info());
 
-	context.Initialise(false /* client */,
-			"testfiles/clientCerts.pem",
-			"testfiles/clientPrivKey.pem",
-			"testfiles/clientTrustedCAs.pem");
-
 	TEST_THAT(test_login_without_account());
 	TEST_THAT(test_login_with_disabled_account());
 	TEST_THAT(test_login_with_no_refcount_db());
@@ -3299,6 +3373,10 @@ int test(int argc, const char *argv[])
 	TEST_THAT(test_multiple_uploads());
 	TEST_THAT(test_housekeeping_deletes_files());
 	TEST_THAT(test_read_write_attr_streamformat());
+
+	// Release lock before shutting down the simulator:
+	ap_s3control.reset();
+	TEST_THAT(StopSimulator());
 
 	return finish_test_suite();
 }
