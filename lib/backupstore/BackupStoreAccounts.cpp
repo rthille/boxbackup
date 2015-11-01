@@ -206,5 +206,3 @@ void BackupStoreAccounts::LockAccount(int32_t ID, NamedLock& rNamedLock)
 			"lock on account " << BOX_FORMAT_ACCOUNT(ID));
 	}
 }
-
-

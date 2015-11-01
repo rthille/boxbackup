@@ -119,6 +119,31 @@ BackupStoreInfo::BackupStoreInfo(int32_t AccountID, const std::string &FileName,
 	mExtraData.SetForReading(); // extra data is empty in this case
 }
 
+BackupStoreInfo::BackupStoreInfo(int32_t AccountID, int64_t BlockSoftLimit,
+	int64_t BlockHardLimit)
+: mAccountID(AccountID),
+  mDiscSet(-1),
+  mReadOnly(false),
+  mIsModified(false),
+  mClientStoreMarker(0),
+  mLastObjectIDUsed(0),
+  mBlocksUsed(0),
+  mBlocksInCurrentFiles(0),
+  mBlocksInOldFiles(0),
+  mBlocksInDeletedFiles(0),
+  mBlocksInDirectories(0),
+  mBlocksSoftLimit(BlockSoftLimit),
+  mBlocksHardLimit(BlockHardLimit),
+  mNumCurrentFiles(0),
+  mNumOldFiles(0),
+  mNumDeletedFiles(0),
+  mNumDirectories(0),
+  mAccountEnabled(true)
+{
+	mExtraData.SetForReading(); // extra data is empty in this case
+}
+
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -152,7 +177,7 @@ std::auto_ptr<BackupStoreInfo> BackupStoreInfo::Load(int32_t AccountID,
 }
 
 std::auto_ptr<BackupStoreInfo> BackupStoreInfo::Load(IOStream& rStream,
-	const std::string FileName, bool ReadOnly)
+	const std::string& FileName, bool ReadOnly)
 {
 	// Read in format and version
 	int32_t magic;
