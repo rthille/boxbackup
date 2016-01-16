@@ -22,6 +22,7 @@
 #include "autogen_HTTPException.h"
 #include "IOStream.h"
 #include "Logging.h"
+#include "MD5Digest.h"
 #include "S3Simulator.h"
 #include "decode.h"
 #include "encode.h"
@@ -269,17 +270,55 @@ void S3Simulator::HandleGet(HTTPRequest &rRequest, HTTPResponse &rResponse)
 	path += rRequest.GetRequestURI();
 	std::auto_ptr<FileStream> apFile;
 	apFile.reset(new FileStream(path));
+	bool IncludeContent = true;
+	int64_t file_length;
+
+	std::string digest;
+	{
+		MD5DigestStream digester;
+		apFile->CopyStreamTo(digester);
+		file_length = apFile->GetPosition();
+		apFile->Seek(0, IOStream::SeekType_Absolute);
+		digester.Close();
+		digest = "\"" + digester.DigestAsString() + "\"";
+	}
 
 	rResponse.SetResponseCode(HTTPResponse::Code_OK);
 
-	if(true)
+	if(!IncludeContent)
+	{
+		// For HEAD requests, we must set the Content-Length. See RFC 2616 section
+		// 4.4, and the Amazon Simple Storage Service API Reference, section "HEAD
+		// Object" examples, which set it. Also, our S3BackupFileSystem needs it!
+		//
+		// There are no examples for 304 Not Modified responses to requests with
+		// If-None-Match (ETag match) so clients should not depend on this, so the
+		// S3Simulator should return 0 instead of the object size and no ETag, to
+		// ensure that any code which tries to use the Content-Length or ETag of
+		// such a response will fail.
+		//
+		// We do that by checking IncludeContent here, before clearing it in case
+		// of a digest match below, to leave them unset in that case.
+		rResponse.GetHeaders().SetContentLength(file_length);
+		rResponse.AddHeader("ETag", digest);
+	}
+
+	std::string if_none_match = rRequest.GetHeaders().GetHeaderValue("if-none-match",
+		false); // required
+	if(digest == if_none_match)
+	{
+		rResponse.SetResponseCode(HTTPResponse::Code_NotModified);
+		IncludeContent = false;
+	}
+
+	if(IncludeContent)
 	{
 		apFile->CopyStreamTo(rResponse);
 		// We allow the HTTPResponse to set the response size itself in this case,
 		// but we must add the ETag header. TODO: proper support for streaming
 		// responses will require us to set the content-length here, because we
 		// know it but the HTTPResponse does not.
-		rResponse.AddHeader("ETag", "\"828ef3fdfa96f00ad9f27c383fc9ac7f\"");
+		rResponse.AddHeader("ETag", digest);
 	}
 
 	// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/UsingRESTOperations.html
@@ -310,7 +349,7 @@ void S3Simulator::HandlePut(HTTPRequest &rRequest, HTTPResponse &rResponse)
 
 	try
 	{
-		apFile.reset(new FileStream(path, O_CREAT | O_WRONLY));
+		apFile.reset(new FileStream(path, O_CREAT | O_RDWR));
 	}
 	catch (CommonException &ce)
 	{
@@ -330,14 +369,23 @@ void S3Simulator::HandlePut(HTTPRequest &rRequest, HTTPResponse &rResponse)
 		rResponse.SendContinue();
 	}
 
-	rRequest.ReadContent(*apFile, IOStream::TimeOutInfinite);
+	rRequest.ReadContent(*apFile, GetTimeout());
+	apFile->Seek(0, IOStream::SeekType_Absolute);
+
+	std::string digest;
+	{
+		MD5DigestStream digester;
+		apFile->CopyStreamTo(digester);
+		digester.Close();
+		digest = "\"" + digester.DigestAsString() + "\"";
+	}
 
 	// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/RESTObjectPUT.html
 	rResponse.AddHeader("x-amz-id-2", "LriYPLdmOdAiIfgSm/F1YsViT1LW94/xUQxMsF7xiEb1a0wiIOIxl+zbwZ163pt7");
 	rResponse.AddHeader("x-amz-request-id", "F2A8CCCA26B4B26D");
 	rResponse.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
 	rResponse.AddHeader("Last-Modified", "Sun, 1 Jan 2006 12:00:00 GMT");
-	rResponse.AddHeader("ETag", "\"828ef3fdfa96f00ad9f27c383fc9ac7f\"");
+	rResponse.AddHeader("ETag", digest);
 	rResponse.SetContentType("");
 	rResponse.AddHeader("Server", "AmazonS3");
 	rResponse.SetResponseCode(HTTPResponse::Code_OK);

@@ -153,6 +153,46 @@ bool exercise_s3client(S3Client& client)
 	TEST_EQUAL(404, response.GetResponseCode());
 	TEST_THAT(!response.IsKeepAlive());
 
+	FileStream fs("testfiles/dsfdsfs98.fd");
+	std::string digest;
+
+	{
+		MD5DigestStream digester;
+		fs.CopyStreamTo(digester);
+		fs.Seek(0, IOStream::SeekType_Absolute);
+		digester.Close();
+		digest = digester.DigestAsString();
+		TEST_EQUAL("dc3b8c5e57e71d31a0a9d7cbeee2e011", digest);
+	}
+
+	// TODO: upload this file using PUT instead:
+	{
+		FileStream newfile("testfiles/store/newfile", O_CREAT | O_WRONLY | O_BINARY);
+		fs.CopyStreamTo(newfile);
+		fs.Seek(0, IOStream::SeekType_Absolute);
+	}
+
+	response = client.GetObject("/newfile");
+	TEST_EQUAL(200, response.GetResponseCode());
+	TEST_THAT(fs.CompareWith(response));
+	TEST_EQUAL("\"" + digest + "\"", response.GetHeaders().GetHeaderValue("etag"));
+
+	// Try to get it again, with the etag of the existing copy, and check that we get
+	// a 304 Not Modified response.
+	response = client.GetObject("/newfile", digest);
+	TEST_EQUAL(HTTPResponse::Code_NotModified, response.GetResponseCode());
+
+	// We should have received a Content-Length of 0 (not the file size) in
+	// this case. See comments in S3Simulator.cpp for reason: we have no
+	// evidence that S3 itself provides this header for 304 responses.
+	// Also, presumably we already have the file in this case, so we know
+	// its size and digest, and don't need the server to tell us.
+	TEST_EQUAL(0, response.GetContentLength());
+	TEST_EQUAL(false, response.GetHeaders().HasHeader("etag"));
+
+	// This will fail if the file was created in the wrong place:
+	TEST_EQUAL(0, ::unlink("testfiles/store/newfile"));
+
 	// Test is successful if the number of failures has not increased.
 	return (num_failures == num_failures_initial);
 }
@@ -468,6 +508,9 @@ bool test_httpserver()
 		in.CopyStreamTo(out);
 	}
 
+	// TODO: refactor all the tests that work on either an in-process S3Simulator or
+	// an HTTP connection to try both. Especially merge the two PUT /newfile tests.
+
 	// This is the example from the Amazon S3 Developers Guide, page 31.
 	// Correct, official signature should succeed, with lower-case headers.
 	{
@@ -541,6 +584,44 @@ bool test_httpserver()
 		S3Client client(&simulator, "johnsmith.s3.amazonaws.com",
 			EXAMPLE_S3_ACCESS_KEY, EXAMPLE_S3_SECRET_KEY);
 		TEST_THAT(exercise_s3client(client));
+	}
+
+	// Try uploading a file
+	{
+		HTTPRequest request(HTTPRequest::Method_PUT, "/newfile");
+		request.SetHostName("quotes.s3.amazonaws.com");
+		request.AddHeader("date", "Wed, 01 Mar  2006 12:00:00 GMT");
+		request.AddHeader("authorization",
+			"AWS 0PN5J17HBGZHT7JJ3X82:XtMYZf0hdOo4TdPYQknZk0Lz7rw=");
+		// request.AddHeader("Content-Type", "text/plain");
+
+		FileStream fs("testfiles/dsfdsfs98.fd");
+		request.SetDataStream(&fs);
+		request.SetForReading();
+
+		CollectInBufferStream response_buffer;
+		HTTPResponse response(&response_buffer);
+
+		S3Simulator simulator;
+		simulator.Configure("testfiles/s3simulator.conf");
+		simulator.Handle(request, response);
+
+		TEST_EQUAL(200, response.GetResponseCode());
+		TEST_EQUAL("LriYPLdmOdAiIfgSm/F1YsViT1LW94/xUQxMsF7xiEb1a0wiIOIxl+zbwZ163pt7",
+			response.GetHeaderValue("x-amz-id-2"));
+		TEST_EQUAL("F2A8CCCA26B4B26D", response.GetHeaderValue("x-amz-request-id"));
+		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT", response.GetHeaderValue("Date"));
+		TEST_EQUAL("Sun, 1 Jan 2006 12:00:00 GMT", response.GetHeaderValue("Last-Modified"));
+		TEST_EQUAL("\"dc3b8c5e57e71d31a0a9d7cbeee2e011\"", response.GetHeaderValue("ETag"));
+		TEST_EQUAL("", response.GetContentType());
+		TEST_EQUAL("AmazonS3", response.GetHeaderValue("Server"));
+		TEST_EQUAL(0, response.GetSize());
+		TEST_THAT(!response.IsKeepAlive());
+
+		FileStream f1("testfiles/dsfdsfs98.fd");
+		FileStream f2("testfiles/store/newfile");
+		TEST_THAT(f1.CompareWith(f2));
+		TEST_EQUAL(0, ::unlink("testfiles/store/newfile"));
 	}
 
 	// Start the S3Simulator server
@@ -619,6 +700,35 @@ bool test_httpserver()
 
 		FileStream file("testfiles/dsfdsfs98.fd");
 		TEST_THAT(file.CompareWith(response));
+	}
+
+	{
+		SocketStream sock;
+		sock.Open(Socket::TypeINET, "localhost", 1080);
+
+		HTTPRequest request(HTTPRequest::Method_PUT, "/newfile");
+		request.SetHostName("quotes.s3.amazonaws.com");
+		request.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
+		request.AddHeader("Authorization", "AWS 0PN5J17HBGZHT7JJ3X82:kfY1m6V3zTufRy2kj92FpQGKz4M=");
+		request.AddHeader("Content-Type", "text/plain");
+		FileStream fs("testfiles/dsfdsfs98.fd");
+		HTTPResponse response;
+		request.SendWithStream(sock, LONG_TIMEOUT, &fs, response);
+		std::string value;
+		TEST_EQUAL(200, response.GetResponseCode());
+		TEST_EQUAL("LriYPLdmOdAiIfgSm/F1YsViT1LW94/xUQxMsF7xiEb1a0wiIOIxl+zbwZ163pt7", response.GetHeaderValue("x-amz-id-2"));
+		TEST_EQUAL("F2A8CCCA26B4B26D", response.GetHeaderValue("x-amz-request-id"));
+		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT", response.GetHeaderValue("Date"));
+		TEST_EQUAL("Sun, 1 Jan 2006 12:00:00 GMT", response.GetHeaderValue("Last-Modified"));
+		TEST_EQUAL("\"dc3b8c5e57e71d31a0a9d7cbeee2e011\"", response.GetHeaderValue("ETag"));
+		TEST_EQUAL("", response.GetContentType());
+		TEST_EQUAL("AmazonS3", response.GetHeaderValue("Server"));
+		TEST_EQUAL(0, response.GetSize());
+		TEST_THAT(!response.IsKeepAlive());
+
+		FileStream f1("testfiles/dsfdsfs98.fd");
+		FileStream f2("testfiles/store/newfile");
+		TEST_THAT(f1.CompareWith(f2));
 	}
 
 	// S3Client tests with S3Simulator daemon for realism

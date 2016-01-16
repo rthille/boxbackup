@@ -31,16 +31,26 @@
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    S3Client::GetObject(const std::string& rObjectURI)
+//		Name:    S3Client::GetObject(const std::string& rObjectURI,
+//			 const std::string& MD5Checksum)
 //		Purpose: Retrieve the object with the specified URI (key)
-//			 from your S3 bucket.
+//			 from your S3 bucket. If you supply an MD5 checksum,
+//			 then it is assumed that you already have the file
+//			 data with that checksum, and if the file version on
+//			 the server is the same, then you will get a 304
+//			 Not Modified response instead of a 200 OK, and no
+//			 file data.
 //		Created: 09/01/2009
 //
 // --------------------------------------------------------------------------
 
-HTTPResponse S3Client::GetObject(const std::string& rObjectURI)
+HTTPResponse S3Client::GetObject(const std::string& rObjectURI,
+	const std::string& MD5Checksum)
 {
-	return FinishAndSendRequest(HTTPRequest::Method_GET, rObjectURI);
+	return FinishAndSendRequest(HTTPRequest::Method_GET, rObjectURI,
+		NULL, // pStreamToSend
+		NULL, // pStreamContentType
+		MD5Checksum);
 }
 
 // --------------------------------------------------------------------------
@@ -100,7 +110,7 @@ HTTPResponse S3Client::PutObject(const std::string& rObjectURI,
 
 HTTPResponse S3Client::FinishAndSendRequest(HTTPRequest::Method Method,
 	const std::string& rRequestURI, IOStream* pStreamToSend,
-	const char* pStreamContentType)
+	const char* pStreamContentType, const std::string& MD5Checksum)
 {
 	HTTPRequest request(Method, rRequestURI);
 	request.SetHostName(mHostName);
@@ -129,6 +139,12 @@ HTTPResponse S3Client::FinishAndSendRequest(HTTPRequest::Method Method,
 	if (pStreamContentType)
 	{
 		request.AddHeader("Content-Type", pStreamContentType);
+	}
+
+	if (!MD5Checksum.empty())
+	{
+		request.AddHeader("If-None-Match",
+			std::string("\"") + MD5Checksum + "\"");
 	}
 
 	std::string s3suffix = ".s3.amazonaws.com";
@@ -176,20 +192,27 @@ HTTPResponse S3Client::FinishAndSendRequest(HTTPRequest::Method Method,
 	}
 
 	request.AddHeader("Authorization", auth_code);
-	
+	HTTPResponse response;
+
 	if (mpSimulator)
 	{
 		if (pStreamToSend)
 		{
-			pStreamToSend->CopyStreamTo(request);
+			request.SetDataStream(pStreamToSend);
 		}
 
 		request.SetForReading();
-		CollectInBufferStream response_buffer;
-		HTTPResponse response(&response_buffer);
-	
 		mpSimulator->Handle(request, response);
-		return response;
+
+		// TODO FIXME: HTTPServer::Connection does some post-processing on every
+		// response to determine whether Connection: keep-alive is possible.
+		// We should do that here too, but currently our HTTP implementation
+		// doesn't support chunked encoding, so it's disabled there, so we don't
+		// do it here either.
+
+		// We are definitely finished writing to the HTTPResponse, so leave it
+		// ready for reading back.
+		response.SetForReading();
 	}
 	else
 	{
@@ -201,7 +224,7 @@ HTTPResponse S3Client::FinishAndSendRequest(HTTPRequest::Method Method,
 				mapClientSocket->Open(Socket::TypeINET,
 					mHostName, mPort);
 			}
-			return SendRequest(request, pStreamToSend,
+			response = SendRequest(request, pStreamToSend,
 				pStreamContentType);
 		}
 		catch (ConnectionException &ce)
@@ -212,7 +235,7 @@ HTTPResponse S3Client::FinishAndSendRequest(HTTPRequest::Method Method,
 				// try to reconnect, just once
 				mapClientSocket->Open(Socket::TypeINET,
 					mHostName, mPort);
-				return SendRequest(request, pStreamToSend,
+				response = SendRequest(request, pStreamToSend,
 					pStreamContentType);
 			}
 			else
@@ -221,7 +244,20 @@ HTTPResponse S3Client::FinishAndSendRequest(HTTPRequest::Method Method,
 				throw;
 			}
 		}
+
+		// No need to call response.SetForReading() because HTTPResponse::Receive()
+		// already did that.
 	}
+
+	// It's not valid to have a keep-alive response if the length isn't known.
+	// S3Simulator should really check this, but depending on how it's called above,
+	// it might be possible to bypass that check, so this is a double-check.
+	ASSERT(response.GetContentLength() >= 0 || !response.IsKeepAlive());
+
+	BOX_TRACE("S3Client: " << mHostName << " < " << response.GetResponseCode() <<
+		": " << response.GetContentLength() << " bytes")
+
+	return response;
 }
 
 // --------------------------------------------------------------------------

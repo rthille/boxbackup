@@ -48,6 +48,11 @@ public:
 	void AddHeader(const std::string& name, const std::string& value);
 	void WriteTo(IOStream& rOutput, int Timeout) const;
 	typedef std::pair<std::string, std::string> Header;
+	bool HasHeader(const std::string& name) const
+	{
+		std::string dummy;
+		return GetHeader(name, &dummy);
+	}
 	bool GetHeader(const std::string& name, std::string* pValueOut) const;
 	std::string GetHeaderValue(const std::string& name, bool required = true) const
 	{
