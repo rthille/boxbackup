@@ -36,6 +36,7 @@ public:
 	virtual void Handle(HTTPRequest &rRequest, HTTPResponse &rResponse);
 	virtual void HandleGet(HTTPRequest &rRequest, HTTPResponse &rResponse);
 	virtual void HandlePut(HTTPRequest &rRequest, HTTPResponse &rResponse);
+	virtual void HandleDelete(HTTPRequest &rRequest, HTTPResponse &rResponse);
 
 	virtual const char *DaemonName() const
 	{

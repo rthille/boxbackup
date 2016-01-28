@@ -165,15 +165,20 @@ bool exercise_s3client(S3Client& client)
 		TEST_EQUAL("dc3b8c5e57e71d31a0a9d7cbeee2e011", digest);
 	}
 
-	// TODO: upload this file using PUT instead:
-	{
-		FileStream newfile("testfiles/store/newfile", O_CREAT | O_WRONLY | O_BINARY);
-		fs.CopyStreamTo(newfile);
-		fs.Seek(0, IOStream::SeekType_Absolute);
-	}
+	std::string newfile_path = "testfiles/store/newfile";
+
+	TEST_THAT(!FileExists(newfile_path));
+	response = client.PutObject("/newfile", fs);
+	TEST_EQUAL(200, response.GetResponseCode());
+	TEST_THAT(!response.IsKeepAlive());
+	TEST_EQUAL("\"" + digest + "\"", response.GetHeaders().GetHeaderValue("etag"));
+
+	// This will fail if the file was created in the wrong place:
+	TEST_THAT(FileExists(newfile_path));
 
 	response = client.GetObject("/newfile");
 	TEST_EQUAL(200, response.GetResponseCode());
+	fs.Seek(0, IOStream::SeekType_Absolute);
 	TEST_THAT(fs.CompareWith(response));
 	TEST_EQUAL("\"" + digest + "\"", response.GetHeaders().GetHeaderValue("etag"));
 
@@ -191,7 +196,10 @@ bool exercise_s3client(S3Client& client)
 	TEST_EQUAL(false, response.GetHeaders().HasHeader("etag"));
 
 	// This will fail if the file was created in the wrong place:
-	TEST_EQUAL(0, ::unlink("testfiles/store/newfile"));
+	TEST_THAT(FileExists(newfile_path));
+	response = client.DeleteObject("/newfile");
+	TEST_EQUAL(HTTPResponse::Code_NoContent, response.GetResponseCode());
+	TEST_THAT(!FileExists(newfile_path));
 
 	// Test is successful if the number of failures has not increased.
 	return (num_failures == num_failures_initial);
@@ -729,6 +737,7 @@ bool test_httpserver()
 		FileStream f1("testfiles/dsfdsfs98.fd");
 		FileStream f2("testfiles/store/newfile");
 		TEST_THAT(f1.CompareWith(f2));
+		TEST_THAT(::unlink("testfiles/store/newfile") == 0);
 	}
 
 	// S3Client tests with S3Simulator daemon for realism
