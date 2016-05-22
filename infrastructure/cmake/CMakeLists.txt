@@ -60,19 +60,25 @@ foreach(file_to_configure ${files_to_configure})
 	configure_file("${base_dir}/${file_to_configure}.in" "${base_dir}/${file_to_configure}" @ONLY)
 endforeach()
 
-file(READ "${base_dir}/infrastructure/buildenv-testmain-template.cpp" test_template)
-
-
+# Work out the current Box version (requires Perl) and update lib/common/BoxVersion.h,
+# but only if it has changed, to avoid unnecessary complete rebuilds due to timestamps.
 execute_process(
-	COMMAND ${PERL_EXECUTABLE} ${base_dir}/infrastructure/msvc/getversion.pl
+	COMMAND ${PERL_EXECUTABLE} ${base_dir}/infrastructure/cmake/getversion.pl
+	WORKING_DIRECTORY ${base_dir}/infrastructure
 	RESULT_VARIABLE status
-	OUTPUT_VARIABLE command_output
+	OUTPUT_VARIABLE new_version_define
 	ERROR_VARIABLE command_output)
 if(NOT status EQUAL 0)
 	message(FATAL_ERROR "Failed to execute: "
-		"${PERL_EXECUTABLE} ${base_dir}/infrastructure/msvc/getversion.pl: "
+		"${PERL_EXECUTABLE} ${base_dir}/infrastructure/cmake/getversion.pl: "
 		"status ${status}: ${command_output}")
 endif()
+file(READ "${base_dir}/lib/common/BoxVersion.h" old_version_define)
+if(NOT old_version_define EQUAL new_version_define)
+	file(WRITE "${base_dir}/lib/common/BoxVersion.h" "${new_version_define}")
+endif()
+
+file(READ "${base_dir}/infrastructure/buildenv-testmain-template.cpp" test_template)
 
 # Parsing Makefile.extra files in CMake script is a pain, so the relevant rules for
 # code-generating Perl scripts are hard-coded here.
@@ -279,10 +285,9 @@ target_link_libraries(lib_compress PUBLIC debug     ${zlibstaticd_lib_path})
 target_link_libraries(lib_compress PUBLIC optimized ${zlibstatic_lib_path})
 
 # Link to OpenSSL
-include_directories(${base_dir}/../openssl-win32/include)
-find_library(libeay32_lib_path libeay32 ${base_dir}/../openssl-win32/lib)
-find_library(ssleay32_lib_path ssleay32 ${base_dir}/../openssl-win32/lib)
-target_link_libraries(lib_crypto PUBLIC ${libeay32_lib_path} ${ssleay32_lib_path})
+find_package(OpenSSL REQUIRED)
+include_directories(${OPENSSL_INCLUDE_DIR})
+target_link_libraries(lib_crypto PUBLIC ${OPENSSL_LIBRARIES})
 
 # Link to PCRE
 include_directories(${base_dir}/../pcre-win32/include)
