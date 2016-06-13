@@ -101,7 +101,7 @@ AX_PATH_BDB([1.x or 4.1], [
 ])
 
 # need to find libdl before trying to link openssl, apparently
-AC_SEARCH_LIBS([dlsym], ["dl"])
+AC_SEARCH_LIBS([dlsym], [dl])
 AC_CHECK_FUNCS([dlsym dladdr])
 
 ## Check for Open SSL, use old versions only if explicitly requested
@@ -277,7 +277,7 @@ AC_TYPE_SIGNAL
 AC_FUNC_STAT
 AC_CHECK_FUNCS([ftruncate getpeereid getpeername getpid gettimeofday lchown])
 AC_CHECK_FUNCS([setproctitle utimensat])
-AC_SEARCH_LIBS([setproctitle], ["bsd"])
+AC_SEARCH_LIBS([setproctitle], [bsd])
 
 # NetBSD implements kqueue too differently for us to get it fixed by 0.10
 # TODO: Remove this when NetBSD kqueue implementation is working. The main
