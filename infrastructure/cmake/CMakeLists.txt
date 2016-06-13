@@ -388,6 +388,9 @@ foreach(m4_filename boxbackup_tests.m4 ax_check_mount_point.m4)
 			file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_${platform_var_name}\n")
 		endif()
 	endforeach()
+
+	# Build an intermediate version of BoxConfig.cmake.h for use in the following tests:
+	configure_file("${boxconfig_h_file}" "${boxconfig_cmake_h_dir}/BoxConfig.cmake.h")
 endforeach()
 set(CMAKE_REQUIRED_INCLUDES "")
 
@@ -411,6 +414,57 @@ endforeach()
 check_symbol_exists(dirfd "dirent.h" HAVE_DECL_DIRFD)
 file(APPEND "${boxconfig_h_file}" "#cmakedefine01 HAVE_DECL_DIRFD\n")
 
+if(HAVE_STRUCT_STATFS_F_MNTONNAME OR
+	HAVE_STRUCT_STATVFS_F_MNTONNAME OR
+	HAVE_STRUCT_MNTENT_MNT_DIR OR
+	HAVE_STRUCT_MNTTAB_MNT_MOUNTP)
+
+	set(HAVE_MOUNTS 1)
+	file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_MOUNTS\n")
+endif()
+
+# Build an intermediate version of BoxConfig.cmake.h for use in the following tests:
+configure_file("${boxconfig_h_file}" "${boxconfig_cmake_h_dir}/BoxConfig.cmake.h")
+
+set(CMAKE_REQUIRED_INCLUDES "${boxconfig_cmake_h_dir}")
+foreach(struct_member_name "struct ucred.uid" "struct ucred.cr_uid")
+	string(REGEX MATCH "(.*)\\.(.*)" dummy_var ${struct_member_name})
+	set(struct_name "${CMAKE_MATCH_1}")
+	set(member_name "${CMAKE_MATCH_2}")
+	
+	string(TOUPPER "${struct_name}_${member_name}" platform_var_name)
+	string(REGEX REPLACE "[/. ]" "_" platform_var_name ${platform_var_name})
+
+	CHECK_CXX_SOURCE_COMPILES([=[
+		#include "BoxConfig.cmake.h"
+
+		#ifdef HAVE_UCRED_H
+		#	include <ucred.h>
+		#endif
+
+		#ifdef HAVE_SYS_PARAM_H
+		#	include <sys/param.h>
+		#endif
+
+		#ifdef HAVE_SYS_UCRED_H
+		#	include <sys/ucred.h>
+		#endif
+
+		#ifdef HAVE_SYS_SOCKET_H
+		#	include <sys/socket.h>
+		#endif
+
+		int main()
+		{
+			${struct_name} foo;
+			return sizeof(foo.${member_name}) > 0 ? 0 : 1;
+		}
+		]=] "HAVE_${platform_var_name}")
+	file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_${platform_var_name}\n")
+endforeach()
+set(CMAKE_REQUIRED_INCLUDES "")
+
+# Build the final version of BoxConfig.cmake.h:
 configure_file("${boxconfig_h_file}" "${boxconfig_cmake_h_dir}/BoxConfig.cmake.h")
 
 # Tell QDBM not to build itself as a DLL, because we want to link statically to it.
