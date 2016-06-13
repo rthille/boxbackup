@@ -331,7 +331,7 @@ include(CheckCXXSourceCompiles)
 set(boxconfig_cmake_h_dir "${base_dir}/lib/common")
 set(CMAKE_REQUIRED_INCLUDES "${boxconfig_cmake_h_dir}")
 
-foreach(m4_filename boxbackup_tests.m4 ax_check_mount_point.m4)
+foreach(m4_filename boxbackup_tests.m4 ax_check_mount_point.m4 ax_func_syscall.m4)
 	file(STRINGS "${base_dir}/infrastructure/m4/${m4_filename}" m4_functions REGEX "^ *AC[_A-Z]+\\(.*\\)$")
 	foreach(m4_function ${m4_functions})
 		message(STATUS "Processing m4_function: ${m4_function}")
@@ -345,7 +345,7 @@ foreach(m4_filename boxbackup_tests.m4 ax_check_mount_point.m4)
 			foreach(header_file ${header_files})
 				list(APPEND detect_header_files ${header_file})
 			endforeach()
-		elseif(m4_function MATCHES "^ *AC_CHECK_FUNCS\\(\\[([a-z./ ]+)\\](.*)\\)$")
+		elseif(m4_function MATCHES "^ *AC_CHECK_FUNCS\\(\\[([a-z./_ ]+)\\](.*)\\)$")
 			message(STATUS "Processing ac_check_funcs: ${CMAKE_MATCH_1}")
 
 			# http://stackoverflow.com/questions/5272781/what-is-common-way-to-split-string-into-list-with-cmake
