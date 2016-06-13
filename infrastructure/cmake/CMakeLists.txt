@@ -429,6 +429,7 @@ endforeach()
 check_symbol_exists(dirfd "dirent.h" HAVE_DECL_DIRFD)
 file(APPEND "${boxconfig_h_file}" "#cmakedefine01 HAVE_DECL_DIRFD\n")
 
+# Emulate ax_check_mount_point.m4
 if(HAVE_STRUCT_STATFS_F_MNTONNAME OR
 	HAVE_STRUCT_STATVFS_F_MNTONNAME OR
 	HAVE_STRUCT_MNTENT_MNT_DIR OR
@@ -437,6 +438,20 @@ if(HAVE_STRUCT_STATFS_F_MNTONNAME OR
 	set(HAVE_MOUNTS 1)
 	file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_MOUNTS\n")
 endif()
+
+# Emulate ax_random_device.m4
+if(EXISTS /dev/urandom)
+	set(RANDOM_DEVICE /dev/urandom)
+elseif(EXISTS /dev/arandom)
+	set(RANDOM_DEVICE /dev/arandom)
+elseif(EXISTS /dev/random)
+	set(RANDOM_DEVICE /dev/random)
+endif()
+if(RANDOM_DEVICE)
+	set(HAVE_RANDOM_DEVICE TRUE)
+endif()
+file(APPEND "${boxconfig_h_file}" "#cmakedefine RANDOM_DEVICE \"${RANDOM_DEVICE}\"\n")
+file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_RANDOM_DEVICE\n")
 
 # Build an intermediate version of BoxConfig.cmake.h for use in the following tests:
 configure_file("${boxconfig_h_file}" "${boxconfig_cmake_h_dir}/BoxConfig.cmake.h")
