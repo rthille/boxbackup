@@ -22,10 +22,13 @@
 #define PLATFORM_DEV_NULL			"/dev/null"
 
 #ifdef _MSC_VER
-#include "BoxConfig-MSVC.h"
-#define NEED_BOX_VERSION_H
+#	include "BoxConfig-MSVC.h"
+#	define NEED_BOX_VERSION_H
+#elif defined BOX_CMAKE
+	// Nothing to include here. We must add -DHAVE_FOO flags to CFLAGS in CMake
+	// if we wish to use advanced features.
 #else
-#include "BoxConfig.h"
+#	include "BoxConfig.h"
 #endif
 
 #ifdef WIN32

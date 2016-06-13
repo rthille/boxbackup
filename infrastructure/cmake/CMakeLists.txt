@@ -77,6 +77,7 @@ file(READ "${base_dir}/lib/common/BoxVersion.h" old_version_define)
 if(NOT old_version_define EQUAL new_version_define)
 	file(WRITE "${base_dir}/lib/common/BoxVersion.h" "${new_version_define}")
 endif()
+add_definitions(-DNEED_BOX_VERSION_H)
 
 file(READ "${base_dir}/infrastructure/buildenv-testmain-template.cpp" test_template)
 
@@ -205,7 +206,7 @@ foreach(module_dep
 			add_executable(${module_name} ${module_files}
 				"${module_path}/_main.cpp")
 			add_test(NAME ${test_name}
-				COMMAND ${PERL_EXECUTABLE} ${base_dir}/runtest.pl.in ${test_name}
+				COMMAND ${PERL_EXECUTABLE} ${base_dir}/runtest.pl ${test_name}
 				$<CONFIG> WORKING_DIRECTORY ${base_dir})
 		elseif(module_name MATCHES "^(lib_.*|qdbm)$")
 			if(DEBUG)
@@ -275,14 +276,16 @@ if(MSVC)
 	set_property(TARGET qdbm PROPERTY CMAKE_STATIC_LINKER_FLAGS /IGNORE:LNK4006)
 endif(MSVC)
 
-target_link_libraries(lib_common PUBLIC ws2_32 gdi32)
+if(WIN32)
+	target_link_libraries(lib_common PUBLIC ws2_32 gdi32)
+endif()
 
 # Link to ZLib
 include_directories(${base_dir}/../zlib-win32/include)
-find_library(zlibstaticd_lib_path zlibstaticd ${base_dir}/../zlib-win32/lib)
-find_library(zlibstatic_lib_path  zlibstatic  ${base_dir}/../zlib-win32/lib)
-target_link_libraries(lib_compress PUBLIC debug     ${zlibstaticd_lib_path})
-target_link_libraries(lib_compress PUBLIC optimized ${zlibstatic_lib_path})
+# http://stackoverflow.com/a/6174604/648162
+find_package(ZLIB REQUIRED)
+include_directories(${ZLIB_INCLUDE_DIRS})
+target_link_libraries(lib_compress PUBLIC ${ZLIB_LIBRARIES})
 
 # Link to OpenSSL
 find_package(OpenSSL REQUIRED)
@@ -291,15 +294,30 @@ target_link_libraries(lib_crypto PUBLIC ${OPENSSL_LIBRARIES})
 
 # Link to PCRE
 include_directories(${base_dir}/../pcre-win32/include)
-target_compile_definitions(lib_common PUBLIC -DPCRE_STATIC)
-find_library(pcreposix_lib_path  pcreposix  ${base_dir}/../pcre-win32/lib)
-find_library(pcreposixd_lib_path pcreposixd ${base_dir}/../pcre-win32/lib)
-find_library(pcre_lib_path  pcre  ${base_dir}/../pcre-win32/lib)
-find_library(pcred_lib_path pcred ${base_dir}/../pcre-win32/lib)
-target_link_libraries(lib_common PUBLIC debug "${pcreposixd_lib_path}" optimized "${pcreposix_lib_path}")
-target_link_libraries(lib_common PUBLIC debug "${pcred_lib_path}"      optimized "${pcre_lib_path}")
+if (WIN32)
+	target_compile_definitions(lib_common PUBLIC -DPCRE_STATIC)
+	find_library(pcreposix_lib_path  pcreposix  ${base_dir}/../pcre-win32/lib)
+	find_library(pcreposixd_lib_path pcreposixd ${base_dir}/../pcre-win32/lib)
+	find_library(pcre_lib_path  pcre  ${base_dir}/../pcre-win32/lib)
+	find_library(pcred_lib_path pcred ${base_dir}/../pcre-win32/lib)
+	target_link_libraries(lib_common PUBLIC debug "${pcreposixd_lib_path}" optimized "${pcreposix_lib_path}")
+	target_link_libraries(lib_common PUBLIC debug "${pcred_lib_path}"      optimized "${pcre_lib_path}")
+else()
+	find_package(PkgConfig REQUIRED)
+	pkg_check_modules(PCRE REQUIRED libpcre)
+	include_directories(${PCRE_INCLUDE_DIRS})
+	target_link_libraries(lib_common PUBLIC ${PCRE_LIBRARIES})
+endif()
 
 # Define the location of the Perl executable, needed by testbackupstorefix
 cmake_to_native_path("${PERL_EXECUTABLE}" perl_executable_native)
 string(REPLACE "\\" "\\\\" perl_path_escaped ${perl_executable_native})
 target_compile_definitions(test_backupstorefix PRIVATE -DPERL_EXECUTABLE="${perl_path_escaped}")
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}")
+
+find_package(Readline)
+if(READLINE_FOUND)
+	include_directories(${Readline_INCLUDE_DIR})
+	target_link_libraries(lib_common PUBLIC ${Readline_LIBRARY})
+endif()
