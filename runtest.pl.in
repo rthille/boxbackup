@@ -145,7 +145,7 @@ sub runtest
 				{
 					push @commands, "cmake -E remove_directory $test_dst_dir/$1";
 				}
-				elsif ($line =~ m/^cp (.*) (.*)/)
+				elsif ($line =~ m/^cp (.*)\*\.\* (.*)/)
 				{
 					my ($src, $dst) = ($1, $2);
 					push @commands, "cmake -E copy_directory ".
