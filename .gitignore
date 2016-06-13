@@ -23,6 +23,7 @@ infrastructure/makeparcels.pl
 lib/bbackupquery/makedocumentation.pl
 lib/common/BoxConfig.h
 lib/common/BoxConfig.h.in
+lib/common/BoxConfig.cmake.h
 lib/common/BoxPortsAndFiles.h
 lib/common/BoxVersion.h
 lib/common/makeexception.pl
