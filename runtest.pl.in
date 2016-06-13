@@ -191,13 +191,25 @@ sub runtest
 	}
 	
 	# run it
-	if($target_msvc)
+	if($cmake_build)
 	{
-		# no tee.exe, so let's do it ourselves.
+		# no tee.exe on Windows, so let's do it ourselves.
 		open LOG, ">$logfile" or die "$logfile: $!";
 		chdir("$test_mode/test/$t");
-		open TEE, "$test_project_exe.exe |"
-			or die "$test_project_exe.exe: $!";
+
+		if($target_msvc)
+		{
+			# Test executables have a different name on Windows to work around
+			# restrictions on running different executables with the same name.
+			open TEE, "$test_project_exe$platform_exe_ext |"
+				or die "$test_project_exe$platform_exe_ext: $!";
+		}
+		else
+		{
+			open TEE, "./_test$platform_exe_ext |"
+				or die "./_test$platform_exe_ext: $!";
+		}
+
 		while (my $line = <TEE>)
 		{
 			print $line;
