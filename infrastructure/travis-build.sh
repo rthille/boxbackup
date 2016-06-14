@@ -9,7 +9,7 @@ if [ "$BUILD" = 'cmake' ]; then
 	cd infrastructure/cmake/build
 	cmake --version
 	cmake ..
-	ctest
+	ctest -V
 else
 	./bootstrap
 	./configure CC="ccache $CC" CXX="ccache $CXX"
