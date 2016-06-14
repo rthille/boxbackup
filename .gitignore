@@ -16,6 +16,7 @@ contrib/solaris/bbstored-manifest.xml
 contrib/solaris/bbstored-smf-method
 contrib/windows/installer/boxbackup.mpi
 infrastructure/BoxPlatform.pm
+infrastructure/cmake/build
 infrastructure/makebuildenv.pl
 infrastructure/makedistribution.pl
 infrastructure/makeparcels.pl

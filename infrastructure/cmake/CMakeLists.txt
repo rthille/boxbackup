@@ -318,3 +318,6 @@ if(READLINE_FOUND)
 	include_directories(${Readline_INCLUDE_DIR})
 	target_link_libraries(lib_common PUBLIC ${Readline_LIBRARY})
 endif()
+
+file(GLOB msvc_user_files ${CMAKE_SOURCE_DIR}/msvc/*)
+file(COPY ${msvc_user_files} DESTINATION ${CMAKE_BINARY_DIR})
