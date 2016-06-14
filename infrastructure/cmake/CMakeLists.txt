@@ -263,11 +263,6 @@ foreach(module_dep
 	endif()
 endforeach()
 
-#include(ExternalProject)
-#ExternalProject_Add(pcre
-#	PREFIX "../pcre"
-#	BUILD_COMMAND "${CMAKE_EXECUTABLE
-
 # Tell QDBM not to build itself as a DLL, because we want to link statically to it.
 target_compile_definitions(qdbm PUBLIC -DQDBM_STATIC)
 

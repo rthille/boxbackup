@@ -96,10 +96,8 @@ install:
   - dir pcre-%PLATFORM%\bin
   - dir pcre-%PLATFORM%\lib
 
-  - cd %APPVEYOR_BUILD_FOLDER%
-  - cd infrastructure\cmake\build
-  - cmake -G "%Generator%" -A %PLATFORM% ..
-  - cd %APPVEYOR_BUILD_FOLDER%
+  - cd %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build
+  - cmake -G "%Generator%" -A %PLATFORM% -DZLIB_ROOT=%APPVEYOR_BUILD_FOLDER%\..\zlib-%PLATFORM% -DOPENSSL_ROOT_DIR=%APPVEYOR_BUILD_FOLDER%\..\openssl-%PLATFORM% ..
 
   # Show files after build
   - dir %APPVEYOR_BUILD_FOLDER%\..\zlib-1.2.8
@@ -112,6 +110,9 @@ install:
   - dir %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build\bin_bbackupd.dir
   - dir %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build\%PLATFORM%
   - dir %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build\%PLATFORM%\%CONFIGURATION%
+
+  # Leave the current directory in the correct place to find the solution file using its relative path above.
+  - cd %APPVEYOR_BUILD_FOLDER%
 
 test_script:
   - cd %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build
