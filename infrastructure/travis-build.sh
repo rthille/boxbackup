@@ -8,7 +8,7 @@ ccache -s
 if [ "$BUILD" = 'cmake' ]; then
 	cd infrastructure/cmake/build
 	cmake --version
-	cmake ..
+	cmake -DCMAKE_BUILD_TYPE:STRING=Debug ..
 	ctest -V
 else
 	./bootstrap

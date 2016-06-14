@@ -194,6 +194,18 @@ foreach(module_dep
 				message(STATUS "add executable '${module_name}': '${module_files}'")
 			endif()
 			add_executable(${module_name} ${module_files})
+
+			# Unfortunately we have to use install(PROGRAMS) instead of
+			# install(TARGETS) because TARGETS doesn't allow us to change
+			# the executable name.
+			install(PROGRAMS "$<TARGET_FILE:${module_name}>"
+				CONFIGURATIONS Debug
+				DESTINATION "${base_dir}/debug/${module_dir}"
+				RENAME "${bin_name}${CMAKE_EXECUTABLE_SUFFIX}")
+			install(PROGRAMS "$<TARGET_FILE:${module_name}>"
+				CONFIGURATIONS Release
+				DESTINATION "${base_dir}/release/${module_dir}"
+				RENAME "${bin_name}${CMAKE_EXECUTABLE_SUFFIX}")
 		elseif(module_name MATCHES "^test_")
 			string(REGEX MATCH "^test_(.*)" valid_test ${module_name})
 			set(test_name ${CMAKE_MATCH_1})
@@ -207,8 +219,20 @@ foreach(module_dep
 			file(WRITE "${module_path}/_main.cpp" "${test_main}")
 			add_executable(${module_name} ${module_files}
 				"${module_path}/_main.cpp")
+
+			# Unfortunately we have to use install(PROGRAMS) instead of
+			# install(TARGETS) because TARGETS doesn't allow us to change
+			# the executable name.
+			install(PROGRAMS "$<TARGET_FILE:${module_name}>"
+				CONFIGURATIONS Debug
+				DESTINATION "${base_dir}/debug/${module_dir}"
+				RENAME "_test${CMAKE_EXECUTABLE_SUFFIX}")
+			install(PROGRAMS "$<TARGET_FILE:${module_name}>"
+				CONFIGURATIONS Release
+				DESTINATION "${base_dir}/release/${module_dir}"
+				RENAME "_test${CMAKE_EXECUTABLE_SUFFIX}")
 			add_test(NAME ${test_name}
-				COMMAND ${PERL_EXECUTABLE} ${base_dir}/runtest.pl ${test_name}
+				COMMAND ${PERL_EXECUTABLE} ${base_dir}/runtest.pl -c ${test_name}
 				$<CONFIG> WORKING_DIRECTORY ${base_dir})
 		elseif(module_name MATCHES "^(lib_.*|qdbm)$")
 			if(DEBUG)
@@ -217,19 +241,6 @@ foreach(module_dep
 			add_library(${module_name} STATIC ${module_files})
 		else()
 			message(FATAL_ERROR "Unsupported module type: " ${module_name})
-		endif()
-
-		if(module_name MATCHES "^(bin|test)_")
-			# We need to install binaries in specific places so that test
-			# runner can find them:
-			install(FILES "$<TARGET_FILE:${module_name}>"
-				CONFIGURATIONS Debug
-				DESTINATION "${base_dir}/debug/${module_dir}"
-				RENAME "${bin_name}${CMAKE_EXECUTABLE_SUFFIX}")
-			install(FILES "$<TARGET_FILE:${module_name}>"
-				CONFIGURATIONS Release
-				DESTINATION "${base_dir}/release/${module_dir}"
-				RENAME "${bin_name}${CMAKE_EXECUTABLE_SUFFIX}")
 		endif()
 
 		target_compile_definitions(${module_name} PRIVATE -DBOX_MODULE="${module_name}")

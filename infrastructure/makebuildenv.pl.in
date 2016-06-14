@@ -901,8 +901,8 @@ EOF
 	# tests need to copy the test file over
 	if($type eq 'test')
 	{
-		print MAKE "\tcp _t \$(OUTDIR)/t\n\tchmod u+x \$(OUTDIR)/t\n";
-		print MAKE "\tcp _t-gdb \$(OUTDIR)/t-gdb\n\tchmod u+x \$(OUTDIR)/t-gdb\n";
+		print MAKE "\tcp _t \$(OUTDIR)/_t\n\tchmod u+x \$(OUTDIR)/_t\n";
+		print MAKE "\tcp _t-gdb \$(OUTDIR)/_t-gdb\n\tchmod u+x \$(OUTDIR)/_t-gdb\n";
 	}
 
 	# dependency line?
