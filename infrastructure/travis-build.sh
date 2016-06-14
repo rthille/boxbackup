@@ -6,6 +6,8 @@ set -x
 ccache -s
 
 if [ "$BUILD" = 'cmake' ]; then
+	export CC="ccache $CC"
+	export CXX="ccache $CXX"
 	cd infrastructure/cmake/build
 	cmake --version
 	cmake -DCMAKE_BUILD_TYPE:STRING=Debug ..
