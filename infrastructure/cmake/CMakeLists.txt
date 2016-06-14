@@ -79,7 +79,7 @@ endif()
 if(NOT old_version_define EQUAL new_version_define)
 	file(WRITE "${base_dir}/lib/common/BoxVersion.h" "${new_version_define}")
 endif()
-add_definitions(-DNEED_BOX_VERSION_H)
+add_definitions(-DBOX_CMAKE -DNEED_BOX_VERSION_H)
 
 file(READ "${base_dir}/infrastructure/buildenv-testmain-template.cpp" test_template)
 
