@@ -25,8 +25,7 @@
 #	include "BoxConfig-MSVC.h"
 #	define NEED_BOX_VERSION_H
 #elif defined BOX_CMAKE
-	// Nothing to include here. We must add -DHAVE_FOO flags to CFLAGS in CMake
-	// if we wish to use advanced features.
+#	include "BoxConfig.cmake.h"
 #else
 #	include "BoxConfig.h"
 #endif
