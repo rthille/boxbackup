@@ -315,6 +315,7 @@ endif()
 set(HAVE_REGEX_SUPPORT 1)
 file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_REGEX_SUPPORT\n")
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}")
 find_package(Readline)
 if(READLINE_FOUND)
 	include_directories(${Readline_INCLUDE_DIR})
@@ -324,45 +325,72 @@ endif()
 include(CheckIncludeFiles)
 include(CheckFunctionExists)
 include(CheckSymbolExists)
-file(STRINGS ${base_dir}/infrastructure/m4/boxbackup_tests.m4 m4_functions REGEX "^AC[_A-Z]+\\(.*\\)$")
-foreach(m4_function ${m4_functions})
-	message(STATUS "Processing m4_function: ${m4_function}")
-	string(REGEX MATCH .* ac_check_headers ${m4_function})
-	if(m4_function MATCHES "^AC_CHECK_HEADERS\\(\\[([a-z./ ]+)\\](.*)\\)$")
-		message(STATUS "Processing ac_check_headers: ${CMAKE_MATCH_1}")
+include(CheckCXXSourceCompiles)
 
-		# http://stackoverflow.com/questions/5272781/what-is-common-way-to-split-string-into-list-with-cmake
-		string(REPLACE " " ";" header_files ${CMAKE_MATCH_1})
+set(boxconfig_cmake_h_dir "${base_dir}/lib/common")
+set(CMAKE_REQUIRED_INCLUDES "${boxconfig_cmake_h_dir}")
 
-		foreach(header_file ${header_files})
-			list(APPEND detect_header_files ${header_file})
-		endforeach()
-	elseif(m4_function MATCHES "^AC_CHECK_FUNCS\\(\\[([a-z./ ]+)\\](.*)\\)$")
-		message(STATUS "Processing ac_check_funcs: ${CMAKE_MATCH_1}")
+foreach(m4_filename boxbackup_tests.m4 ax_check_mount_point.m4)
+	file(STRINGS "${base_dir}/infrastructure/m4/${m4_filename}" m4_functions REGEX "^ *AC[_A-Z]+\\(.*\\)$")
+	foreach(m4_function ${m4_functions})
+		message(STATUS "Processing m4_function: ${m4_function}")
+		string(REGEX MATCH .* ac_check_headers ${m4_function})
+		if(m4_function MATCHES "^ *AC_CHECK_HEADERS\\(\\[([a-z./ ]+)\\](.*)\\)$")
+			message(STATUS "Processing ac_check_headers: ${CMAKE_MATCH_1}")
 
-		# http://stackoverflow.com/questions/5272781/what-is-common-way-to-split-string-into-list-with-cmake
-		string(REPLACE " " ";" function_names ${CMAKE_MATCH_1})
+			# http://stackoverflow.com/questions/5272781/what-is-common-way-to-split-string-into-list-with-cmake
+			string(REPLACE " " ";" header_files ${CMAKE_MATCH_1})
 
-		foreach(function_name ${function_names})
-			list(APPEND detect_functions ${function_name})
-		endforeach()
-	elseif(m4_function MATCHES "^AC_CHECK_DECLS\\(\\[([A-Za-z._/ ]+)\\](,,, ..#include <([^>]+)>..)?\\)$")
-		message(STATUS "Processing ac_check_decls: ${CMAKE_MATCH_1} in ${CMAKE_MATCH_3}")
+			foreach(header_file ${header_files})
+				list(APPEND detect_header_files ${header_file})
+			endforeach()
+		elseif(m4_function MATCHES "^ *AC_CHECK_FUNCS\\(\\[([a-z./ ]+)\\](.*)\\)$")
+			message(STATUS "Processing ac_check_funcs: ${CMAKE_MATCH_1}")
 
-		# http://stackoverflow.com/questions/5272781/what-is-common-way-to-split-string-into-list-with-cmake
-		string(REPLACE " " ";" decl_names "${CMAKE_MATCH_1}")
-		string(REPLACE " " ";" header_files "${CMAKE_MATCH_3}")
+			# http://stackoverflow.com/questions/5272781/what-is-common-way-to-split-string-into-list-with-cmake
+			string(REPLACE " " ";" function_names ${CMAKE_MATCH_1})
 
-		foreach(decl_name ${decl_names})
-			string(TOUPPER ${decl_name} platform_var_name)
-			string(REGEX REPLACE "[/.]" "_" platform_var_name ${platform_var_name})
-			check_symbol_exists("${decl_name}" "${header_files}" HAVE_DECL_${platform_var_name})
-			file(APPEND "${boxconfig_h_file}" "#cmakedefine01 HAVE_DECL_${platform_var_name}\n")
-		endforeach()
-	endif()
+			foreach(function_name ${function_names})
+				list(APPEND detect_functions ${function_name})
+			endforeach()
+		elseif(m4_function MATCHES "^ *AC_CHECK_DECLS\\(\\[([A-Za-z._/ ]+)\\](,,, ..#include <([^>]+)>..)?\\)$")
+			message(STATUS "Processing ac_check_decls: ${CMAKE_MATCH_1} in ${CMAKE_MATCH_3}")
+
+			# http://stackoverflow.com/questions/5272781/what-is-common-way-to-split-string-into-list-with-cmake
+			string(REPLACE " " ";" decl_names "${CMAKE_MATCH_1}")
+			string(REPLACE " " ";" header_files "${CMAKE_MATCH_3}")
+
+			foreach(decl_name ${decl_names})
+				string(TOUPPER ${decl_name} platform_var_name)
+				string(REGEX REPLACE "[/.]" "_" platform_var_name ${platform_var_name})
+				check_symbol_exists("${decl_name}" "${header_files}" HAVE_DECL_${platform_var_name})
+				file(APPEND "${boxconfig_h_file}" "#cmakedefine01 HAVE_DECL_${platform_var_name}\n")
+			endforeach()
+		elseif(m4_function MATCHES "^ *AC_CHECK_MEMBERS\\(\\[([A-Za-z._/ ]+)\\.([[A-Za-z_]+)\\](,,, ..(#include <([^>]+)>)..)?\\)$")
+			message(STATUS "Processing ac_check_members: ${CMAKE_MATCH_1}.${CMAKE_MATCH_2} in ${CMAKE_MATCH_5}")
+
+			set(struct_name "${CMAKE_MATCH_1}")
+			set(member_name "${CMAKE_MATCH_2}")
+			set(include_file "${CMAKE_MATCH_5}")
+
+			string(TOUPPER "${struct_name}_${member_name}" platform_var_name)
+			string(REGEX REPLACE "[/. ]" "_" platform_var_name ${platform_var_name})
+
+			CHECK_CXX_SOURCE_COMPILES([=[
+				#include "BoxConfig.cmake.h"
+				#include <${include_file}>
+				int main()
+				{
+					${struct_name} foo;
+					return sizeof(foo.${member_name}) > 0 ? 0 : 1;
+				}
+				]=] "HAVE_${platform_var_name}")
+			file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_${platform_var_name}\n")
+		endif()
+	endforeach()
 endforeach()
+set(CMAKE_REQUIRED_INCLUDES "")
 
-list(APPEND detect_functions getmntent statfs)
 list(APPEND detect_header_files mntent.h sys/mnttab.h sys/mount.h sys/param.h)
 
 foreach(header_file ${detect_header_files})
@@ -380,68 +408,10 @@ foreach(function_name ${detect_functions})
 	file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_${platform_var_name}\n")
 endforeach()
 
-# Build an intermediate version of BoxConfig.cmake.h containing platform definitions
-# detected above, for use in the macros below.
-set(boxconfig_cmake_h_dir "${base_dir}/lib/common")
+check_symbol_exists(dirfd "dirent.h" HAVE_DECL_DIRFD)
+file(APPEND "${boxconfig_h_file}" "#cmakedefine01 HAVE_DECL_DIRFD\n")
+
 configure_file("${boxconfig_h_file}" "${boxconfig_cmake_h_dir}/BoxConfig.cmake.h")
-
-# Detect some platform features which are not so easy to parse from an M4 file:
-include(CheckCXXSourceCompiles)
-set(CMAKE_REQUIRED_INCLUDES "${boxconfig_cmake_h_dir}")
-# BSD
-CHECK_CXX_SOURCE_COMPILES([=[
-	#include "BoxConfig.cmake.h"
-	#ifdef HAVE_SYS_PARAM_H
-	#	include <sys/param.h>
-	#endif
-	#include <sys/mount.h>
-	int main()
-	{
-		struct statfs foo;
-		return sizeof(foo.f_mntonname) > 0 ? 0 : 1;
-	}
-	]=] HAVE_STRUCT_STATFS_F_MNTONNAME)
-file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_STRUCT_STATFS_F_MNTONNAME\n")
-# NetBSD
-CHECK_CXX_SOURCE_COMPILES([=[
-	#include "BoxConfig.cmake.h"
-	#ifdef HAVE_SYS_PARAM_H
-	#	include <sys/param.h>
-	#endif
-	#include <sys/mount.h>
-	int main()
-	{
-		struct statvfs foo;
-		return sizeof(foo.f_mntonname) > 0 ? 0 : 1;
-	}
-	]=] HAVE_STRUCT_STATVFS_F_MNTONNAME)
-file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_STRUCT_STATVFS_F_MNTONNAME\n")
-# Linux
-CHECK_CXX_SOURCE_COMPILES([=[
-	#include <mntent.h>
-	int main()
-	{
-		struct mntent foo;
-		return sizeof(foo.mnt_dir) > 0 ? 0 : 1;
-	}
-	]=] HAVE_STRUCT_MNTENT_MNT_DIR)
-file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_STRUCT_MNTENT_MNT_DIR\n")
-# Solaris
-CHECK_CXX_SOURCE_COMPILES([=[
-	#include <stdio.h>
-	#include <sys/mnttab.h>
-	int main()
-	{
-		struct mnttab foo;
-		return sizeof(foo.mnt_mountp) > 0 ? 0 : 1;
-	}
-	]=] HAVE_STRUCT_MNTTAB_MNT_MOUNTP)
-file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_STRUCT_MNTTAB_MNT_MOUNTP\n")
-set(CMAKE_REQUIRED_INCLUDES)
-
-# Build the final version of BoxConfig.cmake.h.
-configure_file("${boxconfig_h_file}" "${boxconfig_cmake_h_dir}/BoxConfig.cmake.h")
-
 
 # Tell QDBM not to build itself as a DLL, because we want to link statically to it.
 target_compile_definitions(qdbm PUBLIC -DQDBM_STATIC)
@@ -457,8 +427,6 @@ endif(MSVC)
 file(TO_NATIVE_PATH "${PERL_EXECUTABLE}" perl_executable_native)
 string(REPLACE "\\" "\\\\" perl_path_escaped ${perl_executable_native})
 target_compile_definitions(test_backupstorefix PRIVATE -DPERL_EXECUTABLE="${perl_path_escaped}")
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}")
 
 file(GLOB msvc_user_files ${CMAKE_SOURCE_DIR}/msvc/*)
 file(COPY ${msvc_user_files} DESTINATION ${CMAKE_BINARY_DIR})
