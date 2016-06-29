@@ -21,11 +21,11 @@
 
 #define PLATFORM_DEV_NULL			"/dev/null"
 
-#ifdef _MSC_VER
+#if defined BOX_CMAKE
+#	include "BoxConfig.cmake.h"
+#elif defined _MSC_VER
 #	include "BoxConfig-MSVC.h"
 #	define NEED_BOX_VERSION_H
-#elif defined BOX_CMAKE
-#	include "BoxConfig.cmake.h"
 #else
 #	include "BoxConfig.h"
 #endif
