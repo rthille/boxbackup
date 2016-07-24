@@ -234,17 +234,27 @@ foreach(module_dep
 			add_executable(${module_name} ${module_files}
 				"${module_path}/_main.cpp")
 
-			# Unfortunately we have to use install(PROGRAMS) instead of
-			# install(TARGETS) because TARGETS doesn't allow us to change
-			# the executable name.
-			install(PROGRAMS "$<TARGET_FILE:${module_name}>"
-				CONFIGURATIONS Debug
-				DESTINATION "${base_dir}/debug/${module_dir}"
-				RENAME "_test${CMAKE_EXECUTABLE_SUFFIX}")
-			install(PROGRAMS "$<TARGET_FILE:${module_name}>"
-				CONFIGURATIONS Release
-				DESTINATION "${base_dir}/release/${module_dir}"
-				RENAME "_test${CMAKE_EXECUTABLE_SUFFIX}")
+			if(WIN32)
+				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
+					CONFIGURATIONS Debug
+					DESTINATION "${base_dir}/debug/${module_dir}")
+				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
+					CONFIGURATIONS Release
+					DESTINATION "${base_dir}/release/${module_dir}")
+			else()
+				# Unfortunately we have to use install(PROGRAMS) instead of
+				# install(TARGETS) because TARGETS doesn't allow us to change
+				# the executable name.
+				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
+					CONFIGURATIONS Debug
+					DESTINATION "${base_dir}/debug/${module_dir}"
+					RENAME "${final_test_exe_name}")
+				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
+					CONFIGURATIONS Release
+					DESTINATION "${base_dir}/release/${module_dir}"
+					RENAME "${final_test_exe_name}")
+			endif()
+				
 			add_test(NAME ${test_name}
 				COMMAND ${PERL_EXECUTABLE} ${base_dir}/runtest.pl -c ${test_name}
 				$<CONFIG> WORKING_DIRECTORY ${base_dir})

@@ -104,6 +104,7 @@ bool setUp(const char* function_name)
 			filename == "bbackupd-data" ||
 			filename == "syncallowscript.control" ||
 			StartsWith("syncallowscript.notifyran.", filename) ||
+			filename == "test_map.db" ||
 			filename == "test2.downloaded" ||
 			EndsWith("testfile", filename))
 		{
@@ -201,6 +202,7 @@ bool setUp(const char* function_name)
 		"testfiles/restore* testfiles/bbackupd-data "
 		"testfiles/syncallowscript.control "
 		"testfiles/syncallowscript.notifyran.* "
+		"testfiles/test_map.db "
 		"testfiles/test2.downloaded"
 		) == 0);
 	TEST_THAT_THROWONFAIL(system("touch testfiles/accounts.txt") == 0);
