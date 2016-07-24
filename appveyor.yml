@@ -76,6 +76,12 @@ install:
   - cd openssl-%OPENSSL_VERSION%
   - perl Configure debug-VC-WIN32 no-asm --prefix="%APPVEYOR_BUILD_FOLDER%\..\openssl-%PLATFORM%"
   - ms\do_ms
+  # You would expect us to use nt.mak to compile a static library here, but mk1mf.pl uses the /MT[d]
+  # CRT in that case, which is incompatible with our dynamic runtime, /MD[d]. It seems that the libs
+  # built by ntdll.mak, which are compiled with /MD[d], are full libraries and not import libs,
+  # so we can link statically against them and still get a dynamic runtime.
+  # - nmake /s /f ms\ntdll.mak
+  # - nmake /s /f ms\ntdll.mak install
   - nmake /s /f ms\nt.mak
   - nmake /s /f ms\nt.mak install
 
@@ -97,7 +103,7 @@ install:
   - dir pcre-%PLATFORM%\lib
 
   - cd %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build
-  - cmake -G "%Generator%" -A %PLATFORM% -DZLIB_ROOT=%APPVEYOR_BUILD_FOLDER%\..\zlib-%PLATFORM% -DOPENSSL_ROOT_DIR=%APPVEYOR_BUILD_FOLDER%\..\openssl-%PLATFORM% ..
+  - cmake -G "%Generator%" -A %PLATFORM% -DZLIB_ROOT=%APPVEYOR_BUILD_FOLDER%\..\zlib-%PLATFORM% -DPCRE_ROOT=%APPVEYOR_BUILD_FOLDER%\..\pcre-%PLATFORM% -DOPENSSL_ROOT_DIR=%APPVEYOR_BUILD_FOLDER%\..\openssl-%PLATFORM% ..
 
   # Show files after build
   - dir %APPVEYOR_BUILD_FOLDER%\..\zlib-1.2.8

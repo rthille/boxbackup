@@ -113,23 +113,25 @@ sub runtest
 	# Attempt to make this test.
 	my $flag = ($test_mode eq 'release')?(BoxPlatform::make_flag('RELEASE')):'';
 	my ($make_res, $test_project_exe);
+	my $test_dst_dir = "$test_mode/test/$t";
 
 	if($cmake_build)
 	{
+		# Test executables have a different name on Windows to work around
+		# restrictions on running different executables with the same name.
 		$test_project_exe = "test_$t$platform_exe_ext";
-		# Assume that MSVC projects are built with CMake, so we can use
-		# MSBuild to run the tests.
 		my $test_src_dir = "test/$t";
-		my $test_dst_dir = "$test_mode/test/$t";
 
 		my @commands = (
 			"cmake -E remove_directory $test_dst_dir",
 			"cmake -E copy_directory $test_src_dir $test_dst_dir",
-			"cmake -E copy infrastructure/cmake/build/$test_project_exe ".
-				"$test_dst_dir/_test$platform_exe_ext",
+			"cmake -E copy ".
+				"infrastructure/cmake/build/$test_mode/$test_project_exe ".
+				"$test_dst_dir/$test_project_exe",
 		);
 
-		# CMake doesn't support testextra files either, so fake it.
+		# Our CMake buildsystem doesn't do anything to support testextra files
+		# (Makfile syntax), so fake it.
 		if (-r "$test_src_dir/testextra")
 		{
 			open EXTRA, "$test_src_dir/testextra"
@@ -173,6 +175,7 @@ sub runtest
 	{
 		my $quiet = $verbose_build ? "VERBOSE=1" : "";
 		$make_res = system("cd test/$t && $make_command $quiet $flag");
+		$test_project_exe = "_test$platform_exe_ext";
 	}
 
 	if($make_res != 0)
@@ -197,18 +200,8 @@ sub runtest
 		open LOG, ">$logfile" or die "$logfile: $!";
 		chdir("$test_mode/test/$t");
 
-		if($target_msvc)
-		{
-			# Test executables have a different name on Windows to work around
-			# restrictions on running different executables with the same name.
-			open TEE, "$test_project_exe$platform_exe_ext |"
-				or die "$test_project_exe$platform_exe_ext: $!";
-		}
-		else
-		{
-			open TEE, "./_test$platform_exe_ext |"
-				or die "./_test$platform_exe_ext: $!";
-		}
+		open TEE, "$test_project_exe |"
+			or die "$test_dst_dir/$test_project_exe: $!";
 
 		while (my $line = <TEE>)
 		{
@@ -235,13 +228,21 @@ sub runtest
 		}
 		close RESULTS;
 
-		chomp $last;
-		$last =~ s/\r//;
-		push @results, "$t: $last";
-
-		if ($last ne "PASSED") 
-		{ 
+		if(!defined $last)
+		{
+			push @results, "$t: test produced no output";
 			$exit_code = 1;
+		}
+		else
+		{
+			chomp $last;
+			$last =~ s/\r//;
+			push @results, "$t: $last";
+
+			if ($last ne "PASSED") 
+			{ 
+				$exit_code = 1;
+			}
 		}
 	}
 	else

@@ -1313,7 +1313,7 @@ int poll (struct pollfd *ufds, unsigned long nfds, int timeout)
 
 BOOL AddEventSource
 (
-	LPTSTR pszSrcName, // event source name
+	const LPTSTR pszSrcName, // event source name
 	DWORD  dwNum       // number of categories
 )
 {
@@ -1448,10 +1448,7 @@ void openlog(const char * daemonName, int, int)
 		gSyslogH = INVALID_HANDLE_VALUE;
 	}
 
-	char* name = strdup(nameStr.c_str());
-	BOOL success = AddEventSource(name, 0);
-	free(name);
-
+	BOOL success = AddEventSource((const LPTSTR)(nameStr.c_str()), 0);
 	if (!success)
 	{
 		::syslog(LOG_ERR, "Failed to add our own event source");

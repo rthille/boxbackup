@@ -198,7 +198,7 @@ AC_CHECK_MEMBERS([DIR.d_fd],,,  [[#include <dirent.h>]])
 AC_CHECK_MEMBERS([DIR.dd_fd],,, [[#include <dirent.h>]])
 AC_CHECK_MEMBERS([struct tcp_info.tcpi_rtt],,, [[#include <netinet/tcp.h>]])
 
-AC_CHECK_DECLS([O_BINARY])
+AC_CHECK_DECLS([O_BINARY],,, [[#include <fcntl.h>]])
 
 AC_CHECK_DECLS([ENOTSUP],,, [[#include <sys/errno.h>]])
 AC_CHECK_DECLS([INFTIM],,, [[#include <poll.h>]])
