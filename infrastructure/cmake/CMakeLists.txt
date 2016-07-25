@@ -248,16 +248,16 @@ foreach(module_dep
 				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
 					CONFIGURATIONS Debug
 					DESTINATION "${base_dir}/debug/${module_dir}"
-					RENAME "${final_test_exe_name}")
+					RENAME "_test")
 				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
 					CONFIGURATIONS Release
 					DESTINATION "${base_dir}/release/${module_dir}"
-					RENAME "${final_test_exe_name}")
+					RENAME "_test")
 			endif()
 				
 			add_test(NAME ${test_name}
 				COMMAND ${PERL_EXECUTABLE} ${base_dir}/runtest.pl -c ${test_name}
-				$<CONFIG> WORKING_DIRECTORY ${base_dir})
+				$<CONFIG> "$<TARGET_FILE:${module_name}>" WORKING_DIRECTORY ${base_dir})
 		elseif(module_name MATCHES "^(lib_.*|qdbm)$")
 			if(DEBUG)
 				message(STATUS "add library '${module_name}': '${module_files}'")
@@ -512,6 +512,34 @@ check_symbol_exists(dirfd "dirent.h" HAVE_DECL_DIRFD)
 file(APPEND "${boxconfig_h_file}" "#cmakedefine01 HAVE_DECL_DIRFD\n")
 
 # Emulate ax_check_mount_point.m4
+# These checks are run by multi-line M4 commands which are harder to parse/fake using
+# regexps above, so we hard-code them here:
+CHECK_CXX_SOURCE_COMPILES([=[
+	#include "BoxConfig.cmake.h"
+	#ifdef HAVE_SYS_PARAM_H
+	#	include <sys/param.h>
+	#endif
+	#include <sys/mount.h>
+	int main()
+	{
+		struct statfs foo;
+		return sizeof(foo.f_mntonname) > 0 ? 0 : 1;
+	}
+	]=] "HAVE_STRUCT_STATFS_F_MNTONNAME")
+file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_STRUCT_STATFS_F_MNTONNAME\n")
+CHECK_CXX_SOURCE_COMPILES([=[
+	#include "BoxConfig.cmake.h"
+	#ifdef HAVE_SYS_PARAM_H
+	#	include <sys/param.h>
+	#endif
+	#include <sys/mount.h>
+	int main()
+	{
+		struct statvfs foo;
+		return sizeof(foo.f_mntonname) > 0 ? 0 : 1;
+	}
+	]=] "HAVE_STRUCT_STATVFS_F_MNTONNAME")
+file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_STRUCT_STATVFS_F_MNTONNAME\n")
 if(HAVE_STRUCT_STATFS_F_MNTONNAME OR
 	HAVE_STRUCT_STATVFS_F_MNTONNAME OR
 	HAVE_STRUCT_MNTENT_MNT_DIR OR
