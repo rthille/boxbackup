@@ -19,7 +19,22 @@ my $cmake_build = $opts{'c'};
 my $prepare_only = $opts{'n'};
 my $verbose_build = $opts{'v'};
 
-my ($test_name,$test_mode) = @ARGV;
+my $test_name = shift @ARGV;
+my $test_mode = shift @ARGV;
+my $test_project_exe;
+
+if($cmake_build)
+{
+	# To support different build environments (Windows/MSVC and Linux/Makefile) which
+	# place compiled executables in different locations, we need to accept the name of
+	# the compiled test executable as an additional command-line parameter.
+	die "test name is required in cmake mode" unless $test_name;
+	die "test mode is required in cmake mode" unless $test_mode;
+	die "only a single test name is supported in cmake mode" if $test_name =~ /,/;
+	$test_project_exe = shift @ARGV;
+	die "test project executable name is required in cmake mode" unless $test_project_exe;
+}
+
 $test_mode = 'debug' if not defined $test_mode or $test_mode eq '';
 $test_mode = lc($test_mode);
 
@@ -51,7 +66,7 @@ if($test_name ne 'ALL')
 	}
 	else
 	{
-		runtest($test_name);
+		runtest($test_name, $test_project_exe);
 	}
 }
 else
@@ -108,26 +123,23 @@ exit $exit_code;
 
 sub runtest
 {
-	my ($t) = @_;
+	my ($t, $test_project_exe) = @_;
 
 	# Attempt to make this test.
 	my $flag = ($test_mode eq 'release')?(BoxPlatform::make_flag('RELEASE')):'';
-	my ($make_res, $test_project_exe);
+	my $make_res;
 	my $test_dst_dir = "$test_mode/test/$t";
 
 	if($cmake_build)
 	{
 		# Test executables have a different name on Windows to work around
 		# restrictions on running different executables with the same name.
-		$test_project_exe = "test_$t$platform_exe_ext";
 		my $test_src_dir = "test/$t";
 
 		my @commands = (
 			"cmake -E remove_directory $test_dst_dir",
 			"cmake -E copy_directory $test_src_dir $test_dst_dir",
-			"cmake -E copy ".
-				"infrastructure/cmake/build/$test_mode/$test_project_exe ".
-				"$test_dst_dir/$test_project_exe",
+			"cmake -E copy $test_project_exe $test_dst_dir",
 		);
 
 		# Our CMake buildsystem doesn't do anything to support testextra files
