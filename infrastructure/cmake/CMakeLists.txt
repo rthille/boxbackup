@@ -367,14 +367,6 @@ if (WIN32)
 	target_link_libraries(lib_common PUBLIC debug "${pcreposixd_lib_path}" optimized "${pcreposix_lib_path}")
 	target_link_libraries(lib_common PUBLIC debug "${pcred_lib_path}"      optimized "${pcre_lib_path}")
 	include_directories(${PCRE_ROOT}/include)
-
-	set(CMAKE_REQUIRED_INCLUDES "${PCRE_ROOT}/include")
-	check_include_files(pcreposix.h HAVE_PCREPOSIX_H)
-	set(CMAKE_REQUIRED_INCLUDES)
-
-	if(NOT HAVE_PCREPOSIX_H)
-		message(FATAL_ERROR "pcreposix.h not found at PCRE_ROOT/include: ${PCRE_ROOT}/include")
-	endif()
 else()
 	find_package(PkgConfig REQUIRED)
 	pkg_check_modules(PCRE REQUIRED libpcreposix)
@@ -385,9 +377,6 @@ else()
 		message(STATUS "Linking PCRE libraries from ${PCRE_LIBRARY_DIRS}: ${PCRE_LIBRARIES}}")
 	endif()
 endif()
-# PCRE is required, so unconditionally define this:
-set(HAVE_REGEX_SUPPORT 1)
-file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_REGEX_SUPPORT\n")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}")
 find_package(Readline)
@@ -462,7 +451,7 @@ foreach(m4_filename boxbackup_tests.m4 ax_check_mount_point.m4 ax_func_syscall.m
 				string(TOUPPER ${library_name} platform_var_name)
 				check_library_exists(${library_name} ${function_name} "" HAVE_LIB_${platform_var_name})
 				if(HAVE_LIB_${platform_var_name})
-					target_link_libraries(lib_common ${library_name})
+					target_link_libraries(lib_common PUBLIC ${library_name})
 				endif()
 			endforeach()
 		elseif(m4_function MATCHES "^ *AC_CHECK_MEMBERS\\(\\[([A-Za-z._/ ]+)\\.([[A-Za-z_]+)\\](,,, ..(#include <([^>]+)>)..)?\\)$")
@@ -503,6 +492,14 @@ foreach(header_file ${detect_header_files})
 	check_include_files(${header_file} HAVE_${platform_var_name})
 	file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_${platform_var_name}\n")
 endforeach()
+
+if(NOT HAVE_PCREPOSIX_H)
+	message(FATAL_ERROR "pcreposix.h not found at PCRE_ROOT/include: ${PCRE_ROOT}/include")
+endif()
+
+# PCRE is required, so unconditionally define this:
+set(HAVE_REGEX_SUPPORT 1)
+file(APPEND "${boxconfig_h_file}" "#cmakedefine HAVE_REGEX_SUPPORT\n")
 
 foreach(function_name ${detect_functions})
 	string(TOUPPER ${function_name} platform_var_name)
@@ -587,7 +584,6 @@ target_compile_definitions(qdbm PUBLIC -DQDBM_STATIC)
 # Silence some less-useful warnings
 if(MSVC)
 	add_definitions(/wd4996 /wd4291)
-	# target_link_libraries(qdbm PRIVATE /IGNORE:LNK4006)
 	set_property(TARGET qdbm PROPERTY CMAKE_STATIC_LINKER_FLAGS /IGNORE:LNK4006)
 endif(MSVC)
 

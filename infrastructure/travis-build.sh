@@ -11,7 +11,7 @@ if [ "$BUILD" = 'cmake' ]; then
 	cmake --version
 	cmake -DCMAKE_BUILD_TYPE:STRING=Debug ..
 	make install
-	ctest -V
+	[ "$TEST" -eq "n" ] || ctest -V
 else
 	./bootstrap
 	./configure CC="ccache $CC" CXX="ccache $CXX"
