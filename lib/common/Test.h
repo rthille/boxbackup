@@ -249,7 +249,7 @@ std::auto_ptr<Configuration> load_config_file(const std::string& config_file,
 		// e.g. test_common.exe instead of _test.exe.
 		#define TEST_EXECUTABLE BOX_MODULE ".exe"
 #	else
-		#define TEST_EXECUTABLE "_test"
+		#define TEST_EXECUTABLE "./_test"
 #	endif
 #endif // TEST_EXECUTABLE
 
