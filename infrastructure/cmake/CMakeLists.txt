@@ -241,6 +241,7 @@ foreach(module_dep
 				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
 					CONFIGURATIONS Release
 					DESTINATION "${base_dir}/release/${module_dir}")
+				set(test_executable "$<TARGET_FILE_NAME:${module_name}>")
 			else()
 				# Unfortunately we have to use install(PROGRAMS) instead of
 				# install(TARGETS) because TARGETS doesn't allow us to change
@@ -253,11 +254,15 @@ foreach(module_dep
 					CONFIGURATIONS Release
 					DESTINATION "${base_dir}/release/${module_dir}"
 					RENAME "_test")
+				set(test_executable "./_test")
 			endif()
 				
+			target_compile_definitions(${module_name} PRIVATE
+				-DTEST_EXECUTABLE="${test_executable}")
 			add_test(NAME ${test_name}
 				COMMAND ${PERL_EXECUTABLE} ${base_dir}/runtest.pl -c ${test_name}
-				$<CONFIG> "$<TARGET_FILE:${module_name}>" WORKING_DIRECTORY ${base_dir})
+				$<CONFIG> "$<TARGET_FILE:${module_name}>" "${test_executable}"
+				WORKING_DIRECTORY ${base_dir})
 		elseif(module_name MATCHES "^(lib_.*|qdbm)$")
 			if(DEBUG)
 				message(STATUS "add library '${module_name}': '${module_files}'")

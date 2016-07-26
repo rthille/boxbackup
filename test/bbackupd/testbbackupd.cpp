@@ -3576,6 +3576,9 @@ bool test_sync_new_files()
 		// current time, which doesn't help us. So reset the timestamp
 		// on a file by touching it, so it won't be backed up.
 		{
+#ifndef WIN32
+			TEST_THAT(chmod("testfiles/TestDir1/chsh", 0755) == 0);
+#endif
 			FileStream fs("testfiles/TestDir1/chsh", O_WRONLY);
 			fs.Write("a", 1);
 		}

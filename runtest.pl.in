@@ -21,7 +21,8 @@ my $verbose_build = $opts{'v'};
 
 my $test_name = shift @ARGV;
 my $test_mode = shift @ARGV;
-my $test_project_exe;
+my $test_src_exe;
+my $test_dst_exe;
 
 if($cmake_build)
 {
@@ -31,8 +32,10 @@ if($cmake_build)
 	die "test name is required in cmake mode" unless $test_name;
 	die "test mode is required in cmake mode" unless $test_mode;
 	die "only a single test name is supported in cmake mode" if $test_name =~ /,/;
-	$test_project_exe = shift @ARGV;
-	die "test project executable name is required in cmake mode" unless $test_project_exe;
+	$test_src_exe = shift @ARGV;
+	die "test project source executable path is required in cmake mode" unless $test_src_exe;
+	$test_dst_exe = shift @ARGV;
+	die "test project destination executable name is required in cmake mode" unless $test_dst_exe;
 }
 
 $test_mode = 'debug' if not defined $test_mode or $test_mode eq '';
@@ -66,7 +69,7 @@ if($test_name ne 'ALL')
 	}
 	else
 	{
-		runtest($test_name, $test_project_exe);
+		runtest($test_name, $test_src_exe, $test_dst_exe);
 	}
 }
 else
@@ -123,7 +126,7 @@ exit $exit_code;
 
 sub runtest
 {
-	my ($t, $test_project_exe) = @_;
+	my ($t, $test_src_exe, $test_dst_exe) = @_;
 
 	# Attempt to make this test.
 	my $flag = ($test_mode eq 'release')?(BoxPlatform::make_flag('RELEASE')):'';
@@ -139,7 +142,7 @@ sub runtest
 		my @commands = (
 			"cmake -E remove_directory $test_dst_dir",
 			"cmake -E copy_directory $test_src_dir $test_dst_dir",
-			"cmake -E copy $test_project_exe $test_dst_dir",
+			"cmake -E copy $test_src_exe $test_dst_dir/$test_dst_exe",
 		);
 
 		# Our CMake buildsystem doesn't do anything to support testextra files
@@ -187,7 +190,7 @@ sub runtest
 	{
 		my $quiet = $verbose_build ? "VERBOSE=1" : "";
 		$make_res = system("cd test/$t && $make_command $quiet $flag");
-		$test_project_exe = "_test$platform_exe_ext";
+		$test_dst_exe = "_test$platform_exe_ext";
 	}
 
 	if($make_res != 0)
@@ -212,8 +215,8 @@ sub runtest
 		open LOG, ">$logfile" or die "$logfile: $!";
 		chdir("$test_mode/test/$t");
 
-		open TEE, "$test_project_exe |"
-			or die "$test_dst_dir/$test_project_exe: $!";
+		open TEE, "$test_dst_exe |"
+			or die "$test_dst_dir/$test_dst_exe: $!";
 
 		while (my $line = <TEE>)
 		{

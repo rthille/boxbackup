@@ -6,13 +6,15 @@ set -x
 ccache -s
 
 if [ "$BUILD" = 'cmake' ]; then
-	mkdir -p infrastructure/cmake/build
-	cd infrastructure/cmake/build
+	cd `dirname $0`
+	mkdir -p cmake/build
+	cd cmake/build
 	cmake --version
 	cmake -DCMAKE_BUILD_TYPE:STRING=Debug ..
 	make install
-	[ "$TEST" -eq "n" ] || ctest -V
+	[ "$TEST" = "n" ] || ctest -V
 else
+	cd `dirname $0`/..
 	./bootstrap
 	./configure CC="ccache $CC" CXX="ccache $CXX"
 	grep CXX config.status
