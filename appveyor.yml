@@ -99,6 +99,7 @@ install:
   - dir pcre-%PLATFORM%\bin
   - dir pcre-%PLATFORM%\lib
 
+  - md %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build
   - cd %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build
   - cmake -G "%Generator%" -A %PLATFORM% -DZLIB_ROOT=%APPVEYOR_BUILD_FOLDER%\..\zlib-%PLATFORM% -DPCRE_ROOT=%APPVEYOR_BUILD_FOLDER%\..\pcre-%PLATFORM% -DOPENSSL_ROOT_DIR=%APPVEYOR_BUILD_FOLDER%\..\openssl-%PLATFORM% ..
 
