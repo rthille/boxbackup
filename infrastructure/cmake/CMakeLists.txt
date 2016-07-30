@@ -333,6 +333,7 @@ if(WIN32)
 
 	find_path(ZLIB_INCLUDE_DIR NAMES zlib.h ${ZLIB_ROOT}/include)
 	include_directories(${ZLIB_INCLUDE_DIR})
+	message(STATUS "Found Zlib headers: ${ZLIB_INCLUDE_DIR}")
 
 	# We must link against zlibstaticD if this is a debug build, otherwise
 	# we have a C runtime mismatch (/MD versus /MDd) and the application
@@ -344,8 +345,10 @@ if(WIN32)
 
 	if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 		target_link_libraries(lib_compress PUBLIC ${ZLIB_LIBRARY_STATIC_DEBUG})
+		message(STATUS "Linking Zlib library: ${ZLIB_LIBRARY_STATIC_DEBUG}")
 	else()
 		target_link_libraries(lib_compress PUBLIC ${ZLIB_LIBRARY_STATIC_RELEASE})
+		message(STATUS "Linking Zlib library: ${ZLIB_LIBRARY_STATIC_RELEASE}")
 	endif()
 else()
 	find_package(ZLIB REQUIRED)
