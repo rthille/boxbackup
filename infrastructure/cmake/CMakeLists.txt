@@ -331,7 +331,8 @@ if(WIN32)
 		message(FATAL_ERROR "You must set ZLIB_ROOT to point to include/zlib.h and lib/zlibstatic[d].lib on Windows")
 	endif()
 
-	find_path(ZLIB_INCLUDE_DIR NAMES zlib.h ${ZLIB_ROOT}/include)
+	message(STATUS "Searching for Zlib in: ${ZLIB_ROOT}")
+	find_path(ZLIB_INCLUDE_DIR zlib.h PATHS ${ZLIB_ROOT}/include)
 	include_directories(${ZLIB_INCLUDE_DIR})
 	message(STATUS "Found Zlib headers: ${ZLIB_INCLUDE_DIR}")
 
