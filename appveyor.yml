@@ -47,7 +47,7 @@ build:
 install:
   # Install cmake.portable instead of cmake, to get it on the path again:
   # http://disq.us/p/xdknrt
-  - cinst strawberryperl 7zip.commandline cmake.portable
+  - cinst --limit-output strawberryperl 7zip.commandline cmake.portable
 
   # - dir "C:\Program Files\Microsoft SDKs\Windows"
   # - dir "C:\Program Files\Microsoft SDKs\Windows\v7.1"
