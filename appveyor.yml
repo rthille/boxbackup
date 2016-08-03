@@ -43,6 +43,7 @@ init:
 build:
   parallel: true
   project: infrastructure/cmake/build/INSTALL.vcxproj
+  verbosity: quiet
 
 install:
   # Install cmake.portable instead of cmake, to get it on the path again:
