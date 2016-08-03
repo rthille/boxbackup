@@ -143,6 +143,9 @@ sub runtest
 			"cmake -E remove_directory $test_dst_dir",
 			"cmake -E copy_directory $test_src_dir $test_dst_dir",
 			"cmake -E copy $test_src_exe $test_dst_dir/$test_dst_exe",
+			# We could do a "make install" here, to ensure that everything
+			# is up to date, but it's really slow, verbose and wasteful:
+			# "cmake --build infrastructure/cmake/build --target install",
 		);
 
 		# Our CMake buildsystem doesn't do anything to support testextra files
@@ -213,7 +216,7 @@ sub runtest
 	{
 		# no tee.exe on Windows, so let's do it ourselves.
 		open LOG, ">$logfile" or die "$logfile: $!";
-		chdir("$test_mode/test/$t");
+		chdir(dirname($0)."/$test_mode/test/$t");
 
 		open TEE, "$test_dst_exe |"
 			or die "$test_dst_dir/$test_dst_exe: $!";
@@ -225,7 +228,7 @@ sub runtest
 		}
 		close LOG;
 		close TEE;
-		chdir("../../..");
+		chdir(dirname($0));
 	}
 	else
 	{
