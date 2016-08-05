@@ -631,3 +631,19 @@ target_compile_definitions(test_backupstorefix PRIVATE -DPERL_EXECUTABLE="${perl
 
 file(GLOB msvc_user_files ${CMAKE_SOURCE_DIR}/msvc/*)
 file(COPY ${msvc_user_files} DESTINATION ${CMAKE_BINARY_DIR})
+
+# Configure tests
+# I've set the timeout to 4 times as long as it took to run on a particular run on Appveyor:
+# https://ci.appveyor.com/project/qris/boxbackup/build/job/xm10itascygtu93j
+set_tests_properties(common TIMEOUT 20)
+set_tests_properties(crypto TIMEOUT 2)
+set_tests_properties(compress TIMEOUT 60)
+set_tests_properties(raidfile TIMEOUT 4)
+set_tests_properties(basicserver TIMEOUT 60)
+set_tests_properties(backupstore TIMEOUT 200)
+set_tests_properties(backupstorefix TIMEOUT 24)
+set_tests_properties(backupstorepatch TIMEOUT 1200)
+set_tests_properties(backupdiff TIMEOUT 12)
+set_tests_properties(bbackupd TIMEOUT 1200)
+set_tests_properties(s3store TIMEOUT 20)
+set_tests_properties(httpserver TIMEOUT 40)
