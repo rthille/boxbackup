@@ -256,13 +256,24 @@ foreach(module_dep
 					RENAME "_test")
 				set(test_executable "./_test")
 			endif()
+
+			if(${APPVEYOR_MODE})
+				set(appveyor_runtest_pl_switch -a)
+			else()
+				set(appveyor_runtest_pl_switch)
+			endif()
 				
 			target_compile_definitions(${module_name} PRIVATE
 				-DTEST_EXECUTABLE="${test_executable}")
 			add_test(NAME ${test_name}
-				COMMAND ${PERL_EXECUTABLE} ${base_dir}/runtest.pl -c ${test_name}
+				COMMAND ${PERL_EXECUTABLE} ${base_dir}/runtest.pl
+				${appveyor_runtest_pl_switch} -c ${test_name}
 				$<CONFIG> "$<TARGET_FILE:${module_name}>" "${test_executable}"
 				WORKING_DIRECTORY ${base_dir})
+
+			if(${APPVEYOR_MODE})
+				execute_process(COMMAND appveyor AddTest -Name ${test_name} -Outcome None)
+			endif()
 		elseif(module_name MATCHES "^(lib_.*|qdbm)$")
 			if(DEBUG)
 				message(STATUS "add library '${module_name}': '${module_files}'")
@@ -383,7 +394,7 @@ else()
 	target_link_libraries(lib_common PUBLIC ${PCRE_LIBRARIES})
 
 	if(DEBUG)
-		message(STATUS "Linking PCRE libraries from ${PCRE_LIBRARY_DIRS}: ${PCRE_LIBRARIES}}")
+		message(STATUS "Linking PCRE libraries from ${PCRE_LIBRARY_DIRS}: ${PCRE_LIBRARIES}")
 	endif()
 endif()
 

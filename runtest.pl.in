@@ -3,21 +3,24 @@
 use strict;
 use warnings;
 
+use Cwd;
 use File::Basename;
 use Getopt::Std;
 
 chdir(dirname($0));
-use lib dirname($0).'/infrastructure';
+my $base_dir = getcwd();
+use lib dirname($0)."/infrastructure";
 
 use BoxPlatform;
 
 my %opts;
-getopts('cnv', \%opts);
+getopts('acnv', \%opts);
 
 # Don't actually run the test, just prepare for it.
 my $cmake_build = $opts{'c'};
 my $prepare_only = $opts{'n'};
 my $verbose_build = $opts{'v'};
+my $appveyor_mode = $opts{'a'};
 
 my $test_name = shift @ARGV;
 my $test_mode = shift @ARGV;
@@ -124,6 +127,33 @@ __E
 
 exit $exit_code;
 
+sub appveyor_test_status
+{
+	my ($test_name, $status, $duration, $message, $stdout) = @_;
+
+	if(!$appveyor_mode)
+	{
+		return;
+	}
+
+	# Assume that the test was already "Added" by CMakeLists.txt.
+	my $cmdline = "appveyor UpdateTest -Name $test_name -Outcome $status";
+	if($duration)
+	{
+		$cmdline .= " -Duration $duration";
+	}
+
+	if($message)
+	{
+		$cmdline .= " -ErrorMessage \"$message\"";
+	}
+
+	if(system($cmdline))
+	{
+		warn "AppVeyor test command failed: $cmdline";
+	}
+}
+
 sub runtest
 {
 	my ($t, $test_src_exe, $test_dst_exe) = @_;
@@ -132,9 +162,12 @@ sub runtest
 	my $flag = ($test_mode eq 'release')?(BoxPlatform::make_flag('RELEASE')):'';
 	my $make_res;
 	my $test_dst_dir = "$test_mode/test/$t";
+	my $start_time = time();
 
 	if($cmake_build)
 	{
+		appveyor_test_status($t, "Running");
+
 		# Test executables have a different name on Windows to work around
 		# restrictions on running different executables with the same name.
 		my $test_src_dir = "test/$t";
@@ -184,7 +217,9 @@ sub runtest
 			$make_res = system($command);
 			if ($make_res != 0)
 			{ 
-				push @results, "$t: make failed: $command";
+				push @results, "$t: pre-test command failed: $command";
+				appveyor_test_status($t, "NotRunnable", time() - $start_time,
+					"pre-test command failed: $command");
 				last; 
 			}
 		}
@@ -199,6 +234,8 @@ sub runtest
 	if($make_res != 0)
 	{
 		push @results,"$t: make failed";
+		appveyor_test_status($t, "NotRunnable", time() - $start_time,
+			"pre-test commands failed");
 		$exit_code = 2;
 		return;
 	}
@@ -208,6 +245,8 @@ sub runtest
 
 	if($prepare_only)
 	{
+		appveyor_test_status($t, "Skipped", time() - $start_time,
+			"we are only preparing this test");
 		return;
 	}
 	
@@ -216,7 +255,7 @@ sub runtest
 	{
 		# no tee.exe on Windows, so let's do it ourselves.
 		open LOG, ">$logfile" or die "$logfile: $!";
-		chdir(dirname($0)."/$test_mode/test/$t");
+		chdir("$base_dir/$test_mode/test/$t");
 
 		open TEE, "$test_dst_exe |"
 			or die "$test_dst_dir/$test_dst_exe: $!";
@@ -228,10 +267,11 @@ sub runtest
 		}
 		close LOG;
 		close TEE;
-		chdir(dirname($0));
+		chdir($base_dir);
 	}
 	else
 	{
+		chdir($base_dir);
 		$test_res = system("cd $test_mode/test/$t ; sh _t 2>&1 " .
 			"| tee ../../../$logfile");
 	}
@@ -249,6 +289,8 @@ sub runtest
 		if(!defined $last)
 		{
 			push @results, "$t: test produced no output";
+			appveyor_test_status($t, "Failed", time() - $start_time,
+				"test produced no output");
 			$exit_code = 1;
 		}
 		else
@@ -260,13 +302,22 @@ sub runtest
 			if ($last ne "PASSED") 
 			{ 
 				$exit_code = 1;
+				appveyor_test_status($t, "Failed", time() - $start_time,
+					"test ended with: $last");
+			}
+			else
+			{
+				appveyor_test_status($t, "Passed", time() - $start_time);
 			}
 		}
 	}
 	else
 	{
+		my $cwd = getcwd();
 		push @results, 
-			"$t: failed to open test log file: $logfile: $!";
+			"$t: failed to open test log file: $logfile: $! (in $cwd)";
+		appveyor_test_status($t, "Inconclusive", time() - $start_time,
+			"failed to open test log file: $logfile: $!");
 	}
 	
 	# delete test results

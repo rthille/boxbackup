@@ -48,7 +48,8 @@ build:
 install:
   # Install cmake.portable instead of cmake, to get it on the path again:
   # http://disq.us/p/xdknrt
-  - cinst --limit-output strawberryperl 7zip.commandline cmake.portable
+  - cinst --limit-output 7zip.commandline cmake.portable
+  # We don't need strawberryperl on AppVeyor because there is already a Perl in c:\Perl.
 
   # - dir "C:\Program Files\Microsoft SDKs\Windows"
   # - dir "C:\Program Files\Microsoft SDKs\Windows\v7.1"
@@ -102,7 +103,7 @@ install:
 
   - md %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build
   - cd %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build
-  - cmake -G "%Generator%" -A %PLATFORM% -DZLIB_ROOT=%APPVEYOR_BUILD_FOLDER%\..\zlib-%PLATFORM% -DPCRE_ROOT=%APPVEYOR_BUILD_FOLDER%\..\pcre-%PLATFORM% -DOPENSSL_ROOT_DIR=%APPVEYOR_BUILD_FOLDER%\..\openssl-%PLATFORM% ..
+  - cmake -G "%Generator%" -A %PLATFORM% -DZLIB_ROOT=%APPVEYOR_BUILD_FOLDER%\..\zlib-%PLATFORM% -DPCRE_ROOT=%APPVEYOR_BUILD_FOLDER%\..\pcre-%PLATFORM% -DOPENSSL_ROOT_DIR=%APPVEYOR_BUILD_FOLDER%\..\openssl-%PLATFORM% -DAPPVEYOR_MODE=1 ..
 
   # Show files after build
   # - dir %APPVEYOR_BUILD_FOLDER%\..\zlib-1.2.8
