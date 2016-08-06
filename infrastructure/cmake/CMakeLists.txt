@@ -272,8 +272,8 @@ foreach(module_dep
 				WORKING_DIRECTORY ${base_dir})
 
 			if(${APPVEYOR_MODE})
-				execute_process(COMMAND appveyor AddTest -Framework Custom
-					-FileName "" -Name ${test_name} -Outcome None)
+				execute_process(COMMAND appveyor AddTest -Name ${test_name} 
+					-Framework Custom -FileName "" -Outcome Running -Duration 0)
 			endif()
 		elseif(module_name MATCHES "^(lib_.*|qdbm)$")
 			if(DEBUG)
