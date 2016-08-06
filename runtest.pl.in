@@ -137,7 +137,8 @@ sub appveyor_test_status
 	}
 
 	# Assume that the test was already "Added" by CMakeLists.txt.
-	my $cmdline = "appveyor UpdateTest -Name $test_name -Outcome $status";
+	my $cmdline = "appveyor UpdateTest -Name $test_name -Framework Custom ".
+		"-FileName $test_dst_exe -Outcome $status";
 	if($duration)
 	{
 		$cmdline .= " -Duration $duration";
