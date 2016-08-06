@@ -139,9 +139,9 @@ sub appveyor_test_status
 	# Assume that the test was already "Added" by CMakeLists.txt.
 	my $cmdline = "appveyor UpdateTest -Name $test_name -Framework Custom ".
 		"-FileName $test_dst_exe -Outcome $status";
-	if($duration)
+	if(defined $duration)
 	{
-		$cmdline .= " -Duration $duration";
+		$cmdline .= " -Duration ".($duration * 1000);
 	}
 
 	if($message)
@@ -152,6 +152,10 @@ sub appveyor_test_status
 	if(system($cmdline))
 	{
 		warn "AppVeyor test command failed: $cmdline";
+	}
+	else
+	{
+		print "Notified: $cmdline\n";
 	}
 }
 
@@ -167,7 +171,7 @@ sub runtest
 
 	if($cmake_build)
 	{
-		appveyor_test_status($t, "Running");
+		appveyor_test_status($t, "Running", 0);
 
 		# Test executables have a different name on Windows to work around
 		# restrictions on running different executables with the same name.
