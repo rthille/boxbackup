@@ -1,0 +1,67 @@
+cmake_minimum_required(VERSION 2.6)
+
+project(BoxBackup_Windows)
+
+set(base_dir ${CMAKE_SOURCE_DIR}/../../..)
+set_property(DIRECTORY PROPERTY EP_PREFIX build)
+set(install_dir ${CMAKE_SOURCE_DIR}/install)
+
+# Automate the process of downloading, building and "installing" dependencies on Windows,
+# as used by AppVeyor.
+set(ZLIB_VERSION    1.2.8  CACHE STRING "Version of zlib to download, build, and compile Box Backup against")
+set(OPENSSL_VERSION 1.0.2h CACHE STRING "Version of OpenSSL to download, build, and compile Box Backup against")
+set(PCRE_VERSION    8.38   CACHE STRING "Version of PCRE to download, build, and compile Box Backup against")
+
+include(ExternalProject)
+
+string(REPLACE "." "" zlib_version_nodots ${ZLIB_VERSION}) 
+ExternalProject_Add(zlib
+	URL "http://zlib.net/zlib${zlib_version_nodots}.zip"
+	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${install_dir}
+	INSTALL_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target install
+	STEP_TARGETS configure install
+)
+
+if(WIN32)
+	ExternalProject_Add(openssl
+		DEPENDS zlib
+		URL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+		CONFIGURE_COMMAND perl Configure debug-VC-WIN32 no-asm --prefix=${install_dir}
+		COMMAND cmd ms/do_ms.bat
+		# You would expect us to use nt.mak to compile a static library here, but mk1mf.pl uses the /MT[d]
+		# CRT in that case, which is incompatible with our dynamic runtime, /MD[d]. It seems that the libs
+		# built by ntdll.mak, which are compiled with /MD[d], are full libraries and not import libs,
+		# so we can link statically against them and still get a dynamic runtime.
+		BUILD_IN_SOURCE 1
+		BUILD_COMMAND   nmake /s /f ms\\nt.mak
+		INSTALL_COMMAND nmake /s /f ms\\nt.mak install
+	)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+	ExternalProject_Add(openssl
+		DEPENDS zlib
+		URL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+		CONFIGURE_COMMAND perl Configure darwin64-x86_64-cc --prefix=${install_dir}
+		BUILD_IN_SOURCE 1
+	)
+else()
+	ExternalProject_Add(openssl
+		DEPENDS zlib
+		URL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+		CONFIGURE_COMMAND ./config --prefix=${install_dir}
+		BUILD_IN_SOURCE 1
+	)
+
+endif()
+
+ExternalProject_Add(pcre
+	URL "http://ftp.csx.cam.ac.uk/pub/software/programming/pcre/pcre-${PCRE_VERSION}.zip"
+	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${install_dir}
+	INSTALL_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target install
+)
+
+ExternalProject_Add(boxbackup
+	DEPENDS zlib openssl pcre
+	SOURCE_DIR ${base_dir}/infrastructure/cmake
+	CMAKE_ARGS -DZLIB_ROOT=${install_dir} -DOPENSSL_ROOT=${install_dir} -DPCRE_ROOT=${install_dir} -DAPPVEYOR_MODE=1
+	STEP_TARGETS configure build test install
+)
