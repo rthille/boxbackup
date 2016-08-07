@@ -27,7 +27,7 @@ if(WIN32)
 		DEPENDS zlib
 		URL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
 		CONFIGURE_COMMAND perl Configure debug-VC-WIN32 no-asm --prefix=${install_dir}
-		COMMAND cmd ms/do_ms.bat
+		COMMAND cmd /c ms\\do_ms.bat
 		# You would expect us to use nt.mak to compile a static library here, but mk1mf.pl uses the /MT[d]
 		# CRT in that case, which is incompatible with our dynamic runtime, /MD[d]. It seems that the libs
 		# built by ntdll.mak, which are compiled with /MD[d], are full libraries and not import libs,
@@ -62,6 +62,6 @@ ExternalProject_Add(pcre
 ExternalProject_Add(boxbackup
 	DEPENDS zlib openssl pcre
 	SOURCE_DIR ${base_dir}/infrastructure/cmake
-	CMAKE_ARGS -DZLIB_ROOT=${install_dir} -DOPENSSL_ROOT=${install_dir} -DPCRE_ROOT=${install_dir} -DAPPVEYOR_MODE=1
+	CMAKE_ARGS -DZLIB_ROOT=${install_dir} -DOPENSSL_ROOT_DIR=${install_dir} -DPCRE_ROOT=${install_dir} -DAPPVEYOR_MODE=1
 	STEP_TARGETS configure build test install
 )

@@ -50,6 +50,9 @@ install:
   # http://disq.us/p/xdknrt
   - cinst --limit-output 7zip.commandline cmake.portable
   # We don't need strawberryperl on AppVeyor because there is already a Perl in c:\Perl.
+  # If you are doing this on a fresh box for development, you would probably want to
+  # install Chocolatey and then run:
+  # cinst -y cmake strawberryperl git vim visualstudio2012express
 
   # - dir "C:\Program Files\Microsoft SDKs\Windows"
   # - dir "C:\Program Files\Microsoft SDKs\Windows\v7.1"
