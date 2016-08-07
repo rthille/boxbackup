@@ -125,3 +125,16 @@ test_script:
   # - dir %PLATFORM%\%CONFIGURATION%
   - ctest -C %CONFIGURATION% -V
 
+deploy:
+  release: boxbackup-$(appveyor_build_version)
+  description: 'Box Backup Win32 build by AppVeyor'
+  provider: GitHub
+  auth_token:
+    secure: Kh3Y3eadH4tC1JY5truhH5XKm218poCweaSLjxgTZ270jnvrc00tElKwnLLbuB01
+  artifact: release/bin/bbackupd/bbackupd.exe
+  draft: false
+  prerelease: false
+  on:
+    branch: master                 # release from master branch only
+    configuration: release
+    # appveyor_repo_tag: true        # deploy on tag push only
