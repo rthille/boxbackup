@@ -59,7 +59,10 @@ endif()
 ExternalProject_Add(pcre
 	URL "http://ftp.csx.cam.ac.uk/pub/software/programming/pcre/pcre-${PCRE_VERSION}.zip"
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${install_dir}
-	INSTALL_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target install
+	# We need to build both versions, debug and release, because cmake requires both to be
+	# present to generate its multi-configuration project files for Visual Studio/MSBuild.
+	INSTALL_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target install --config Debug
+	COMMAND         ${CMAKE_COMMAND} --build <BINARY_DIR> --target install --config Release
 )
 
 ExternalProject_Add(boxbackup
