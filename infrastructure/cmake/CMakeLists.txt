@@ -356,13 +356,9 @@ if(WIN32)
 	find_library(ZLIB_LIBRARY_STATIC_RELEASE NAMES zlibstatic
 		PATHS ${ZLIB_ROOT}/lib NO_DEFAULT_PATH)
 
-	if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-		target_link_libraries(lib_compress PUBLIC ${ZLIB_LIBRARY_STATIC_DEBUG})
-		message(STATUS "Linking Zlib library: ${ZLIB_LIBRARY_STATIC_DEBUG}")
-	else()
-		target_link_libraries(lib_compress PUBLIC ${ZLIB_LIBRARY_STATIC_RELEASE})
-		message(STATUS "Linking Zlib library: ${ZLIB_LIBRARY_STATIC_RELEASE}")
-	endif()
+	target_link_libraries(lib_compress PUBLIC
+		debug ${ZLIB_LIBRARY_STATIC_DEBUG}
+		optimized ${ZLIB_LIBRARY_STATIC_DEBUG})
 else()
 	find_package(ZLIB REQUIRED)
 	include_directories(${ZLIB_INCLUDE_DIRS})
