@@ -58,7 +58,10 @@ install:
   - cd %APPVEYOR_BUILD_FOLDER%\..
   - if not exist cmake md cmake
   - cd cmake
-  - cmake %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\windows
+  # We need to specify the generator here, in case the user has more than one installed.
+  # CMake always seems to default to the latest version of Visual Studio, not the one on
+  # the current PATH.
+  - cmake -G "%Generator%" -A %PLATFORM% %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\windows
 
   # Leave the current directory in the correct place to find the solution file using its relative path above.
 
