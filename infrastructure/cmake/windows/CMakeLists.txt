@@ -18,7 +18,10 @@ string(REPLACE "." "" zlib_version_nodots ${ZLIB_VERSION})
 ExternalProject_Add(zlib
 	URL "http://zlib.net/zlib${zlib_version_nodots}.zip"
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${install_dir}
-	INSTALL_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target install
+	# We need to build both versions, debug and release, because cmake requires both to be
+	# present to generate its multi-configuration project files for Visual Studio/MSBuild.
+	INSTALL_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target install --config Debug
+	COMMAND         ${CMAKE_COMMAND} --build <BINARY_DIR> --target install --config Release
 	STEP_TARGETS configure install
 )
 
