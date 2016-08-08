@@ -55,15 +55,13 @@ install:
   # cinst -y cmake strawberryperl git vim visualstudio2012express
 
   - '"C:\Program Files\Microsoft SDKs\Windows\v7.1\Bin\SetEnv.cmd" /x86'
-  - cd %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\windows
-  - if not exist build md build
-  - cd build
-  - cmake ..
+  - cd %APPVEYOR_BUILD_FOLDER%\..
+  - cmake %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\windows
 
   # Leave the current directory in the correct place to find the solution file using its relative path above.
 
 test_script:
-  - cd %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\build
+  - cd %APPVEYOR_BUILD_FOLDER%\..\boxbackup-build
   # - dir
   # - dir bin_bbackupd.dir
   # - dir %PLATFORM%
