@@ -42,7 +42,7 @@ init:
 
 build:
   parallel: true
-  project: "%APPVEYOR_BUILD_FOLDER%\\..\\cmake\\BoxBackup_Windows.sln"
+  project: ..\cmake\BoxBackup_Windows.sln
   verbosity: quiet
 
 install:
