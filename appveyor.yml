@@ -42,7 +42,7 @@ init:
 
 build:
   parallel: true
-  project: BoxBackup_Windows.sln
+  project: %APPVEYOR_BUILD_FOLDER%\..\cmake\BoxBackup_Windows.sln
   verbosity: quiet
 
 install:
@@ -56,12 +56,14 @@ install:
 
   - '"C:\Program Files\Microsoft SDKs\Windows\v7.1\Bin\SetEnv.cmd" /x86'
   - cd %APPVEYOR_BUILD_FOLDER%\..
+  - if not exist cmake md cmake
+  - cd cmake
   - cmake %APPVEYOR_BUILD_FOLDER%\infrastructure\cmake\windows
 
   # Leave the current directory in the correct place to find the solution file using its relative path above.
 
 test_script:
-  - cd %APPVEYOR_BUILD_FOLDER%\..\boxbackup-build
+  - cd %APPVEYOR_BUILD_FOLDER%\..\cmake\boxbackup-build
   # - dir
   # - dir bin_bbackupd.dir
   # - dir %PLATFORM%
