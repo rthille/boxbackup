@@ -48,7 +48,9 @@ build:
 install:
   # Install cmake.portable instead of cmake, to get it on the path again:
   # http://disq.us/p/xdknrt
-  - cinst --limit-output 7zip.commandline cmake.portable
+  - dir "c:\Program Files"
+  - dir "c:\Program Files (x86)"
+  - cinst --limit-output cmake.portable
   # We don't need strawberryperl on AppVeyor because there is already a Perl in c:\Perl.
   # If you are doing this on a fresh box for development, you would probably want to
   # install Chocolatey and then run:
