@@ -69,6 +69,6 @@ ExternalProject_Add(boxbackup
 	DEPENDS zlib openssl pcre
 	SOURCE_DIR ${base_dir}/infrastructure/cmake
 	CMAKE_ARGS -DZLIB_ROOT=${install_dir} -DOPENSSL_ROOT_DIR=${install_dir} -DPCRE_ROOT=${install_dir} -DAPPVEYOR_MODE=1
-	TEST_BEFORE_INSTALL 1
-	STEP_TARGETS configure build test install
+	TEST_AFTER_INSTALL 1
+	STEP_TARGETS configure build install test
 )
