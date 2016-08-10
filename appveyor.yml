@@ -43,7 +43,7 @@ init:
 build:
   parallel: true
   project: ..\cmake\BoxBackup_Windows.sln
-  verbosity: quiet
+  # verbosity: quiet
 
 install:
   # Install cmake.portable instead of cmake, to get it on the path again:
