@@ -358,7 +358,7 @@ if(WIN32)
 
 	target_link_libraries(lib_compress PUBLIC
 		debug ${ZLIB_LIBRARY_STATIC_DEBUG}
-		optimized ${ZLIB_LIBRARY_STATIC_DEBUG})
+		optimized ${ZLIB_LIBRARY_STATIC_RELEASE})
 else()
 	find_package(ZLIB REQUIRED)
 	include_directories(${ZLIB_INCLUDE_DIRS})
@@ -645,9 +645,9 @@ file(COPY ${msvc_user_files} DESTINATION ${CMAKE_BINARY_DIR})
 # https://ci.appveyor.com/project/qris/boxbackup/build/job/xm10itascygtu93j
 set_tests_properties(common PROPERTIES TIMEOUT 20)
 set_tests_properties(crypto PROPERTIES TIMEOUT 4)
-set_tests_properties(compress PROPERTIES TIMEOUT 60)
-set_tests_properties(raidfile PROPERTIES TIMEOUT 10)
-set_tests_properties(basicserver PROPERTIES TIMEOUT 60)
+set_tests_properties(compress PROPERTIES TIMEOUT 80)
+set_tests_properties(raidfile PROPERTIES TIMEOUT 32)
+set_tests_properties(basicserver PROPERTIES TIMEOUT 80)
 set_tests_properties(backupstore PROPERTIES TIMEOUT 200)
 set_tests_properties(backupstorefix PROPERTIES TIMEOUT 24)
 set_tests_properties(backupstorepatch PROPERTIES TIMEOUT 1200)
