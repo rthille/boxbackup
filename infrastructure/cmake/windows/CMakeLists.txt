@@ -17,6 +17,7 @@ include(ExternalProject)
 string(REPLACE "." "" zlib_version_nodots ${ZLIB_VERSION}) 
 ExternalProject_Add(zlib
 	URL "http://zlib.net/zlib${zlib_version_nodots}.zip"
+	DOWNLOAD_NO_PROGRESS 1
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${install_dir}
 	# We need to build both versions, debug and release, because cmake requires both to be
 	# present to generate its multi-configuration project files for Visual Studio/MSBuild.
@@ -29,6 +30,7 @@ if(WIN32)
 	ExternalProject_Add(openssl
 		DEPENDS zlib
 		URL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+		DOWNLOAD_NO_PROGRESS 1
 		CONFIGURE_COMMAND perl Configure debug-VC-WIN32 no-asm --prefix=${install_dir}
 		COMMAND cmd /c ms\\do_ms.bat
 		# You would expect us to use nt.mak to compile a static library here, but mk1mf.pl uses the /MT[d]
@@ -43,6 +45,7 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 	ExternalProject_Add(openssl
 		DEPENDS zlib
 		URL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+		DOWNLOAD_NO_PROGRESS 1
 		CONFIGURE_COMMAND perl Configure darwin64-x86_64-cc --prefix=${install_dir}
 		BUILD_IN_SOURCE 1
 	)
@@ -50,6 +53,7 @@ else()
 	ExternalProject_Add(openssl
 		DEPENDS zlib
 		URL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+		DOWNLOAD_NO_PROGRESS 1
 		CONFIGURE_COMMAND ./config --prefix=${install_dir}
 		BUILD_IN_SOURCE 1
 	)
@@ -58,6 +62,7 @@ endif()
 
 ExternalProject_Add(pcre
 	URL "http://ftp.csx.cam.ac.uk/pub/software/programming/pcre/pcre-${PCRE_VERSION}.zip"
+	DOWNLOAD_NO_PROGRESS 1
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${install_dir}
 	# We need to build both versions, debug and release, because cmake requires both to be
 	# present to generate its multi-configuration project files for Visual Studio/MSBuild.
