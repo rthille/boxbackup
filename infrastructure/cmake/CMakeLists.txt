@@ -345,7 +345,7 @@ if(WIN32)
 	endif()
 
 	message(STATUS "Searching for Zlib in: ${ZLIB_ROOT}")
-	find_path(ZLIB_INCLUDE_DIR zlib.h PATHS ${ZLIB_ROOT}/include)
+	find_path(ZLIB_INCLUDE_DIR zlib.h PATHS ${ZLIB_ROOT}/include NO_DEFAULT_PATH)
 	include_directories(${ZLIB_INCLUDE_DIR})
 	message(STATUS "Found Zlib headers: ${ZLIB_INCLUDE_DIR}")
 
