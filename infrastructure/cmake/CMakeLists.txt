@@ -79,9 +79,6 @@ if(NOT old_version_define EQUAL new_version_define)
 	file(WRITE "${base_dir}/lib/common/BoxVersion.h" "${new_version_define}")
 endif()
 add_definitions(-DBOX_CMAKE -DNEED_BOX_VERSION_H)
-if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-	add_definitions(-DBOX_RELEASE_BUILD)
-endif()
 if(WIN32)
 	add_definitions(-DWIN32)
 endif()
@@ -314,6 +311,10 @@ foreach(module_dep
 		target_include_directories(${module_name} PUBLIC ${module_path})
 	endif()
 endforeach()
+
+# We can't do anything conditional on CMAKE_BUILD_TYPE because that's not valid for multi-configuration
+# generators such as MSVC. We need to use a generator expression instead.
+target_compile_definitions(lib_common PUBLIC $<$<CONFIG:Release>:-DBOX_RELEASE_BUILD>)
 
 # Detect platform features and write BoxConfig.h.in. Reuse code from 
 # infrastructure/m4/boxbackup_tests.m4 where possible
