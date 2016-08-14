@@ -43,7 +43,7 @@ init:
 build:
   parallel: true
   project: ..\cmake\BoxBackup_Windows.sln
-  # verbosity: quiet
+  verbosity: quiet
 
 install:
   # Install cmake.portable instead of cmake, to get it on the path again:
@@ -67,7 +67,7 @@ install:
   # Leave the current directory in the correct place to find the solution file using its relative path above.
 
 test_script:
-  - cd %APPVEYOR_BUILD_FOLDER%\..\cmake\boxbackup-build
+  - cd %APPVEYOR_BUILD_FOLDER%\..\cmake\src\boxbackup-build
   # - dir
   # - dir bin_bbackupd.dir
   # - dir %PLATFORM%
