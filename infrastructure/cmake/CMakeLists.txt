@@ -79,9 +79,6 @@ if(NOT old_version_define EQUAL new_version_define)
 	file(WRITE "${base_dir}/lib/common/BoxVersion.h" "${new_version_define}")
 endif()
 add_definitions(-DBOX_CMAKE -DNEED_BOX_VERSION_H)
-if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-	add_definitions(-DBOX_RELEASE_BUILD)
-endif()
 if(WIN32)
 	add_definitions(-DWIN32)
 endif()
@@ -315,6 +312,10 @@ foreach(module_dep
 	endif()
 endforeach()
 
+# We can't do anything conditional on CMAKE_BUILD_TYPE because that's not valid for multi-configuration
+# generators such as MSVC. We need to use a generator expression instead.
+target_compile_definitions(lib_common PUBLIC $<$<CONFIG:Release>:-DBOX_RELEASE_BUILD>)
+
 # Detect platform features and write BoxConfig.h.in. Reuse code from 
 # infrastructure/m4/boxbackup_tests.m4 where possible
 
@@ -344,7 +345,7 @@ if(WIN32)
 	endif()
 
 	message(STATUS "Searching for Zlib in: ${ZLIB_ROOT}")
-	find_path(ZLIB_INCLUDE_DIR zlib.h PATHS ${ZLIB_ROOT}/include)
+	find_path(ZLIB_INCLUDE_DIR zlib.h PATHS ${ZLIB_ROOT}/include NO_DEFAULT_PATH)
 	include_directories(${ZLIB_INCLUDE_DIR})
 	message(STATUS "Found Zlib headers: ${ZLIB_INCLUDE_DIR}")
 
