@@ -46,6 +46,8 @@ build:
   verbosity: quiet
 
 install:
+  # test_bbackupd needs 7zip (or cmake -E tar) to extract tar archives on Windows:
+  - cinst -y --limit-output 7zip.commandline
   # Install cmake.portable instead of cmake, to get it on the path again:
   # http://disq.us/p/xdknrt
   - dir "c:\Program Files"
