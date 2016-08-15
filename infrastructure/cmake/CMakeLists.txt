@@ -272,6 +272,14 @@ foreach(module_dep
 				execute_process(COMMAND appveyor AddTest -Name ${test_name} 
 					-Framework Custom -FileName "")
 			endif()
+
+			# It helps with debugging if the test depends on another step which
+			# prepares the target directory, and is always out of date.
+			add_custom_target(${module_name}-prepare
+				COMMAND ${PERL_EXECUTABLE} ${base_dir}/runtest.pl
+				-n -c ${test_name}
+				$<CONFIG> "$<TARGET_FILE:${module_name}>" "${test_executable}"
+				WORKING_DIRECTORY ${base_dir})
 		elseif(module_name MATCHES "^(lib_.*|qdbm)$")
 			if(DEBUG)
 				message(STATUS "add library '${module_name}': '${module_files}'")
