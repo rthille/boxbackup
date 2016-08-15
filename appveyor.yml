@@ -43,9 +43,11 @@ init:
 build:
   parallel: true
   project: ..\cmake\BoxBackup_Windows.sln
-  # verbosity: quiet
+  verbosity: quiet
 
 install:
+  # test_bbackupd needs 7zip (or cmake -E tar) to extract tar archives on Windows:
+  - cinst -y --limit-output 7zip.commandline
   # Install cmake.portable instead of cmake, to get it on the path again:
   # http://disq.us/p/xdknrt
   - dir "c:\Program Files"
@@ -53,7 +55,7 @@ install:
   # We don't need strawberryperl on AppVeyor because there is already a Perl in c:\Perl.
   # If you are doing this on a fresh box for development, you would probably want to
   # install Chocolatey and then run:
-  # cinst -y cmake strawberryperl git vim visualstudio2012express
+  # cinst -y cmake strawberryperl git vim visualstudio2012wdx
 
   - '"C:\Program Files\Microsoft SDKs\Windows\v7.1\Bin\SetEnv.cmd" /x86'
   - cd %APPVEYOR_BUILD_FOLDER%\..
@@ -67,7 +69,7 @@ install:
   # Leave the current directory in the correct place to find the solution file using its relative path above.
 
 test_script:
-  - cd %APPVEYOR_BUILD_FOLDER%\..\cmake\boxbackup-build
+  - cd %APPVEYOR_BUILD_FOLDER%\..\cmake\src\boxbackup-build
   # - dir
   # - dir bin_bbackupd.dir
   # - dir %PLATFORM%
