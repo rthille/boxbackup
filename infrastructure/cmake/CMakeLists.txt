@@ -55,8 +55,28 @@ set(files_to_configure
 include(FindPerl)
 set(TARGET_PERL ${PERL_EXECUTABLE})
 
+function(replace_file_if_different dest_file source_file)
+	execute_process(
+		COMMAND "${CMAKE_COMMAND}" -E
+		copy_if_different "${source_file}" "${dest_file}")
+	execute_process(
+		COMMAND "${CMAKE_COMMAND}" -E
+		remove "${source_file}")
+endfunction()
+
+function(move_file_if_exists source_file dest_file)
+	if(EXISTS "${source_file}")
+		execute_process(
+			COMMAND "${CMAKE_COMMAND}" -E
+			rename "${source_file}" "${dest_file}")
+	endif()
+endfunction()
+
 foreach(file_to_configure ${files_to_configure})
-	configure_file("${base_dir}/${file_to_configure}.in" "${base_dir}/${file_to_configure}" @ONLY)
+	configure_file("${base_dir}/${file_to_configure}.in" "${base_dir}/${file_to_configure}.out" @ONLY)
+	replace_file_if_different(
+		"${base_dir}/${file_to_configure}"
+		"${base_dir}/${file_to_configure}.out")
 endforeach()
 
 # Work out the current Box version (requires Perl) and update lib/common/BoxVersion.h,
@@ -72,12 +92,11 @@ if(NOT status EQUAL 0)
 		"${PERL_EXECUTABLE} ${base_dir}/infrastructure/cmake/getversion.pl: "
 		"status ${status}: ${command_output}")
 endif()
-if(EXISTS "${base_dir}/lib/common/BoxVersion.h")
-	file(READ "${base_dir}/lib/common/BoxVersion.h" old_version_define)
-endif()
-if(NOT old_version_define EQUAL new_version_define)
-	file(WRITE "${base_dir}/lib/common/BoxVersion.h" "${new_version_define}")
-endif()
+file(WRITE "${base_dir}/lib/common/BoxVersion.h.new" "${new_version_define}")
+replace_file_if_different(
+	"${base_dir}/lib/common/BoxVersion.h"
+	"${base_dir}/lib/common/BoxVersion.h.new")
+
 add_definitions(-DBOX_CMAKE -DNEED_BOX_VERSION_H)
 if(WIN32)
 	add_definitions(-DWIN32)
@@ -227,7 +246,10 @@ foreach(module_dep
 			endif()
 
 			string(REPLACE "TEST_NAME" ${test_name} test_main "${test_template}")
-			file(WRITE "${module_path}/_main.cpp" "${test_main}")
+			file(WRITE "${module_path}/_main.cpp.new" "${test_main}")
+			replace_file_if_different(
+				"${module_path}/_main.cpp"
+				"${module_path}/_main.cpp.new")
 			add_executable(${module_name} ${module_files}
 				"${module_path}/_main.cpp")
 
@@ -419,6 +441,12 @@ get_property(CMAKE_REQUIRED_INCLUDES DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
 list(APPEND CMAKE_REQUIRED_INCLUDES "${boxconfig_cmake_h_dir}")
 # message(STATUS "CMAKE_REQUIRED_INCLUDES=${CMAKE_REQUIRED_INCLUDES}")
 
+# Save the original BoxConfig.cmake.h so that we can move it back later,
+# and not need to recompile everything.
+move_file_if_exists(
+	"${boxconfig_cmake_h_dir}/BoxConfig.cmake.h"
+	"${boxconfig_cmake_h_dir}/BoxConfig.cmake.h.bak")
+
 foreach(m4_filename boxbackup_tests.m4 ax_check_mount_point.m4 ax_func_syscall.m4)
 	file(STRINGS "${base_dir}/infrastructure/m4/${m4_filename}" m4_functions REGEX "^ *AC[_A-Z]+\\(.*\\)$")
 	foreach(m4_function ${m4_functions})
@@ -505,7 +533,7 @@ foreach(m4_filename boxbackup_tests.m4 ax_check_mount_point.m4 ax_func_syscall.m
 		endif()
 	endforeach()
 
-	# Build an intermediate version of BoxConfig.cmake.h for use in the following tests:
+	# Build an intermediate version of BoxConfig.cmake.h for use in the following tests.
 	configure_file("${boxconfig_h_file}" "${boxconfig_cmake_h_dir}/BoxConfig.cmake.h")
 endforeach()
 
@@ -629,8 +657,17 @@ foreach(struct_member_name "struct ucred.uid" "struct ucred.cr_uid")
 endforeach()
 set(CMAKE_REQUIRED_INCLUDES "")
 
-# Build the final version of BoxConfig.cmake.h:
-configure_file("${boxconfig_h_file}" "${boxconfig_cmake_h_dir}/BoxConfig.cmake.h")
+# Build the final version of BoxConfig.cmake.h, as a temporary file.
+configure_file("${boxconfig_h_file}" "${boxconfig_cmake_h_dir}/BoxConfig.cmake.h.new")
+
+# Move the original back into place, and then replace it with the
+# temporary one if different (which will force a rebuild of everything).
+move_file_if_exists(
+	"${boxconfig_cmake_h_dir}/BoxConfig.cmake.h.bak"
+	"${boxconfig_cmake_h_dir}/BoxConfig.cmake.h")
+replace_file_if_different(
+	"${boxconfig_cmake_h_dir}/BoxConfig.cmake.h"
+	"${boxconfig_cmake_h_dir}/BoxConfig.cmake.h.new")
 
 # Tell QDBM not to build itself as a DLL, because we want to link statically to it.
 target_compile_definitions(qdbm PUBLIC -DQDBM_STATIC)
