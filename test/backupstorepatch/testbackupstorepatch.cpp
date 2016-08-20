@@ -626,7 +626,7 @@ int test(int argc, const char *argv[])
 #endif
 
 			// Wait for changes to be written back to the root directory.
-			for(int l = 0; l < 32; ++l)
+			for(int secs_remaining = 32; secs_remaining >= 0; secs_remaining--)
 			{
 				// Sleep a while, and print a dot
 				::sleep(1);
@@ -644,7 +644,7 @@ int test(int argc, const char *argv[])
 					}
 				}
 
-				TEST_LINE(l != 0, "No changes detected to root directory after 32 seconds");
+				TEST_LINE(secs_remaining != 0, "No changes detected to root directory after 32 seconds");
 			}
 			::printf("\n");
 			
