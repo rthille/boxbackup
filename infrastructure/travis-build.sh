@@ -16,9 +16,9 @@ if [ "$BUILD" = 'cmake' ]; then
 else
 	cd `dirname $0`/..
 	./bootstrap
-	./configure CC="ccache $CC" CXX="ccache $CXX"
+	./configure CC="ccache $CC" CXX="ccache $CXX" "$@"
 	grep CXX config.status
-	make
+	make V=1
 	./runtest.pl ALL $TEST_TARGET
 fi
 
