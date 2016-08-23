@@ -24,14 +24,12 @@ class Configuration;
 class BackupAccountControl
 {
 protected:
-	const Configuration& mConfig;
 	bool mMachineReadableOutput;
 
 public:
 	BackupAccountControl(const Configuration& config,
 		bool machineReadableOutput = false)
-	: mConfig(config),
-	  mMachineReadableOutput(machineReadableOutput)
+	: mMachineReadableOutput(machineReadableOutput)
 	{ }
 	void CheckSoftHardLimits(int64_t SoftLimit, int64_t HardLimit);
 	int64_t SizeStringToBlocks(const char *string, int BlockSize);
