@@ -14,7 +14,10 @@ $|=1;
 
 print "Box build environment setup.\n";
 
-my @implicit_deps = ('lib/common');
+# Modules that everything else depends on, without being explicitly specified.
+# Deprecated because we can't specify dependencies between them in the usual way,
+# and it's totally unnecessary anyway:
+my @implicit_deps;
 
 # work out platform variables
 use lib 'infrastructure';
@@ -370,8 +373,12 @@ for my $mod (@modules, @implicit_deps)
 	closedir DIR;
 }
 
+my $default_cflags = '@CFLAGS@';
 my $default_cxxflags = '@CXXFLAGS@';
+$default_cflags =~ s/ -O2//g;
 $default_cxxflags =~ s/ -O2//g;
+my $debug_base_dir = 'debug';
+my $release_base_dir = 'release';
 
 my $release_flags = "-O2";
 if ($target_windows)
@@ -395,22 +402,30 @@ print MASTER_MAKEFILE <<__E;
 # "release_build" and "debug_build" are defined near the end of this Makefile.
 default: release_build
 
+CC = @CC@
 CXX = @CXX@
 AR = @AR@
 RANLIB = @RANLIB@
 PERL = @PERL@
 WINDRES = @WINDRES@
 
-DEFAULT_CXXFLAGS = @CPPFLAGS@ $default_cxxflags @CXXFLAGS_STRICT@ \\
+# Work around a mistake in QDBM (using <angled> includes for a file not in the
+# system path) by adding it to the include path with -I.
+DEFAULT_CFLAGS = \@CPPFLAGS@ $default_cflags \@CXXFLAGS_STRICT@ \\
+	$extra_platform_defines $platform_compile_line_extra \\
+	-DBOX_VERSION="\\"$product_version\\"" -Iqdbm
+DEFAULT_CXXFLAGS = \@CPPFLAGS@ $default_cxxflags \@CXXFLAGS_STRICT@ \\
 	$extra_platform_defines $platform_compile_line_extra \\
 	-DBOX_VERSION="\\"$product_version\\""
-LDFLAGS += @LDFLAGS@ @LDADD_RDYNAMIC@ $platform_link_line_extra
+LDFLAGS += \@LDFLAGS@ \@LDADD_RDYNAMIC@ $platform_link_line_extra
 
-RELEASE_CXXFLAGS += \$(DEFAULT_CXXFLAGS) -DBOX_RELEASE_BUILD $release_flags
-RELEASE_OUTBASE = release
+RELEASE_CFLAGS   = \$(DEFAULT_CFLAGS)   -DBOX_RELEASE_BUILD $release_flags
+RELEASE_CXXFLAGS = \$(DEFAULT_CXXFLAGS) -DBOX_RELEASE_BUILD $release_flags
+RELEASE_OUTBASE  = $release_base_dir
 # http://gcc.gnu.org/onlinedocs/libstdc++/manual/debug_mode_using.html#debug_mode.using.mode
-DEBUG_CXXFLAGS += \$(DEFAULT_CXXFLAGS) -g -O0 -D_GLIBCXX_DEBUG
-DEBUG_OUTBASE = debug
+DEBUG_CFLAGS   = \$(DEFAULT_CFLAGS)   -g -O0 -D_GLIBCXX_DEBUG
+DEBUG_CXXFLAGS = \$(DEFAULT_CXXFLAGS) -g -O0 -D_GLIBCXX_DEBUG
+DEBUG_OUTBASE  = $debug_base_dir
 
 __E
 
@@ -419,6 +434,7 @@ if ($bsd_make)
 	print MASTER_MAKEFILE <<__E;
 .ifdef V
 HIDE     = 
+_CC      = \$(CC)
 _CXX     = \$(CXX)
 _LINK    = \$(CXX)
 _WINDRES = \$(WINDRES)
@@ -427,6 +443,7 @@ _RANLIB  = \$(RANLIB)
 _PERL    = \$(PERL)
 .else
 HIDE     = @
+_CC      = @ echo "  [CC]     " \$(*F) && \$(CC)
 _CXX     = @ echo "  [CXX]    " \$(*F) && \$(CXX)
 _LINK    = @ echo "  [LINK]   " \$(*F) && \$(CXX)
 _WINDRES = @ echo "  [WINDRES]" \$(*F) && \$(WINDRES)
@@ -441,6 +458,7 @@ else
 {
 	print MASTER_MAKEFILE <<__E;
 HIDE     = \$(if \$(V),,@)
+_CC      = \$(if \$(V),\$(CC),      @ echo "  [CC]      \$<" && \$(CC))
 _CXX     = \$(if \$(V),\$(CXX),     @ echo "  [CXX]     \$<" && \$(CXX))
 _LINK    = \$(if \$(V),\$(CXX),     @ echo "  [LINK]    \$@" && \$(CXX))
 _WINDRES = \$(if \$(V),\$(WINDRES), @ echo "  [WINDRES] \$<" && \$(WINDRES))
@@ -461,6 +479,12 @@ for my $mod (@implicit_deps, @modules)
 	print $mod,"\n";
 	
 	my ($type,$name) = split /\//,$mod;
+	if (not $name)
+	{
+		# External modules such as qdbm have no "type" in the directory path.
+		$name = $mod;
+		$type = 'lib';
+	}
 	
 	# add additional files for tests
 	if($type eq 'test')
@@ -625,13 +649,18 @@ __E
 # AUTOMATICALLY GENERATED FILE
 #    do not edit!
 #
+${makefile_ifdef_prefix}ifdef RELEASE
+TARGET = $release_base_dir/$mod/$end_target_file
+${makefile_ifdef_prefix}else
+TARGET = $debug_base_dir/$mod/$end_target_file
+${makefile_ifdef_prefix}endif
+
 .PHONY: default
 default:
-	\$(MAKE) -C ../.. $debug_end_target
+	\$(MAKE) -C ../.. \$(TARGET)
 __E
-	close MINI_MODULE_MAKEFILE;
 
-	# read directory
+
 	opendir DIR, $mod;
 	my @items = readdir DIR;
 	closedir DIR;
@@ -686,19 +715,13 @@ __E
 		my @obj_base;
 		for my $file (@items)
 		{
+			my $is_c = $file =~ m/\A(.+)\.c\Z/i;
 			my $is_cpp = $file =~ m/\A(.+)\.cpp\Z/i;
 			my $is_rc  = $file =~ m/\A(.+)\.rc\Z/i;
 			my $base = $1;
 
-			if ($target_windows)
-			{
-				next if not $is_cpp and not $is_rc;
-			}
-			else
-			{
-				next if not $is_cpp;
-			}
-
+			# Don't try to compile .rc files except on Windows:
+			next if not $is_c and not $is_cpp and not ($is_rc and $target_windows);
 			next if $file =~ /\A\._/; # Temp Mac OS Resource hack
 
 			# store for later
@@ -731,6 +754,12 @@ __E
 
 			$make .= "$out_name: $mod/$file @dep_paths\n";
 
+			if ($is_c)
+			{
+				$make .= "\t\$(_CC) \$(${var_prefix}_CFLAGS) ".
+					"\$(${type}_${name}_includes) -DBOX_MODULE=\"\\\"$mod\\\"\" " .
+					"-c $mod/$file -o $out_name\n\n";
+			}
 			if ($is_cpp)
 			{
 				$make .= "\t\$(_CXX) \$(${var_prefix}_CXXFLAGS) ".
@@ -758,12 +787,13 @@ __E
 		{
 			if ($dep =~ m|^lib\/(.+)$|)
 			{
-				push @lib_files, "\$(OUTBASE)/$dep/$1.a";
+				push @lib_files, "$dep/$1.a";
 			}
 			elsif ($dep =~ m|^([^/]+)$|)
 			{
-				push @lib_files, "$dep/lib$1.a";
+				push @lib_files, "$dep/$1.a";
 			}
+			# Not a library dependency, e.g. a binary to be executed by a test.
 		}
 
 		# need to see if the extra makefile fragments require extra object files
@@ -1064,10 +1094,6 @@ for my $parcel (@parcels)
 $dir/$name$exeext: release/bin/$name/$name$exeext
 	mkdir -p $dir
 	$copy_command release/bin/$name/$name$exeext $dir
-
-.PHONY: release/bin/$name/$name$exeext
-release/bin/$name/$name$exeext:
-	(cd bin/$name; \$(MAKE) $release_flag)
 
 EOF
 			push @parcel_deps, "$dir/$name$exeext";
