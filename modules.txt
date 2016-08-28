@@ -7,6 +7,9 @@
 # -l libaries must be in the order they should appear on the command line.
 # Note that order is important on platforms which do not have shared libraries.
 
+# QDBM is currently built from a copy distributed in-tree, which we need to fix.
+qdbm
+
 # Generic support code and modules
 
 lib/raidfile
