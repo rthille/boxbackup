@@ -473,7 +473,13 @@ my %module_resources_win32;
 my @debug_build_targets;
 my @release_build_targets;
 my @all_clean_targets;
+my %mod_type_name;
+my %mod_end_targets;
+my %library_targets;
 
+# First, loop over all modules and quickly categorise them and generate the target filenames.
+# We need this to write correct dependency info into the makefile when modules are listed
+# out of order in modules.txt, which isn't strictly necessary but may look tidier.
 for my $mod (@implicit_deps, @modules)
 {
 	print $mod,"\n";
@@ -485,7 +491,38 @@ for my $mod (@implicit_deps, @modules)
 		$name = $mod;
 		$type = 'lib';
 	}
-	
+
+	# is target a library?
+	my $target_is_library = ($type ne 'bin' && $type ne 'test');
+
+	# make target name
+	my $end_target_file = $name;
+
+	if ($target_is_library)
+	{
+		$end_target_file .= '.a';
+	}
+	else
+	{
+		$end_target_file .= $platform_exe_ext;
+	}
+
+	$end_target_file = '_test'.$platform_exe_ext if $type eq 'test';
+
+	$mod_type_name{$mod} = [$type, $name];
+	$mod_end_targets{$mod} = $end_target_file;
+	$library_targets{$mod} = $target_is_library;
+}
+
+# Now loop over them again, generating makefile instructions etc.
+for my $mod (@implicit_deps, @modules)
+{
+	my ($type,$name) = @{$mod_type_name{$mod}};
+	my $end_target_file = $mod_end_targets{$mod};
+	my $target_is_library = $library_targets{$mod};
+
+	print $mod,": $type\n";
+
 	# add additional files for tests
 	if($type eq 'test')
 	{
@@ -615,26 +652,34 @@ __E
 		}
 	}	
 
+	# get the list of library things to add -- in order of dependency 
+	# so things link properly
+	my @lib_files;
+	my @dep_targets;
+	my @include_search_dirs;
+
+	foreach my $dep (reverse @all_deps_for_module)
+	{
+		my $dep_target = $mod_end_targets{$dep};
+		die "No output file found for $dep" unless $dep_target;
+		$dep_target = "$dep/$dep_target";
+		push @dep_targets, $dep_target;
+
+		if ($dep =~ m|^lib\/(.+)$|)
+		{
+			push @lib_files, $dep_target;
+			push @include_search_dirs, $dep;
+		}
+		elsif ($dep =~ m|^([^/]+)$|)
+		{
+			push @lib_files, $dep_target;
+			push @include_search_dirs, $dep;
+		}
+	}
+
 	# make include path
-	my $cpp_include_paths = join(' ',map {"-I$_"} @all_deps_for_module);
+	my $cpp_include_paths = join(' ',map {"-I$_"} @include_search_dirs);
 	print MASTER_MAKEFILE "${type}_${name}_includes = $cpp_include_paths\n";
-
-	# is target a library?
-	my $target_is_library = ($type ne 'bin' && $type ne 'test');
-
-	# make target name
-	my $end_target_file = $name;
-
-	if ($target_is_library)
-	{
-		$end_target_file .= '.a';
-	}
-	else
-	{
-		$end_target_file .= $platform_exe_ext;
-	}
-
-	$end_target_file = '_test'.$platform_exe_ext if $type eq 'test';
 
 	# adjust for outdir
 	my $debug_end_target   = "\$(DEBUG_OUTBASE)/$mod/$end_target_file";
@@ -659,7 +704,7 @@ ${makefile_ifdef_prefix}endif
 default:
 	\$(MAKE) -C ../.. \$(TARGET)
 __E
-
+	close MINI_MODULE_MAKEFILE;
 
 	opendir DIR, $mod;
 	my @items = readdir DIR;
@@ -776,26 +821,6 @@ __E
 			}
 		}
 
-		my $has_deps = ($#{$module_dependency{$mod}} >= 0);
-		$has_deps = 1;
-		$has_deps = 0 if $target_is_library;
-
-		# get the list of library things to add -- in order of dependency 
-		# so things link properly
-		my @lib_files;
-		foreach my $dep (reverse @all_deps_for_module)
-		{
-			if ($dep =~ m|^lib\/(.+)$|)
-			{
-				push @lib_files, "$dep/$1.a";
-			}
-			elsif ($dep =~ m|^([^/]+)$|)
-			{
-				push @lib_files, "$dep/$1.a";
-			}
-			# Not a library dependency, e.g. a binary to be executed by a test.
-		}
-
 		# need to see if the extra makefile fragments require extra object files
 		# or include any more makefiles
 		my @objs = @obj_base;
@@ -807,9 +832,10 @@ __E
 		my $prefixed_end_target = "\$(${var_prefix}_OUTBASE)/$mod/$end_target_file";
 		my $o_file_list = join(' ',map {"\$(${var_prefix}_OUTBASE)/$mod/$_.o"} sort @objs);
 		my @prefixed_lib_files = map {"\$(${var_prefix}_OUTBASE)/$_"} @lib_files;
+		my @prefixed_dep_targets = map {"\$(${var_prefix}_OUTBASE)/$_"} @dep_targets;
 
 		print MASTER_MAKEFILE "$prefixed_end_target: $o_file_list";
-		print MASTER_MAKEFILE " @prefixed_lib_files" unless $target_is_library;
+		print MASTER_MAKEFILE " @prefixed_dep_targets" unless $target_is_library;
 		print MASTER_MAKEFILE "\n";
 		
 		if ($target_windows)
@@ -918,17 +944,6 @@ __E
 
 	print MASTER_MAKEFILE $includes;
 }
-
-print MASTER_MAKEFILE <<__E;
-
-debug_build:   @debug_build_targets
-release_build: @release_build_targets
-clean:         @all_clean_targets
-
-# and finally a target for rebuilding the build system
-buildsystem:
-	perl ./infrastructure/makebuildenv.pl $makebuildenv_args
-__E
 
 my @parcels;
 my %parcel_contents;
@@ -1046,7 +1061,6 @@ docs:
 __END_OF_FRAGMENT
 
 my $release_flag = BoxPlatform::make_flag('RELEASE');
-my @clean_deps;
 
 for my $parcel (@parcels)
 {
@@ -1166,19 +1180,7 @@ EOF
 		}
 		elsif ($type eq 'subdir')
 		{
-			shift @args;
-			my $subdir = shift @args;
-			print MASTER_MAKEFILE <<EOF;
-.PHONY: $name-build $name-clean
-
-$name-build:
-	cd $subdir; \$(MAKE) @args
-
-$name-clean:
-	cd $name; \$(MAKE) clean
-EOF
-			push @parcel_deps, "$name-build";
-			push @clean_deps,  "$name-clean";
+			push @parcel_deps, "build_${type}_${name}";
 		}
 	}
 
@@ -1278,14 +1280,24 @@ EOF
 }
 
 print MASTER_MAKEFILE <<EOF;
+
+debug_build:   @debug_build_targets
+release_build: @release_build_targets
+
+# well-known targets that users might expect to be able to build:
 install:
 	cat local/install.msg
 
-clean: @clean_deps
+clean:         @all_clean_targets
 	cd docs; \$(MAKE) clean
 
-	find release debug       -type f -exec rm -f {} \\;
+realclean: clean
 	find . -name 'autogen_*' -type f -exec rm -f {} \\;
+	find release debug       -type f -exec rm -f {} \\;
+
+# and finally a target for rebuilding the build system:
+buildsystem:
+	perl ./infrastructure/makebuildenv.pl $makebuildenv_args
 EOF
 
 for my $parcel (@parcels)
