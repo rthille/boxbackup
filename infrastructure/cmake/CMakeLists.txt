@@ -30,7 +30,6 @@ set(files_to_configure
 	contrib/windows/installer/boxbackup.mpi
 	infrastructure/BoxPlatform.pm
 	infrastructure/makebuildenv.pl
-	infrastructure/makeparcels.pl
 	infrastructure/makedistribution.pl
 	lib/bbackupquery/makedocumentation.pl
 	lib/common/BoxPortsAndFiles.h
@@ -178,12 +177,7 @@ foreach(documentation_file ${documentation_files})
 endforeach()
 
 file(STRINGS ${base_dir}/modules.txt module_deps REGEX "^[^#]")
-# qdbm, lib/common and lib/win32 aren't listed in modules.txt, so hard-code them.
-foreach(module_dep
-	"qdbm"
-	"lib/win32"
-	"lib/common qdbm lib/win32"
-	${module_deps})
+foreach(module_dep ${module_deps})
 
 	string(REGEX MATCH "([^	 ]+)[	 ]*(.*)" valid_module_line ${module_dep})
 	if(valid_module_line)
