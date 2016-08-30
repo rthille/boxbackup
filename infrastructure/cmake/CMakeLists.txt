@@ -202,12 +202,6 @@ foreach(module_dep ${module_deps})
 
 		set(module_files ${module_files} ${${module_name}_extra_files})
 
-		# everything except qdbm, lib/common and lib/win32 implicitly depend on
-		# lib/common, so express that dependency here.
-		if(module_name MATCHES "^(qdbm|lib_(common|win32))$")
-		else()
-			set(dependencies "${dependencies} lib_common")
-		endif()
 		string(REGEX REPLACE "^ " "" dependencies "${dependencies}")
 		string(REGEX REPLACE " $" "" dependencies "${dependencies}")
 
