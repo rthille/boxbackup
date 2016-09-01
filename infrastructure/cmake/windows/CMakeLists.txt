@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 2.6)
 
 project(BoxBackup_Windows)
 
-set(base_dir ${CMAKE_SOURCE_DIR}/../../..)
+set(boxbackup_dir ${CMAKE_SOURCE_DIR}/../../..)
 set_property(DIRECTORY PROPERTY EP_PREFIX .)
-set(install_dir ${CMAKE_SOURCE_DIR}/install)
+set(install_dir ${CMAKE_BINARY_DIR}/install)
 
 # Automate the process of downloading, building and "installing" dependencies on Windows,
 # as used by AppVeyor.
@@ -83,7 +83,7 @@ ExternalProject_Add(pcre
 
 ExternalProject_Add(boxbackup
 	DEPENDS zlib openssl pcre
-	SOURCE_DIR ${base_dir}/infrastructure/cmake
+	SOURCE_DIR ${boxbackup_dir}/infrastructure/cmake
 	CMAKE_ARGS -DZLIB_ROOT=${install_dir} -DOPENSSL_ROOT_DIR=${install_dir} -DPCRE_ROOT=${install_dir} -DAPPVEYOR_MODE=1
 	STEP_TARGETS configure build install
 )
