@@ -221,11 +221,11 @@ sub runtest
 		{
 			$make_res = system($command);
 			if ($make_res != 0)
-			{ 
+			{
 				push @results, "$t: pre-test command failed: $command";
 				appveyor_test_status($t, "NotRunnable", time() - $start_time,
 					"pre-test command failed: $command");
-				last; 
+				last;
 			}
 		}
 	}
@@ -277,7 +277,7 @@ sub runtest
 	else
 	{
 		chdir($base_dir);
-		$test_res = system("cd $test_mode/test/$t ; sh _t 2>&1 " .
+		$test_res = system("cd $test_mode/test/$t ; sh t 2>&1 " .
 			"| tee ../../../$logfile");
 	}
 
@@ -304,8 +304,8 @@ sub runtest
 			$last =~ s/\r//;
 			push @results, "$t: $last";
 
-			if ($last ne "PASSED") 
-			{ 
+			if ($last ne "PASSED")
+			{
 				$exit_code = 1;
 				appveyor_test_status($t, "Failed", time() - $start_time,
 					"test ended with: $last");

@@ -399,8 +399,8 @@ print MASTER_MAKEFILE <<__E;
 #
 #
 
-# "release_build" and "debug_build" are defined near the end of this Makefile.
-default: release_build
+# "parcels" is defined near the end of this Makefile.
+default: parcels
 
 CC = @CC@
 CXX = @CXX@
@@ -901,10 +901,10 @@ __E
 		if($type eq 'test')
 		{
 			print MASTER_MAKEFILE <<__E;
-	\$(HIDE) cp $mod/_t \$(${var_prefix}_OUTBASE)/$mod/_t
-	\$(HIDE) chmod u+x \$(${var_prefix}_OUTBASE)/$mod/_t
-	\$(HIDE) cp $mod/_t-gdb \$(${var_prefix}_OUTBASE)/$mod/_t-gdb
-	\$(HIDE) chmod u+x \$(${var_prefix}_OUTBASE)/$mod/_t-gdb
+	\$(HIDE) cp $mod/t \$(${var_prefix}_OUTBASE)/$mod/t
+	\$(HIDE) chmod u+x \$(${var_prefix}_OUTBASE)/$mod/t
+	\$(HIDE) cp $mod/t-gdb \$(${var_prefix}_OUTBASE)/$mod/t-gdb
+	\$(HIDE) chmod u+x \$(${var_prefix}_OUTBASE)/$mod/t-gdb
 __E
 		}
 
@@ -1061,6 +1061,7 @@ docs:
 __END_OF_FRAGMENT
 
 my $release_flag = BoxPlatform::make_flag('RELEASE');
+my @parcel_targets;
 
 for my $parcel (@parcels)
 {
@@ -1190,6 +1191,8 @@ build-$parcel:	$make_target
 $make_target: @parcel_deps
 	test -d $dir || mkdir $dir
 EOF
+
+	push @parcel_targets, "build-$parcel";
 	
 	for(@{$parcel_contents{$parcel}})
 	{
@@ -1283,6 +1286,7 @@ print MASTER_MAKEFILE <<EOF;
 
 debug_build:   @debug_build_targets
 release_build: @release_build_targets
+parcels:       @parcel_targets
 
 # well-known targets that users might expect to be able to build:
 install:

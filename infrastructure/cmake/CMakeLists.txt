@@ -269,7 +269,7 @@ foreach(module_dep ${module_deps})
 			else()
 				set(appveyor_runtest_pl_switch)
 			endif()
-				
+
 			target_compile_definitions(${module_name} PRIVATE
 				-DTEST_EXECUTABLE="${test_executable}")
 			add_test(NAME ${test_name}
@@ -279,7 +279,7 @@ foreach(module_dep ${module_deps})
 				WORKING_DIRECTORY ${base_dir})
 
 			if(${APPVEYOR_MODE})
-				execute_process(COMMAND appveyor AddTest -Name ${test_name} 
+				execute_process(COMMAND appveyor AddTest -Name ${test_name}
 					-Framework Custom -FileName "")
 			endif()
 
