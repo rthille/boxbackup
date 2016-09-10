@@ -10,9 +10,9 @@ if [ "$BUILD" = 'cmake' ]; then
 	mkdir -p cmake/build
 	cd cmake/build
 	cmake --version
-	cmake -DCMAKE_BUILD_TYPE:STRING=Debug ..
+	cmake -DCMAKE_BUILD_TYPE:STRING=$TEST_TARGET ..
 	make install
-	[ "$TEST" = "n" ] || ctest -V
+	[ "$TEST" = "n" ] || ctest -C $TEST_TARGET -V
 else
 	cd `dirname $0`/..
 	./bootstrap
@@ -20,6 +20,10 @@ else
 	grep CXX config.status
 	make V=1
 	./runtest.pl ALL $TEST_TARGET
+	if [ "$TEST_TARGET" = "release" ]; then
+		make
+		make parcels
+	fi
 fi
 
 ccache -s

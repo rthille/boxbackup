@@ -29,7 +29,8 @@ addons:
 env:
   - TEST_TARGET=debug
   - TEST_TARGET=release
-  - BUILD=cmake
+  - BUILD=cmake TEST_TARGET=debug
+  - BUILD=cmake TEST_TARGET=release
 
 script:
   - ./infrastructure/travis-build.sh

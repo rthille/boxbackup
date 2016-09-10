@@ -20,7 +20,7 @@ set(OPENSSL_HASH SHA256=dbef7cf80258c29396d435804cd5dba34006a77548850bca8bad6db6
 
 include(ExternalProject)
 
-string(REPLACE "." "" zlib_version_nodots ${ZLIB_VERSION}) 
+string(REPLACE "." "" zlib_version_nodots ${ZLIB_VERSION})
 ExternalProject_Add(zlib
 	URL "http://zlib.net/zlib${zlib_version_nodots}.zip"
 	URL_HASH ${ZLIB_HASH}

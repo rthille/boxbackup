@@ -332,9 +332,9 @@ endforeach()
 
 # We can't do anything conditional on CMAKE_BUILD_TYPE because that's not valid for multi-configuration
 # generators such as MSVC. We need to use a generator expression instead.
-target_compile_definitions(lib_common PUBLIC $<$<CONFIG:Release>:-DBOX_RELEASE_BUILD>)
+target_compile_definitions(lib_common PUBLIC $<$<CONFIG:Release>:BOX_RELEASE_BUILD>)
 
-# Detect platform features and write BoxConfig.h.in. Reuse code from 
+# Detect platform features and write BoxConfig.h.in. Reuse code from
 # infrastructure/m4/boxbackup_tests.m4 where possible
 
 include(CheckIncludeFiles)
@@ -674,7 +674,7 @@ target_compile_definitions(test_backupstorefix PRIVATE -DPERL_EXECUTABLE="${perl
 file(GLOB msvc_user_files ${CMAKE_SOURCE_DIR}/msvc/*)
 file(COPY ${msvc_user_files} DESTINATION ${CMAKE_BINARY_DIR})
 
-# Configure tests
+# Configure test timeouts:
 # I've set the timeout to 4 times as long as it took to run on a particular run on Appveyor:
 # https://ci.appveyor.com/project/qris/boxbackup/build/job/xm10itascygtu93j
 set_tests_properties(common PROPERTIES TIMEOUT 20)
