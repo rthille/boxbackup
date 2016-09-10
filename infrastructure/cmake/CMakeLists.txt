@@ -103,6 +103,10 @@ endif()
 
 file(READ "${base_dir}/infrastructure/buildenv-testmain-template.cpp" test_template)
 
+# We can't do anything conditional on CMAKE_BUILD_TYPE because that's not valid for multi-configuration
+# generators such as MSVC. We need to use a generator expression instead.
+set(test_bin_dir ${base_dir}$<$<CONFIG:Release>:release>$<$<CONFIG:Debug>:release>)
+
 # Parsing Makefile.extra files in CMake script is a pain, so the relevant rules for
 # code-generating Perl scripts are hard-coded here.
 
@@ -217,13 +221,15 @@ foreach(module_dep ${module_deps})
 			# install(TARGETS) because TARGETS doesn't allow us to change
 			# the executable name.
 			install(PROGRAMS "$<TARGET_FILE:${module_name}>"
-				CONFIGURATIONS Debug
-				DESTINATION "${base_dir}/debug/${module_dir}"
+				DESTINATION "."
 				RENAME "${bin_name}${CMAKE_EXECUTABLE_SUFFIX}")
-			install(PROGRAMS "$<TARGET_FILE:${module_name}>"
-				CONFIGURATIONS Release
-				DESTINATION "${base_dir}/release/${module_dir}"
-				RENAME "${bin_name}${CMAKE_EXECUTABLE_SUFFIX}")
+
+			# After compilation, install binaries in the right locations and
+			# with the right names to be called by tests.
+			add_custom_command(TARGET ${module_name}
+				POST_BUILD
+				COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${module_name}>"
+				"${test_bin_dir}/${module_dir}/${bin_name}${CMAKE_EXECUTABLE_SUFFIX}")
 		elseif(module_name MATCHES "^test_")
 			string(REGEX MATCH "^test_(.*)" valid_test ${module_name})
 			set(test_name ${CMAKE_MATCH_1})
@@ -242,25 +248,20 @@ foreach(module_dep ${module_deps})
 				"${module_path}/_main.cpp")
 
 			if(WIN32)
-				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
-					CONFIGURATIONS Debug
-					DESTINATION "${base_dir}/debug/${module_dir}")
-				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
-					CONFIGURATIONS Release
-					DESTINATION "${base_dir}/release/${module_dir}")
+				# After compilation, install binaries in the right locations and
+				# with the right names to be called by tests.
+				add_custom_command(TARGET ${module_name}
+					POST_BUILD
+					COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${module_name}>"
+					"${test_bin_dir}/${module_dir}")
 				set(test_executable "$<TARGET_FILE_NAME:${module_name}>")
 			else()
-				# Unfortunately we have to use install(PROGRAMS) instead of
-				# install(TARGETS) because TARGETS doesn't allow us to change
-				# the executable name.
-				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
-					CONFIGURATIONS Debug
-					DESTINATION "${base_dir}/debug/${module_dir}"
-					RENAME "_test")
-				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
-					CONFIGURATIONS Release
-					DESTINATION "${base_dir}/release/${module_dir}"
-					RENAME "_test")
+				# After compilation, install binaries in the right locations and
+				# with the right names to be called by tests.
+				add_custom_command(TARGET ${module_name}
+					POST_BUILD
+					COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${module_name}>"
+					"${test_bin_dir}/${module_dir}/_test")
 				set(test_executable "./_test")
 			endif()
 
@@ -689,3 +690,33 @@ set_tests_properties(backupdiff PROPERTIES TIMEOUT 32)
 set_tests_properties(bbackupd PROPERTIES TIMEOUT 1200)
 set_tests_properties(s3store PROPERTIES TIMEOUT 20)
 set_tests_properties(httpserver PROPERTIES TIMEOUT 40)
+
+# Enable building packages:
+if(WIN32)
+	set(CPACK_GENERATOR "ZIP")
+	set(CPACK_SOURCE_GENERATOR "ZIP")
+else()
+	set(CPACK_GENERATOR "TGZ")
+	set(CPACK_SOURCE_GENERATOR "TGZ")
+endif()
+set(CPACK_PACKAGE_NAME "boxbackup")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Box Backup")
+set(CPACK_PACKAGE_VENDOR "Box Backup")
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${base_dir}/README.md")
+set(CPACK_RESOURCE_FILE_README "${base_dir}/LICENSE.txt")
+set(CPACK_RESOURCE_FILE_LICENSE "${base_dir}/LICENSE.txt")
+file(STRINGS ${base_dir}/distribution/boxbackup/VERSION.txt version LIMIT_COUNT 1)
+string(REGEX MATCH "([0-9]+)\\.([0-9]+)(\\.([0-9]+))?" version_match ${version})
+if(NOT version_match)
+	message(FATAL_ERROR "Failed to parse version number: ${version}")
+endif()
+set(CPACK_PACKAGE_VERSION_MAJOR "${CMAKE_MATCH_1}")
+set(CPACK_PACKAGE_VERSION_MINOR "${CMAKE_MATCH_2}")
+set(CPACK_PACKAGE_VERSION_PATCH "${CMAKE_MATCH_3}")
+if(NOT CPACK_PACKAGE_VERSION_PATCH)
+	set(CPACK_PACKAGE_VERSION_PATCH "0")
+endif()
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "BoxBackup")
+get_property(found_packages GLOBAL PROPERTY ENABLED_FEATURES)
+
+include(CPack)
