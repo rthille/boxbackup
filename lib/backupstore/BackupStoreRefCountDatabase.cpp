@@ -65,25 +65,25 @@ void BackupStoreRefCountDatabase::Commit()
 	mapDatabaseFile->Close();
 	mapDatabaseFile.reset();
 
-	std::string Final_Filename = GetFilename(mAccount, false);
+	std::string final_filename = GetFilename(mAccount, false);
 
 	#ifdef WIN32
-	if(FileExists(Final_Filename) && unlink(Final_Filename.c_str()) != 0)
+	if(FileExists(final_filename) && EMU_UNLINK(final_filename.c_str()) != 0)
 	{
 		THROW_EMU_FILE_ERROR("Failed to delete old permanent refcount "
-			"database file", mFilename, CommonException,
+			"database file", final_filename, CommonException,
 			OSFileError);
 	}
 	#endif
 
-	if(rename(mFilename.c_str(), Final_Filename.c_str()) != 0)
+	if(rename(mFilename.c_str(), final_filename.c_str()) != 0)
 	{
 		THROW_EMU_ERROR("Failed to rename temporary refcount database "
 			"file from " << mFilename << " to " <<
-			Final_Filename, CommonException, OSFileError);
+			final_filename, CommonException, OSFileError);
 	}
 
-	mFilename = Final_Filename;
+	mFilename = final_filename;
 	mIsModified = false;
 	mIsTemporaryFile = false;
 }
@@ -106,7 +106,7 @@ void BackupStoreRefCountDatabase::Discard()
 		mapDatabaseFile.reset();
 	}
 
-	if(unlink(mFilename.c_str()) != 0)
+	if(EMU_UNLINK(mFilename.c_str()) != 0)
 	{
 		THROW_EMU_FILE_ERROR("Failed to delete temporary refcount "
 			"database file", mFilename, CommonException,
@@ -180,23 +180,23 @@ std::auto_ptr<BackupStoreRefCountDatabase>
 	hdr.mMagicValue = htonl(REFCOUNT_MAGIC_VALUE);
 	hdr.mAccountID = htonl(rAccount.GetID());
 	
-	std::string Filename = GetFilename(rAccount, true); // temporary
+	std::string filename = GetFilename(rAccount, true); // temporary
 
 	// Open the file for writing
-	if (FileExists(Filename))
+	if (FileExists(filename))
 	{
-		BOX_WARNING(BOX_FILE_MESSAGE(Filename, "Overwriting existing "
+		BOX_WARNING(BOX_FILE_MESSAGE(filename, "Overwriting existing "
 			"temporary reference count database"));
-		if (unlink(Filename.c_str()) != 0)
+		if (EMU_UNLINK(filename.c_str()) != 0)
 		{
 			THROW_SYS_FILE_ERROR("Failed to delete old temporary "
-				"reference count database file", Filename,
+				"reference count database file", filename,
 				CommonException, OSFileError);
 		}
 	}
 
 	int flags = O_CREAT | O_BINARY | O_RDWR | O_EXCL;
-	std::auto_ptr<FileStream> DatabaseFile(new FileStream(Filename, flags));
+	std::auto_ptr<FileStream> DatabaseFile(new FileStream(filename, flags));
 	
 	// Write header
 	DatabaseFile->Write(&hdr, sizeof(hdr));
