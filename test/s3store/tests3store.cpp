@@ -23,6 +23,7 @@
 #include "ServerControl.h"
 #include "SSLLib.h"
 #include "Test.h"
+#include "Utils.h"
 
 #include "MemLeakFindOn.h"
 
