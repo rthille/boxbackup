@@ -118,14 +118,14 @@ void S3Simulator::Handle(HTTPRequest &rRequest, HTTPResponse &rResponse)
 		}
 
 		std::ostringstream data;
-		data << rRequest.GetVerb() << "\n";
+		data << rRequest.GetMethodName() << "\n";
 		data << md5 << "\n";
 		data << rRequest.GetContentType() << "\n";
 		data << date << "\n";
 
 		// header names are already in lower case, i.e. canonical form
 
-		std::vector<HTTPRequest::Header> headers = rRequest.GetHeaders();
+		std::vector<HTTPRequest::Header> headers = rRequest.GetHeaders().GetExtraHeaders();
                 std::sort(headers.begin(), headers.end());
 
 		for (std::vector<HTTPRequest::Header>::iterator
@@ -181,7 +181,7 @@ void S3Simulator::Handle(HTTPRequest &rRequest, HTTPResponse &rResponse)
 		}
 		else
 		{
-			rResponse.SetResponseCode(HTTPResponse::Code_MethodNotAllowed);
+			rResponse.SetResponseCode(HTTPResponse::Code_BadRequest);
 			SendInternalErrorResponse("Unsupported Method",
 				rResponse);
 		}
@@ -298,7 +298,7 @@ void S3Simulator::HandlePut(HTTPRequest &rRequest, HTTPResponse &rResponse)
 		rResponse.SendContinue();
 	}
 
-	rRequest.ReadContent(*apFile);
+	rRequest.ReadContent(*apFile, IOStream::TimeOutInfinite);
 
 	// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/RESTObjectPUT.html
 	rResponse.AddHeader("x-amz-id-2", "LriYPLdmOdAiIfgSm/F1YsViT1LW94/xUQxMsF7xiEb1a0wiIOIxl+zbwZ163pt7");

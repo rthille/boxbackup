@@ -18,8 +18,6 @@
 	#include <signal.h>
 #endif
 
-#include <openssl/hmac.h>
-
 #include "autogen_HTTPException.h"
 #include "HTTPRequest.h"
 #include "HTTPResponse.h"
@@ -35,6 +33,7 @@
 #include "MemLeakFindOn.h"
 
 #define SHORT_TIMEOUT 5000
+#define LONG_TIMEOUT 300000
 
 class TestWebServer : public HTTPServer
 {
@@ -128,20 +127,106 @@ void TestWebServer::Handle(HTTPRequest &rRequest, HTTPResponse &rResponse)
 TestWebServer::TestWebServer() {}
 TestWebServer::~TestWebServer() {}
 
-int test(int argc, const char *argv[])
+bool test_httpserver()
 {
-	if(argc >= 2 && ::strcmp(argv[1], "server") == 0)
+	SETUP();
+
+	// Test that HTTPRequest can be written to and read from a stream.
 	{
-		// Run a server
-		TestWebServer server;
-		return server.Main("doesnotexist", argc - 1, argv + 1);
+		HTTPRequest request(HTTPRequest::Method_PUT, "/newfile");
+		request.SetHostName("quotes.s3.amazonaws.com");
+		// Write headers in lower case.
+		request.AddHeader("date", "Wed, 01 Mar  2006 12:00:00 GMT");
+		request.AddHeader("authorization",
+			"AWS foo:bar=");
+		request.AddHeader("Content-Type", "text/plain");
+		request.SetClientKeepAliveRequested(true);
+
+		// Stream it to a CollectInBufferStream
+		CollectInBufferStream request_buffer;
+
+		// Because there isn't an HTTP server to respond to us, we can't use
+		// SendWithStream, so just send the content after the request.
+		request.SendHeaders(request_buffer, IOStream::TimeOutInfinite);
+		FileStream fs("testfiles/photos/puppy.jpg");
+		fs.CopyStreamTo(request_buffer);
+
+		request_buffer.SetForReading();
+
+		IOStreamGetLine getLine(request_buffer);
+		HTTPRequest request2;
+		TEST_THAT(request2.Receive(getLine, IOStream::TimeOutInfinite));
+
+		TEST_EQUAL(HTTPRequest::Method_PUT, request2.GetMethod());
+		TEST_EQUAL("PUT", request2.GetMethodName());
+		TEST_EQUAL("/newfile", request2.GetRequestURI());
+		TEST_EQUAL("quotes.s3.amazonaws.com", request2.GetHostName());
+		TEST_EQUAL(80, request2.GetHostPort());
+		TEST_EQUAL("", request2.GetQueryString());
+		TEST_EQUAL("text/plain", request2.GetContentType());
+		// Content-Length was not known when the stream was sent, so it should
+		// be unknown in the received stream too (certainly before it has all
+		// been read!)
+		TEST_EQUAL(-1, request2.GetContentLength());
+		const HTTPHeaders& headers(request2.GetHeaders());
+		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT",
+			headers.GetHeaderValue("Date"));
+		TEST_EQUAL("AWS foo:bar=",
+			headers.GetHeaderValue("Authorization"));
+		TEST_THAT(request2.GetClientKeepAliveRequested());
+
+		CollectInBufferStream request_data;
+		request2.ReadContent(request_data, IOStream::TimeOutInfinite);
+		TEST_EQUAL(fs.GetPosition(), request_data.GetPosition());
+		request_data.SetForReading();
+		fs.Seek(0, IOStream::SeekType_Absolute);
+		TEST_THAT(fs.CompareWith(request_data, IOStream::TimeOutInfinite));
 	}
 
-	if(argc >= 2 && ::strcmp(argv[1], "s3server") == 0)
+	// Test that HTTPResponse can be written to and read from a stream.
+	// TODO FIXME: we should stream the response instead of buffering it, on both
+	// sides (send and receive).
 	{
-		// Run a server
-		S3Simulator server;
-		return server.Main("doesnotexist", argc - 1, argv + 1);
+		// Stream it to a CollectInBufferStream
+		CollectInBufferStream response_buffer;
+
+		HTTPResponse response(&response_buffer);
+		FileStream fs("testfiles/photos/puppy.jpg");
+		// Write headers in lower case.
+		response.SetResponseCode(HTTPResponse::Code_OK);
+		response.AddHeader("date", "Wed, 01 Mar  2006 12:00:00 GMT");
+		response.AddHeader("authorization",
+			"AWS foo:bar=");
+		response.AddHeader("content-type", "text/perl");
+		fs.CopyStreamTo(response);
+		response.Send();
+		response_buffer.SetForReading();
+
+		HTTPResponse response2;
+		response2.Receive(response_buffer);
+
+		TEST_EQUAL(200, response2.GetResponseCode());
+		TEST_EQUAL("text/perl", response2.GetContentType());
+
+		// TODO FIXME: Content-Length was not known when the stream was sent,
+		// so it should be unknown in the received stream too (certainly before
+		// it has all been read!) This is currently wrong because we read the
+		// entire response into memory immediately.
+		TEST_EQUAL(fs.GetPosition(), response2.GetContentLength());
+
+		HTTPHeaders& headers(response2.GetHeaders());
+		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT",
+			headers.GetHeaderValue("Date"));
+		TEST_EQUAL("AWS foo:bar=",
+			headers.GetHeaderValue("Authorization"));
+
+		CollectInBufferStream response_data;
+		// request2.ReadContent(request_data, IOStream::TimeOutInfinite);
+		response2.CopyStreamTo(response_data);
+		TEST_EQUAL(fs.GetPosition(), response_data.GetPosition());
+		response_data.SetForReading();
+		fs.Seek(0, IOStream::SeekType_Absolute);
+		TEST_THAT(fs.CompareWith(response_data, IOStream::TimeOutInfinite));
 	}
 
 #ifndef WIN32
@@ -156,11 +241,11 @@ int test(int argc, const char *argv[])
 	// Run the request script
 	TEST_THAT(::system("perl testfiles/testrequests.pl") == 0);
 
-#ifdef ENABLE_KEEPALIVE_SUPPORT // incomplete, need chunked encoding support
 	#ifndef WIN32
 	signal(SIGPIPE, SIG_IGN);
 	#endif
 
+#ifdef ENABLE_KEEPALIVE_SUPPORT // incomplete, need chunked encoding support
 	SocketStream sock;
 	sock.Open(Socket::TypeINET, "localhost", 1080);
 
@@ -257,237 +342,26 @@ int test(int argc, const char *argv[])
 	// Kill it
 	TEST_THAT(StopDaemon(pid, "testfiles/httpserver.pid",
 		"generic-httpserver.memleaks", true));
-
-	// correct, official signature should succeed, with lower-case header
-	{
-		// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/RESTAuthentication.html
-		HTTPRequest request(HTTPRequest::Method_GET, "/photos/puppy.jpg");
-		request.SetHostName("johnsmith.s3.amazonaws.com");
-		request.AddHeader("date", "Tue, 27 Mar 2007 19:36:42 +0000");
-		request.AddHeader("authorization",
-			"AWS 0PN5J17HBGZHT7JJ3X82:xXjDGYUmKxnwqr5KXNPGldn5LbA=");
-
-		S3Simulator simulator;
-		simulator.Configure("testfiles/s3simulator.conf");
-
-		CollectInBufferStream response_buffer;
-		HTTPResponse response(&response_buffer);
-
-		simulator.Handle(request, response);
-		TEST_EQUAL(200, response.GetResponseCode());
-
-		std::string response_data((const char *)response.GetBuffer(),
-			response.GetSize());
-		TEST_EQUAL("omgpuppies!\n", response_data);
-	}
-
-	// modified signature should fail
-	{
-		// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/RESTAuthentication.html
-		HTTPRequest request(HTTPRequest::Method_GET, "/photos/puppy.jpg");
-		request.SetHostName("johnsmith.s3.amazonaws.com");
-		request.AddHeader("date", "Tue, 27 Mar 2007 19:36:42 +0000");
-		request.AddHeader("authorization",
-			"AWS 0PN5J17HBGZHT7JJ3X82:xXjDGYUmKxnwqr5KXNPGldn5LbB=");
-
-		S3Simulator simulator;
-		simulator.Configure("testfiles/s3simulator.conf");
-
-		CollectInBufferStream response_buffer;
-		HTTPResponse response(&response_buffer);
-
-		simulator.Handle(request, response);
-		TEST_EQUAL(401, response.GetResponseCode());
-
-		std::string response_data((const char *)response.GetBuffer(),
-			response.GetSize());
-		TEST_EQUAL("<html><head>"
-			"<title>Internal Server Error</title></head>\n"
-			"<h1>Internal Server Error</h1>\n"
-			"<p>An error, type Authentication Failed occured "
-			"when processing the request.</p>"
-			"<p>Please try again later.</p></body>\n"
-			"</html>\n", response_data);
-	}
-
-	// S3Client tests with S3Simulator in-process server for debugging
-	{
-		S3Simulator simulator;
-		simulator.Configure("testfiles/s3simulator.conf");
-		S3Client client(&simulator, "johnsmith.s3.amazonaws.com",
-			"0PN5J17HBGZHT7JJ3X82",
-			"uV3F3YluFJax1cknvbcGwgjvx4QpvB+leU8dUj2o");
-		
-		HTTPResponse response = client.GetObject("/photos/puppy.jpg");
-		TEST_EQUAL(200, response.GetResponseCode());
-		std::string response_data((const char *)response.GetBuffer(),
-			response.GetSize());
-		TEST_EQUAL("omgpuppies!\n", response_data);
-
-		// make sure that assigning to HTTPResponse does clear stream
-		response = client.GetObject("/photos/puppy.jpg");
-		TEST_EQUAL(200, response.GetResponseCode());
-		response_data = std::string((const char *)response.GetBuffer(),
-			response.GetSize());
-		TEST_EQUAL("omgpuppies!\n", response_data);
-
-		response = client.GetObject("/nonexist");
-		TEST_EQUAL(404, response.GetResponseCode());
-		
-		FileStream fs("testfiles/testrequests.pl");
-		response = client.PutObject("/newfile", fs);
-		TEST_EQUAL(200, response.GetResponseCode());
-
-		response = client.GetObject("/newfile");
-		TEST_EQUAL(200, response.GetResponseCode());
-		TEST_THAT(fs.CompareWith(response));
-		TEST_EQUAL(0, ::unlink("testfiles/newfile"));
-	}
-
-	{
-		HTTPRequest request(HTTPRequest::Method_PUT, "/newfile");
-		request.SetHostName("quotes.s3.amazonaws.com");
-		request.AddHeader("date", "Wed, 01 Mar  2006 12:00:00 GMT");
-		request.AddHeader("authorization",
-			"AWS 0PN5J17HBGZHT7JJ3X82:XtMYZf0hdOo4TdPYQknZk0Lz7rw=");
-		request.AddHeader("Content-Type", "text/plain");
-
-		FileStream fs("testfiles/testrequests.pl");
-		fs.CopyStreamTo(request);
-		request.SetForReading();
-
-		CollectInBufferStream response_buffer;
-		HTTPResponse response(&response_buffer);
-
-		S3Simulator simulator;
-		simulator.Configure("testfiles/s3simulator.conf");
-		simulator.Handle(request, response);
-
-		TEST_EQUAL(200, response.GetResponseCode());
-		TEST_EQUAL("LriYPLdmOdAiIfgSm/F1YsViT1LW94/xUQxMsF7xiEb1a0wiIOIxl+zbwZ163pt7",
-			response.GetHeaderValue("x-amz-id-2"));
-		TEST_EQUAL("F2A8CCCA26B4B26D", response.GetHeaderValue("x-amz-request-id"));
-		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT", response.GetHeaderValue("Date"));
-		TEST_EQUAL("Sun, 1 Jan 2006 12:00:00 GMT", response.GetHeaderValue("Last-Modified"));
-		TEST_EQUAL("\"828ef3fdfa96f00ad9f27c383fc9ac7f\"", response.GetHeaderValue("ETag"));
-		TEST_EQUAL("", response.GetContentType());
-		TEST_EQUAL("AmazonS3", response.GetHeaderValue("Server"));
-		TEST_EQUAL(0, response.GetSize());
-
-		FileStream f1("testfiles/testrequests.pl");
-		FileStream f2("testfiles/newfile");
-		TEST_THAT(f1.CompareWith(f2));
-		TEST_EQUAL(0, ::unlink("testfiles/newfile"));
-	}
-
-	// Start the S3Simulator server
-	pid = StartDaemon(0, TEST_EXECUTABLE " s3server testfiles/s3simulator.conf",
-		"testfiles/s3simulator.pid");
-	TEST_THAT_OR(pid > 0, return 1);
-
-	{
-		SocketStream sock;
-		sock.Open(Socket::TypeINET, "localhost", 1080);
-
-		HTTPRequest request(HTTPRequest::Method_GET, "/nonexist");
-		request.SetHostName("quotes.s3.amazonaws.com");
-		request.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
-		request.AddHeader("Authorization", "AWS 0PN5J17HBGZHT7JJ3X82:0cSX/YPdtXua1aFFpYmH1tc0ajA=");
-		request.SetClientKeepAliveRequested(true);
-		request.Send(sock, SHORT_TIMEOUT);
-
-		HTTPResponse response;
-		response.Receive(sock, SHORT_TIMEOUT);
-		std::string value;
-		TEST_EQUAL(404, response.GetResponseCode());
-	}
-
-	#ifndef WIN32 // much harder to make files inaccessible on WIN32
-	// Make file inaccessible, should cause server to return a 403 error,
-	// unless of course the test is run as root :)
-	{
-		SocketStream sock;
-		sock.Open(Socket::TypeINET, "localhost", 1080);
-
-		TEST_THAT(chmod("testfiles/testrequests.pl", 0) == 0);
-		HTTPRequest request(HTTPRequest::Method_GET,
-			"/testrequests.pl");
-		request.SetHostName("quotes.s3.amazonaws.com");
-		request.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
-		request.AddHeader("Authorization", "AWS 0PN5J17HBGZHT7JJ3X82:qc1e8u8TVl2BpIxwZwsursIb8U8=");
-		request.SetClientKeepAliveRequested(true);
-		request.Send(sock, SHORT_TIMEOUT);
-
-		HTTPResponse response;
-		response.Receive(sock, SHORT_TIMEOUT);
-		std::string value;
-		TEST_EQUAL(403, response.GetResponseCode());
-		TEST_THAT(chmod("testfiles/testrequests.pl", 0755) == 0);
-	}
-	#endif
-
-	{
-		SocketStream sock;
-		sock.Open(Socket::TypeINET, "localhost", 1080);
-
-		HTTPRequest request(HTTPRequest::Method_GET,
-			"/testrequests.pl");
-		request.SetHostName("quotes.s3.amazonaws.com");
-		request.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
-		request.AddHeader("Authorization", "AWS 0PN5J17HBGZHT7JJ3X82:qc1e8u8TVl2BpIxwZwsursIb8U8=");
-		request.SetClientKeepAliveRequested(true);
-		request.Send(sock, SHORT_TIMEOUT);
-
-		HTTPResponse response;
-		response.Receive(sock, SHORT_TIMEOUT);
-		std::string value;
-		TEST_EQUAL(200, response.GetResponseCode());
-		TEST_EQUAL("qBmKRcEWBBhH6XAqsKU/eg24V3jf/kWKN9dJip1L/FpbYr9FDy7wWFurfdQOEMcY", response.GetHeaderValue("x-amz-id-2"));
-		TEST_EQUAL("F2A8CCCA26B4B26D", response.GetHeaderValue("x-amz-request-id"));
-		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT", response.GetHeaderValue("Date"));
-		TEST_EQUAL("Sun, 1 Jan 2006 12:00:00 GMT", response.GetHeaderValue("Last-Modified"));
-		TEST_EQUAL("\"828ef3fdfa96f00ad9f27c383fc9ac7f\"", response.GetHeaderValue("ETag"));
-		TEST_EQUAL("text/plain", response.GetContentType());
-		TEST_EQUAL("AmazonS3", response.GetHeaderValue("Server"));
-
-		FileStream file("testfiles/testrequests.pl");
-		TEST_THAT(file.CompareWith(response));
-	}
-
-	{
-		SocketStream sock;
-		sock.Open(Socket::TypeINET, "localhost", 1080);
-
-		HTTPRequest request(HTTPRequest::Method_PUT,
-			"/newfile");
-		request.SetHostName("quotes.s3.amazonaws.com");
-		request.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
-		request.AddHeader("Authorization", "AWS 0PN5J17HBGZHT7JJ3X82:kfY1m6V3zTufRy2kj92FpQGKz4M=");
-		request.AddHeader("Content-Type", "text/plain");
-		FileStream fs("testfiles/testrequests.pl");
-		HTTPResponse response;
-		request.SendWithStream(sock, SHORT_TIMEOUT, &fs, response);
-		std::string value;
-		TEST_EQUAL(200, response.GetResponseCode());
-		TEST_EQUAL("LriYPLdmOdAiIfgSm/F1YsViT1LW94/xUQxMsF7xiEb1a0wiIOIxl+zbwZ163pt7", response.GetHeaderValue("x-amz-id-2"));
-		TEST_EQUAL("F2A8CCCA26B4B26D", response.GetHeaderValue("x-amz-request-id"));
-		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT", response.GetHeaderValue("Date"));
-		TEST_EQUAL("Sun, 1 Jan 2006 12:00:00 GMT", response.GetHeaderValue("Last-Modified"));
-		TEST_EQUAL("\"828ef3fdfa96f00ad9f27c383fc9ac7f\"", response.GetHeaderValue("ETag"));
-		TEST_EQUAL("", response.GetContentType());
-		TEST_EQUAL("AmazonS3", response.GetHeaderValue("Server"));
-		TEST_EQUAL(0, response.GetSize());
-
-		FileStream f1("testfiles/testrequests.pl");
-		FileStream f2("testfiles/newfile");
-		TEST_THAT(f1.CompareWith(f2));
-	}
-
-
-	// Kill it
-	TEST_THAT(StopDaemon(pid, "testfiles/s3simulator.pid",
-		"s3simulator.memleaks", true));
-
-	return 0;
+	TEARDOWN();
 }
 
+int test(int argc, const char *argv[])
+{
+	if(argc >= 2 && ::strcmp(argv[1], "server") == 0)
+	{
+		// Run a server
+		TestWebServer server;
+		return server.Main("doesnotexist", argc - 1, argv + 1);
+	}
+
+	if(argc >= 2 && ::strcmp(argv[1], "s3server") == 0)
+	{
+		// Run a server
+		S3Simulator server;
+		return server.Main("doesnotexist", argc - 1, argv + 1);
+	}
+
+	TEST_THAT(test_httpserver());
+
+	return finish_test_suite();
+}
