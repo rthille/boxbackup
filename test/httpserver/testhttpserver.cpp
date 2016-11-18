@@ -18,10 +18,14 @@
 	#include <signal.h>
 #endif
 
+#include <openssl/x509.h>
+#include <openssl/hmac.h>
+
 #include "autogen_HTTPException.h"
 #include "HTTPRequest.h"
 #include "HTTPResponse.h"
 #include "HTTPServer.h"
+#include "HTTPTest.h"
 #include "IOStreamGetLine.h"
 #include "S3Client.h"
 #include "S3Simulator.h"
@@ -38,11 +42,12 @@
 class TestWebServer : public HTTPServer
 {
 public:
-	TestWebServer();
-	~TestWebServer();
+	TestWebServer()
+	: HTTPServer(LONG_TIMEOUT)
+	{ }
+	~TestWebServer() { }
 
 	virtual void Handle(HTTPRequest &rRequest, HTTPResponse &rResponse);
-
 };
 
 // Build a nice HTML response, so this can also be tested neatly in a browser
@@ -124,8 +129,109 @@ void TestWebServer::Handle(HTTPRequest &rRequest, HTTPResponse &rResponse)
 	rResponse.Write(DEFAULT_RESPONSE_2, sizeof(DEFAULT_RESPONSE_2) - 1);
 }
 
-TestWebServer::TestWebServer() {}
-TestWebServer::~TestWebServer() {}
+bool exercise_s3client(S3Client& client)
+{
+	int num_failures_initial = num_failures;
+
+	HTTPResponse response = client.GetObject("/photos/puppy.jpg");
+	TEST_EQUAL(200, response.GetResponseCode());
+	std::string response_data((const char *)response.GetBuffer(),
+		response.GetSize());
+	TEST_EQUAL("omgpuppies!\n", response_data);
+	TEST_THAT(!response.IsKeepAlive());
+
+	// make sure that assigning to HTTPResponse does clear stream
+	response = client.GetObject("/photos/puppy.jpg");
+	TEST_EQUAL(200, response.GetResponseCode());
+	response_data = std::string((const char *)response.GetBuffer(),
+		response.GetSize());
+	TEST_EQUAL("omgpuppies!\n", response_data);
+	TEST_THAT(!response.IsKeepAlive());
+
+	response = client.GetObject("/nonexist");
+	TEST_EQUAL(404, response.GetResponseCode());
+	TEST_THAT(!response.IsKeepAlive());
+
+	// Test is successful if the number of failures has not increased.
+	return (num_failures == num_failures_initial);
+}
+
+// http://docs.aws.amazon.com/AmazonSimpleDB/latest/DeveloperGuide/HMACAuth.html
+std::string calculate_s3_signature(const HTTPRequest& request,
+	const std::string& aws_secret_access_key)
+{
+	// This code is very similar to that in S3Client::FinishAndSendRequest.
+	// TODO FIXME: factor out the common parts.
+
+	std::ostringstream buffer_to_sign;
+	buffer_to_sign << request.GetMethodName() << "\n" <<
+		request.GetHeaders().GetHeaderValue("Content-MD5",
+			false) << "\n" << // !required
+		request.GetContentType() << "\n" <<
+		request.GetHeaders().GetHeaderValue("Date",
+			true) << "\n"; // required
+
+	// TODO FIXME: add support for X-Amz headers (S3 DG page 38)
+
+	std::string bucket;
+	std::string host_header = request.GetHeaders().GetHeaderValue("Host",
+		true); // required
+	std::string s3suffix = ".s3.amazonaws.com";
+	if(host_header.size() > s3suffix.size())
+	{
+		std::string suffix = host_header.substr(host_header.size() -
+			s3suffix.size(), s3suffix.size());
+		if (suffix == s3suffix)
+		{
+			bucket = "/" + host_header.substr(0, host_header.size() -
+				s3suffix.size());
+		}
+	}
+
+	buffer_to_sign << bucket << request.GetRequestURI();
+
+	// TODO FIXME: add support for sub-resources. S3 DG page 36.
+
+	// Thanks to https://gist.github.com/tsupo/112188:
+	unsigned int digest_size;
+	unsigned char digest_buffer[EVP_MAX_MD_SIZE];
+	std::string string_to_sign = buffer_to_sign.str();
+
+	HMAC(EVP_sha1(),
+		aws_secret_access_key.c_str(), aws_secret_access_key.size(),
+		(const unsigned char *)string_to_sign.c_str(), string_to_sign.size(),
+		digest_buffer, &digest_size);
+
+	base64::encoder encoder;
+	std::string digest((const char *)digest_buffer, digest_size);
+	std::string auth_code = encoder.encode(digest);
+
+	if (auth_code[auth_code.size() - 1] == '\n')
+	{
+		auth_code = auth_code.substr(0, auth_code.size() - 1);
+	}
+
+	return auth_code;
+}
+
+bool send_and_receive(HTTPRequest& request, HTTPResponse& response,
+	int expected_status_code = 200)
+{
+	SocketStream sock;
+	sock.Open(Socket::TypeINET, "localhost", 1080);
+	request.Send(sock, LONG_TIMEOUT);
+
+	response.Reset();
+	response.Receive(sock, LONG_TIMEOUT);
+	std::string response_data((const char *)response.GetBuffer(),
+		response.GetSize());
+	TEST_EQUAL_LINE(expected_status_code, response.GetResponseCode(),
+		response_data);
+	return (response.GetResponseCode() == expected_status_code);
+}
+
+#define EXAMPLE_S3_ACCESS_KEY "0PN5J17HBGZHT7JJ3X82"
+#define EXAMPLE_S3_SECRET_KEY "uV3F3YluFJax1cknvbcGwgjvx4QpvB+leU8dUj2o"
 
 bool test_httpserver()
 {
@@ -342,6 +448,188 @@ bool test_httpserver()
 	// Kill it
 	TEST_THAT(StopDaemon(pid, "testfiles/httpserver.pid",
 		"generic-httpserver.memleaks", true));
+
+	// Copy testfiles/puppy.jpg to testfiles/store/photos/puppy.jpg
+	{
+		TEST_THAT(::mkdir("testfiles/store/photos", 0755) == 0);
+		FileStream in("testfiles/puppy.jpg", O_RDONLY);
+		FileStream out("testfiles/store/photos/puppy.jpg", O_CREAT | O_WRONLY);
+		in.CopyStreamTo(out);
+	}
+
+	// This is the example from the Amazon S3 Developers Guide, page 31.
+	// Correct, official signature should succeed, with lower-case headers.
+	{
+		// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/RESTAuthentication.html
+		HTTPRequest request(HTTPRequest::Method_GET, "/photos/puppy.jpg");
+		request.SetHostName("johnsmith.s3.amazonaws.com");
+		request.AddHeader("date", "Tue, 27 Mar 2007 19:36:42 +0000");
+		std::string signature = calculate_s3_signature(request,
+			EXAMPLE_S3_SECRET_KEY);
+		TEST_EQUAL(signature, "xXjDGYUmKxnwqr5KXNPGldn5LbA=");
+		request.AddHeader("authorization",
+			"AWS " EXAMPLE_S3_ACCESS_KEY ":" + signature);
+
+		S3Simulator simulator;
+		simulator.Configure("testfiles/s3simulator.conf");
+
+		CollectInBufferStream response_buffer;
+		HTTPResponse response(&response_buffer);
+
+		simulator.Handle(request, response);
+		TEST_EQUAL(200, response.GetResponseCode());
+
+		std::string response_data((const char *)response.GetBuffer(),
+			response.GetSize());
+		TEST_EQUAL("omgpuppies!\n", response_data);
+	}
+
+	// Modified signature should fail.
+	{
+		// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/RESTAuthentication.html
+		HTTPRequest request(HTTPRequest::Method_GET, "/photos/puppy.jpg");
+		request.SetHostName("johnsmith.s3.amazonaws.com");
+		request.AddHeader("date", "Tue, 27 Mar 2007 19:36:42 +0000");
+		request.AddHeader("authorization",
+			"AWS " EXAMPLE_S3_ACCESS_KEY ":xXjDGYUmKxnwqr5KXNPGldn5LbB=");
+
+		S3Simulator simulator;
+		simulator.Configure("testfiles/s3simulator.conf");
+
+		CollectInBufferStream response_buffer;
+		HTTPResponse response(&response_buffer);
+
+		simulator.Handle(request, response);
+		TEST_EQUAL(401, response.GetResponseCode());
+
+		std::string response_data((const char *)response.GetBuffer(),
+			response.GetSize());
+		TEST_EQUAL("<html><head>"
+			"<title>Internal Server Error</title></head>\n"
+			"<h1>Internal Server Error</h1>\n"
+			"<p>An error occurred while processing the request:</p>\n"
+			"<pre>HTTPException(AuthenticationFailed): "
+			"Authentication code mismatch</pre>\n"
+			"<p>Please try again later.</p></body>\n"
+			"</html>\n", response_data);
+	}
+
+	// Copy testfiles/dsfdsfs98.fd to testfiles/store/dsfdsfs98.fd
+	{
+		FileStream in("testfiles/dsfdsfs98.fd", O_RDONLY);
+		FileStream out("testfiles/store/dsfdsfs98.fd", O_CREAT | O_WRONLY);
+		in.CopyStreamTo(out);
+	}
+
+	// S3Client tests with S3Simulator in-process server for debugging
+	{
+		S3Simulator simulator;
+		simulator.Configure("testfiles/s3simulator.conf");
+		S3Client client(&simulator, "johnsmith.s3.amazonaws.com",
+			EXAMPLE_S3_ACCESS_KEY, EXAMPLE_S3_SECRET_KEY);
+		TEST_THAT(exercise_s3client(client));
+	}
+
+	// Start the S3Simulator server
+	pid = StartDaemon(0, TEST_EXECUTABLE " s3server testfiles/s3simulator.conf",
+		"testfiles/s3simulator.pid");
+	TEST_THAT_OR(pid > 0, return 1);
+
+	// This is the example from the Amazon S3 Developers Guide, page 31
+	{
+		HTTPRequest request(HTTPRequest::Method_GET, "/photos/puppy.jpg");
+		request.SetHostName("johnsmith.s3.amazonaws.com");
+		request.AddHeader("date", "Tue, 27 Mar 2007 19:36:42 +0000");
+		request.AddHeader("authorization",
+			"AWS " EXAMPLE_S3_ACCESS_KEY ":xXjDGYUmKxnwqr5KXNPGldn5LbA=");
+
+		HTTPResponse response;
+		TEST_THAT(send_and_receive(request, response));
+	}
+
+	// Test that requests for nonexistent files correctly return a 404 error
+	{
+		HTTPRequest request(HTTPRequest::Method_GET, "/nonexist");
+		request.SetHostName("quotes.s3.amazonaws.com");
+		request.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
+		request.SetClientKeepAliveRequested(true);
+
+		std::string signature = calculate_s3_signature(request,
+			EXAMPLE_S3_SECRET_KEY);
+		TEST_EQUAL(signature, "0cSX/YPdtXua1aFFpYmH1tc0ajA=");
+		request.AddHeader("authorization", "AWS " EXAMPLE_S3_ACCESS_KEY ":" +
+			signature);
+
+		HTTPResponse response;
+		TEST_THAT(send_and_receive(request, response, 404));
+		TEST_THAT(!response.IsKeepAlive());
+	}
+
+#ifndef WIN32 // much harder to make files inaccessible on WIN32
+	// Make file inaccessible, should cause server to return a 403 error,
+	// unless of course the test is run as root :)
+	{
+		TEST_THAT(chmod("testfiles/store/dsfdsfs98.fd", 0) == 0);
+		HTTPRequest request(HTTPRequest::Method_GET, "/dsfdsfs98.fd");
+		request.SetHostName("quotes.s3.amazonaws.com");
+		request.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
+		request.AddHeader("Authorization", "AWS " EXAMPLE_S3_ACCESS_KEY
+			":NO9tjQuMCK83z2VZFaJOGKeDi7M=");
+		request.SetClientKeepAliveRequested(true);
+
+		HTTPResponse response;
+		TEST_THAT(send_and_receive(request, response, 403));
+		TEST_THAT(chmod("testfiles/store/dsfdsfs98.fd", 0755) == 0);
+	}
+#endif
+
+	{
+		HTTPRequest request(HTTPRequest::Method_GET, "/dsfdsfs98.fd");
+		request.SetHostName("quotes.s3.amazonaws.com");
+		request.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
+		request.AddHeader("Authorization", "AWS " EXAMPLE_S3_ACCESS_KEY
+			":NO9tjQuMCK83z2VZFaJOGKeDi7M=");
+		request.SetClientKeepAliveRequested(true);
+
+		HTTPResponse response;
+		TEST_THAT(send_and_receive(request, response));
+
+		TEST_EQUAL("qBmKRcEWBBhH6XAqsKU/eg24V3jf/kWKN9dJip1L/FpbYr9FDy7wWFurfdQOEMcY",
+			response.GetHeaderValue("x-amz-id-2"));
+		TEST_EQUAL("F2A8CCCA26B4B26D", response.GetHeaderValue("x-amz-request-id"));
+		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT", response.GetHeaderValue("Date"));
+		TEST_EQUAL("Sun, 1 Jan 2006 12:00:00 GMT", response.GetHeaderValue("Last-Modified"));
+		TEST_EQUAL(34, response.GetHeaderValue("ETag").size());
+		TEST_EQUAL("text/plain", response.GetContentType());
+		TEST_EQUAL("AmazonS3", response.GetHeaderValue("Server"));
+		TEST_THAT(!response.IsKeepAlive());
+
+		FileStream file("testfiles/dsfdsfs98.fd");
+		TEST_THAT(file.CompareWith(response));
+	}
+
+	// S3Client tests with S3Simulator daemon for realism
+	{
+		S3Client client("localhost", 1080, EXAMPLE_S3_ACCESS_KEY,
+			EXAMPLE_S3_SECRET_KEY);
+		TEST_THAT(exercise_s3client(client));
+	}
+
+	// Kill it
+	TEST_THAT(StopDaemon(pid, "testfiles/s3simulator.pid",
+		"s3simulator.memleaks", true));
+
+	TEST_THAT(StartSimulator());
+
+	// S3Client tests with s3simulator executable for even more realism
+	{
+		S3Client client("localhost", 1080, EXAMPLE_S3_ACCESS_KEY,
+			EXAMPLE_S3_SECRET_KEY);
+		TEST_THAT(exercise_s3client(client));
+	}
+
+	TEST_THAT(StopSimulator());
+
 	TEARDOWN();
 }
 

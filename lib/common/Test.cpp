@@ -17,8 +17,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#ifdef HAVE_DIRENT_H
+#	include <dirent.h> // for opendir(), struct DIR
+#endif
+
 #ifdef HAVE_UNISTD_H
-	#include <unistd.h>
+#	include <unistd.h>
 #endif
 
 #include "BoxTime.h"
@@ -83,7 +87,8 @@ bool setUp(const char* function_name)
 		}
 	}
 
-#ifdef _MSC_VER
+	// We need to do something more complex than "rm -rf testfiles" to clean up the mess and
+	//prepare for the next test, in a way that works on Windows (without rm -rf) as well.
 	DIR* pDir = opendir("testfiles");
 	if(!pDir)
 	{
@@ -101,13 +106,16 @@ bool setUp(const char* function_name)
 			StartsWith("notifyran", filename) ||
 			StartsWith("notifyscript.tag", filename) ||
 			StartsWith("restore", filename) ||
+			filename == "bbackupd-cache" ||
 			filename == "bbackupd-data" ||
+			filename == "store" ||
 			filename == "syncallowscript.control" ||
 			StartsWith("syncallowscript.notifyran.", filename) ||
 			filename == "test2.downloaded" ||
 			EndsWith("testfile", filename))
 		{
-			std::string filepath = std::string("testfiles\\") + filename;
+			std::string filepath = std::string("testfiles" DIRECTORY_SEPARATOR) +
+				filename;
 
 			int filetype = ObjectExists(filepath);
 			if(filetype == ObjectExists_File)
@@ -120,6 +128,9 @@ bool setUp(const char* function_name)
 			}
 			else if(filetype == ObjectExists_Dir)
 			{
+#ifdef _MSC_VER
+				// More complex command invocation required to properly encode
+				// arguments when non-ASCII characters are involved:
 				std::string cmd = "cmd /c rd /s /q " + filepath;
 				WCHAR* wide_cmd = ConvertUtf8ToWideString(cmd.c_str());
 				if(wide_cmd == NULL)
@@ -181,6 +192,10 @@ bool setUp(const char* function_name)
 
 				CloseHandle(pi.hProcess);
 				CloseHandle(pi.hThread);
+#else // !_MSC_VER
+				std::string cmd = std::string("rm -rf ") + filepath;
+				TEST_EQUAL_LINE(0, system(cmd.c_str()), "system() failed: " << cmd);
+#endif
 			}
 			else
 			{
@@ -190,25 +205,18 @@ bool setUp(const char* function_name)
 		}
 	}
 	closedir(pDir);
+
 	FileStream touch("testfiles/accounts.txt", O_WRONLY | O_CREAT | O_TRUNC,
 		S_IRUSR | S_IWUSR);
-#else
-	TEST_THAT_THROWONFAIL(system(
-		"rm -rf testfiles/TestDir* testfiles/0_0 testfiles/0_1 "
-		"testfiles/0_2 testfiles/accounts.txt " // testfiles/test* .tgz!
-		"testfiles/file* testfiles/notifyran testfiles/notifyran.* "
-		"testfiles/notifyscript.tag* "
-		"testfiles/restore* testfiles/bbackupd-data "
-		"testfiles/syncallowscript.control "
-		"testfiles/syncallowscript.notifyran.* "
-		"testfiles/test2.downloaded"
-		) == 0);
-	TEST_THAT_THROWONFAIL(system("touch testfiles/accounts.txt") == 0);
-#endif
+
 	TEST_THAT_THROWONFAIL(mkdir("testfiles/0_0", 0755) == 0);
 	TEST_THAT_THROWONFAIL(mkdir("testfiles/0_1", 0755) == 0);
 	TEST_THAT_THROWONFAIL(mkdir("testfiles/0_2", 0755) == 0);
 	TEST_THAT_THROWONFAIL(mkdir("testfiles/bbackupd-data", 0755) == 0);
+	TEST_THAT_THROWONFAIL(mkdir("testfiles/bbackupd-cache", 0755) == 0);
+	TEST_THAT_THROWONFAIL(mkdir("testfiles/store", 0755) == 0);
+	TEST_THAT_THROWONFAIL(mkdir("testfiles/store/subdir", 0755) == 0);
+	TEST_THAT_THROWONFAIL(mkdir("testfiles/store/subdir/dirs", 0755) == 0);
 
 	return true;
 }
