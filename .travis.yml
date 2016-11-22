@@ -25,6 +25,7 @@ addons:
       - libwww-perl
       - xsltproc
       - zlib1g-dev
+      - libboost-dev
 
 env:
   - TEST_TARGET=debug
