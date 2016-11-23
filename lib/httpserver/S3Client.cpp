@@ -183,7 +183,7 @@ HTTPResponse S3Client::FinishAndSendRequest(HTTPRequest::Method Method,
 	{
 		if (pStreamToSend)
 		{
-			pStreamToSend->CopyStreamTo(request);
+			request.SetDataStream(pStreamToSend);
 		}
 
 		request.SetForReading();
