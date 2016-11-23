@@ -69,7 +69,6 @@ HTTPResponse S3Client::HeadObject(const std::string& rObjectURI)
 }
 
 
-HTTPResponse HeadObject(const std::string& rObjectURI);
 // --------------------------------------------------------------------------
 //
 // Function
