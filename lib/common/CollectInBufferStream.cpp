@@ -225,7 +225,10 @@ bool CollectInBufferStream::StreamClosed()
 // --------------------------------------------------------------------------
 void CollectInBufferStream::SetForReading()
 {
-	if(mInWritePhase != true) { THROW_EXCEPTION(CommonException, CollectInBufferStreamNotInCorrectPhase) }
+	if(mInWritePhase != true)
+	{
+		THROW_EXCEPTION(CommonException, CollectInBufferStreamNotInCorrectPhase);
+	}
 	
 	// Move to read phase
 	mInWritePhase = false;
