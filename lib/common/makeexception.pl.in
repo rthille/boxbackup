@@ -71,21 +71,20 @@ print H <<__E;
 class ${class}Exception : public BoxException
 {
 public:
-	${class}Exception(unsigned int SubType,
-		const std::string& rMessage = "")
-	: mSubType(SubType), mMessage(rMessage),
+	${class}Exception(unsigned int SubType, const std::string& rMessage,
+		const std::string& file, int line)
+	: BoxException(file, line),
+	  mSubType(SubType), mMessage(rMessage),
 	  mWhat(GetMessage(SubType) + std::string(rMessage.empty() ? "" : ": ") + rMessage)
-	{
-	}
+	{ }
 	
 	${class}Exception(const ${class}Exception &rToCopy)
-	: mSubType(rToCopy.mSubType), mMessage(rToCopy.mMessage), mWhat(rToCopy.mWhat)
-	{
-	}
+	: BoxException(rToCopy.GetFile(), rToCopy.GetLine()),
+	  mSubType(rToCopy.mSubType), mMessage(rToCopy.mMessage), mWhat(rToCopy.mWhat)
+	{ }
 	
 	~${class}Exception() throw ()
-	{
-	}
+	{ }
 	
 	enum
 	{

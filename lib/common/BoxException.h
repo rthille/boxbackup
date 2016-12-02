@@ -24,7 +24,15 @@
 class BoxException : public std::exception
 {
 public:
-	BoxException();
+	BoxException(const std::string& file, int line)
+	: mFile(file),
+	  mLine(line)
+	{ }
+
+	BoxException(const BoxException &rToCopy)
+	: mFile(rToCopy.mFile), mLine(rToCopy.mLine)
+	{ }
+
 	~BoxException() throw ();
 	
 	virtual unsigned int GetType() const throw() = 0;
@@ -35,7 +43,12 @@ public:
 	}
 	virtual const std::string& GetMessage() const = 0;
 
+	const std::string& GetFile() const { return mFile; }
+	const int          GetLine() const { return mLine; }
+
 private:
+	std::string mFile;
+	int mLine;
 };
 
 #define EXCEPTION_IS_TYPE(exception_obj, type, subtype) \

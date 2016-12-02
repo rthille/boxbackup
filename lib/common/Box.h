@@ -123,7 +123,7 @@
 				#type "(" #subtype ") " \
 				"at " __FILE__ "(" << __LINE__ << ")") \
 		} \
-		throw type(type::subtype); \
+		throw type(type::subtype, "", __FILE__, __LINE__); \
 	}
 
 #define THROW_EXCEPTION_MESSAGE(type, subtype, message) \
@@ -140,7 +140,7 @@
 				_box_throw_line.str() << \
 				") at " __FILE__ ":" << __LINE__) \
 		} \
-		throw type(type::subtype, _box_throw_line.str()); \
+		throw type(type::subtype, _box_throw_line.str(), __FILE__, __LINE__); \
 	}
 
 // extra macros for converting to network byte order

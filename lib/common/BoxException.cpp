@@ -12,10 +12,6 @@
 
 #include "MemLeakFindOn.h"
 
-BoxException::BoxException()
-{
-}
-
 BoxException::~BoxException() throw ()
 {
 }

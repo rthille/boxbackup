@@ -58,6 +58,8 @@ extern std::map<std::string, std::string> s_test_status;
 	{ \
 		BOX_NOTICE(__FUNCTION__ << " errored: " << e.what()); \
 		num_failures++; \
+		first_fail_file = e.GetFile(); \
+		first_fail_line = e.GetLine(); \
 		tearDown(); \
 		s_test_status[__FUNCTION__] = "ERRORED"; \
 		return false; \
