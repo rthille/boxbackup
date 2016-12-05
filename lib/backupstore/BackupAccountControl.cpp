@@ -602,7 +602,8 @@ int S3BackupAccountControl::CreateAccount(const std::string& name, int32_t SoftL
 
 	// And an empty directory
 	BackupStoreDirectory rootDir(BACKUPSTORE_ROOT_DIRECTORY_ID, BACKUPSTORE_ROOT_DIRECTORY_ID);
-	int64_t rootDirSize = mapFileSystem->PutDirectory(rootDir);
+	mapFileSystem->PutDirectory(rootDir);
+	int64_t rootDirSize = rootDir.GetUserInfo1_SizeInBlocks();
 
 	// Update the store info to reflect the size of the root directory
 	info.ChangeBlocksUsed(rootDirSize);
