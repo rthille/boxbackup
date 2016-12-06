@@ -13,6 +13,8 @@
 
 #include <string>
 
+#include "autogen_BackupStoreException.h"
+#include "BackupStoreRefCountDatabase.h"
 #include "HTTPResponse.h"
 #include "NamedLock.h"
 #include "S3Client.h"
