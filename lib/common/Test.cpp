@@ -83,7 +83,6 @@ bool setUp(const char* function_name)
 		}
 	}
 
-#ifdef _MSC_VER
 	DIR* pDir = opendir("testfiles");
 	if(!pDir)
 	{
@@ -101,13 +100,16 @@ bool setUp(const char* function_name)
 			StartsWith("notifyran", filename) ||
 			StartsWith("notifyscript.tag", filename) ||
 			StartsWith("restore", filename) ||
+			filename == "store" ||
+			filename == "bbackupd-cache" ||
 			filename == "bbackupd-data" ||
 			filename == "syncallowscript.control" ||
 			StartsWith("syncallowscript.notifyran.", filename) ||
 			filename == "test2.downloaded" ||
 			EndsWith("testfile", filename))
 		{
-			std::string filepath = std::string("testfiles\\") + filename;
+			std::string filepath = std::string("testfiles" 
+				DIRECTORY_SEPARATOR) + filename;
 
 			int filetype = ObjectExists(filepath);
 			if(filetype == ObjectExists_File)
@@ -120,6 +122,7 @@ bool setUp(const char* function_name)
 			}
 			else if(filetype == ObjectExists_Dir)
 			{
+#ifdef WIN32
 				std::string cmd = "cmd /c rd /s /q " + filepath;
 				WCHAR* wide_cmd = ConvertUtf8ToWideString(cmd.c_str());
 				if(wide_cmd == NULL)
@@ -181,6 +184,12 @@ bool setUp(const char* function_name)
 
 				CloseHandle(pi.hProcess);
 				CloseHandle(pi.hThread);
+#else // !WIN32
+				// Deleting directories is so much easier on
+				// Unix!
+				std::string cmd = "rm -rf " + filepath;
+				TEST_THAT_THROWONFAIL(system(cmd.c_str()));
+#endif // WIN32
 			}
 			else
 			{
@@ -190,21 +199,10 @@ bool setUp(const char* function_name)
 		}
 	}
 	closedir(pDir);
+
 	FileStream touch("testfiles/accounts.txt", O_WRONLY | O_CREAT | O_TRUNC,
 		S_IRUSR | S_IWUSR);
-#else
-	TEST_THAT_THROWONFAIL(system(
-		"rm -rf testfiles/TestDir* testfiles/0_0 testfiles/0_1 "
-		"testfiles/0_2 testfiles/accounts.txt " // testfiles/test* .tgz!
-		"testfiles/file* testfiles/notifyran testfiles/notifyran.* "
-		"testfiles/notifyscript.tag* "
-		"testfiles/restore* testfiles/bbackupd-data "
-		"testfiles/syncallowscript.control "
-		"testfiles/syncallowscript.notifyran.* "
-		"testfiles/test2.downloaded"
-		) == 0);
-	TEST_THAT_THROWONFAIL(system("touch testfiles/accounts.txt") == 0);
-#endif
+
 	TEST_THAT_THROWONFAIL(mkdir("testfiles/0_0", 0755) == 0);
 	TEST_THAT_THROWONFAIL(mkdir("testfiles/0_1", 0755) == 0);
 	TEST_THAT_THROWONFAIL(mkdir("testfiles/0_2", 0755) == 0);
@@ -382,11 +380,22 @@ int ReadPidFile(const char *pidFile)
 	return pid;
 }
 
+#ifdef WIN32
+HANDLE sTestChildDaemonJobObject = INVALID_HANDLE_VALUE;
+#endif
+
 int LaunchServer(const std::string& rCommandLine, const char *pidFile)
 {
 	BOX_INFO("Starting server: " << rCommandLine);
 
 #ifdef WIN32
+
+	// Use a Windows "Job Object" as a container for all our child
+	// processes. The test runner will create this job object when
+	// it starts, and close the handle (killing any running daemons)
+	// when it exits. This is the best way to avoid daemons hanging
+	// around and causing subsequent tests to fail, and/or the test
+	// runner to hang waiting for a daemon that will never terminate.
 
 	PROCESS_INFORMATION procInfo;
 
@@ -419,9 +428,17 @@ int LaunchServer(const std::string& rCommandLine, const char *pidFile)
 	free(tempCmd);
 
 	TEST_THAT_OR(result != 0,
-		BOX_LOG_WIN_ERROR("Launch failed: " << rCommandLine);
+		BOX_LOG_WIN_ERROR("Failed to CreateProcess: " << rCommandLine);
 		return -1;
 		);
+
+	if(sTestChildDaemonJobObject != INVALID_HANDLE_VALUE)
+	{
+		if(!AssignProcessToJobObject(sTestChildDaemonJobObject, procInfo.hProcess))
+		{
+			BOX_LOG_WIN_WARNING("Failed to add child process to job object");
+		}
+	}
 
 	CloseHandle(procInfo.hProcess);
 	CloseHandle(procInfo.hThread);
