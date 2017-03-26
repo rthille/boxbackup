@@ -211,19 +211,19 @@ foreach(module_dep ${module_deps})
 			if(DEBUG)
 				message(STATUS "add executable '${module_name}': '${module_files}'")
 			endif()
-			add_executable(${module_name} ${module_files})
 
-			# Unfortunately we have to use install(PROGRAMS) instead of
-			# install(TARGETS) because TARGETS doesn't allow us to change
-			# the executable name.
+			add_executable(${module_name} ${module_files})
+			set_target_properties(${module_name} PROPERTIES OUTPUT_NAME
+				"${bin_name}")
+
+			# Try using install(PROGRAMS) to avoid confusing the CPack NSIS
+			# generator with our absolute-path installations:
 			install(PROGRAMS "$<TARGET_FILE:${module_name}>"
 				CONFIGURATIONS Debug
-				DESTINATION "${base_dir}/debug/${module_dir}"
-				RENAME "${bin_name}${CMAKE_EXECUTABLE_SUFFIX}")
+				DESTINATION "${base_dir}/debug/${module_dir}")
 			install(PROGRAMS "$<TARGET_FILE:${module_name}>"
 				CONFIGURATIONS Release
-				DESTINATION "${base_dir}/release/${module_dir}"
-				RENAME "${bin_name}${CMAKE_EXECUTABLE_SUFFIX}")
+				DESTINATION "${base_dir}/release/${module_dir}")
 		elseif(module_name MATCHES "^test_")
 			string(REGEX MATCH "^test_(.*)" valid_test ${module_name})
 			set(test_name ${CMAKE_MATCH_1})
@@ -241,6 +241,8 @@ foreach(module_dep ${module_deps})
 			add_executable(${module_name} ${module_files}
 				"${module_path}/_main.cpp")
 
+			# Try using install(PROGRAMS) to avoid confusing the CPack NSIS
+			# generator with our absolute-path installations:
 			if(WIN32)
 				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
 					CONFIGURATIONS Debug
@@ -250,9 +252,6 @@ foreach(module_dep ${module_deps})
 					DESTINATION "${base_dir}/release/${module_dir}")
 				set(test_executable "$<TARGET_FILE_NAME:${module_name}>")
 			else()
-				# Unfortunately we have to use install(PROGRAMS) instead of
-				# install(TARGETS) because TARGETS doesn't allow us to change
-				# the executable name.
 				install(PROGRAMS "$<TARGET_FILE:${module_name}>"
 					CONFIGURATIONS Debug
 					DESTINATION "${base_dir}/debug/${module_dir}"
