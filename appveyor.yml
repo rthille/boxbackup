@@ -69,7 +69,7 @@ test_script:
   # - dir %PLATFORM%\%CONFIGURATION%
   - ctest -C %CONFIGURATION% -V
 
-on_finish:
+after_test:
   - cmake --build . --config %CONFIGURATION% --target package
   # AppVeyor refuses to package files outside of the project directory, so we need to copy the
   # built package files into it:
