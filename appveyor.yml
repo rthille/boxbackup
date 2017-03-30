@@ -23,15 +23,10 @@ environment:
   PCRE_VERSION: 8.38
 
 cache:
-  - '..\zlib-1.2.8'
-  - '..\zlib-%PLATFORM%'
-  - '..\openssl-%OPENSSL_VERSION%.tar.gz'
-  - '..\openssl-%OPENSSL_VERSION%'
-  - '..\openssl-%PLATFORM%'
-  - '..\pcre-%PCRE_VERSION%.zip'
-  - '..\pcre-%PCRE_VERSION%'
-  - '..\pcre-%PLATFORM%'
-  - 'infrastructure\cmake\build'
+  - '..\cmake\Download'
+  - '..\cmake\Source'
+  - '..\cmake\Stamp'
+  - '..\cmake\Build'
 
 init:
 # Uncomment the following two lines to enable RDP access to the virtual machine for debugging.
