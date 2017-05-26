@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 //
 // File
-//		Name:    S3Client.cpp
+//		Name:    S3Simulator.cpp
 //		Purpose: Amazon S3 client helper implementation class
 //		Created: 09/01/2009
 //
@@ -22,6 +22,7 @@
 #include "autogen_HTTPException.h"
 #include "IOStream.h"
 #include "Logging.h"
+#include "MD5Digest.h"
 #include "S3Simulator.h"
 #include "decode.h"
 #include "encode.h"
@@ -211,10 +212,13 @@ void S3Simulator::Handle(HTTPRequest &rRequest, HTTPResponse &rResponse)
 		SendInternalErrorResponse("Unknown exception", rResponse);
 	}
 
-	if (rResponse.GetResponseCode() != 200 &&
+	if (rResponse.GetResponseCode() != HTTPResponse::Code_OK &&
+		rResponse.GetResponseCode() != HTTPResponse::Code_NotModified &&
+		rResponse.GetResponseCode() != HTTPResponse::Code_NoContent &&
 		rResponse.GetSize() == 0)
 	{
-		// no error message written, provide a default
+		// Looks like an error response with no error message specified,
+		// so write a default one.
 		std::ostringstream s;
 		s << rResponse.GetResponseCode();
 		SendInternalErrorResponse(s.str().c_str(), rResponse);
@@ -237,23 +241,48 @@ void S3Simulator::Handle(HTTPRequest &rRequest, HTTPResponse &rResponse)
 //
 // --------------------------------------------------------------------------
 
-void S3Simulator::HandleGet(HTTPRequest &rRequest, HTTPResponse &rResponse)
+void S3Simulator::HandleGet(HTTPRequest &rRequest, HTTPResponse &rResponse,
+	bool IncludeContent)
 {
 	std::string path = GetConfiguration().GetKeyValue("StoreDirectory");
 	path += rRequest.GetRequestURI();
 	std::auto_ptr<FileStream> apFile;
-
 	apFile.reset(new FileStream(path));
 
+	std::string digest;
+	{
+		MD5DigestStream digester;
+		apFile->CopyStreamTo(digester);
+		apFile->Seek(0, IOStream::SeekType_Absolute);
+		digester.Close();
+		digest = "\"" + digester.DigestAsString() + "\"";
+	}
+
+	rResponse.SetResponseCode(HTTPResponse::Code_OK);
+
+	std::string if_none_match;
+	rRequest.GetHeader("if-none-match", &if_none_match);
+	if(digest == if_none_match)
+	{
+		rResponse.SetResponseCode(HTTPResponse::Code_NotModified);
+		IncludeContent = false;
+	}
+	else
+	{
+		rResponse.AddHeader("ETag", digest);
+	}
+
+	if(IncludeContent)
+	{
+		apFile->CopyStreamTo(rResponse);
+	}
+
 	// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/UsingRESTOperations.html
-	apFile->CopyStreamTo(rResponse);
 	rResponse.AddHeader("x-amz-id-2", "qBmKRcEWBBhH6XAqsKU/eg24V3jf/kWKN9dJip1L/FpbYr9FDy7wWFurfdQOEMcY");
 	rResponse.AddHeader("x-amz-request-id", "F2A8CCCA26B4B26D");
 	rResponse.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
 	rResponse.AddHeader("Last-Modified", "Sun, 1 Jan 2006 12:00:00 GMT");
-	rResponse.AddHeader("ETag", "\"828ef3fdfa96f00ad9f27c383fc9ac7f\"");
 	rResponse.AddHeader("Server", "AmazonS3");
-	rResponse.SetResponseCode(HTTPResponse::Code_OK);
 }
 
 // --------------------------------------------------------------------------
@@ -275,7 +304,7 @@ void S3Simulator::HandlePut(HTTPRequest &rRequest, HTTPResponse &rResponse)
 
 	try
 	{
-		apFile.reset(new FileStream(path, O_CREAT | O_WRONLY));
+		apFile.reset(new FileStream(path, O_CREAT | O_RDWR));
 	}
 	catch (CommonException &ce)
 	{
@@ -296,13 +325,22 @@ void S3Simulator::HandlePut(HTTPRequest &rRequest, HTTPResponse &rResponse)
 	}
 
 	rRequest.ReadContent(*apFile);
+	apFile->Seek(0, IOStream::SeekType_Absolute);
+
+	std::string digest;
+	{
+		MD5DigestStream digester;
+		apFile->CopyStreamTo(digester);
+		digester.Close();
+		digest = "\"" + digester.DigestAsString() + "\"";
+	}
 
 	// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/RESTObjectPUT.html
 	rResponse.AddHeader("x-amz-id-2", "LriYPLdmOdAiIfgSm/F1YsViT1LW94/xUQxMsF7xiEb1a0wiIOIxl+zbwZ163pt7");
 	rResponse.AddHeader("x-amz-request-id", "F2A8CCCA26B4B26D");
 	rResponse.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
 	rResponse.AddHeader("Last-Modified", "Sun, 1 Jan 2006 12:00:00 GMT");
-	rResponse.AddHeader("ETag", "\"828ef3fdfa96f00ad9f27c383fc9ac7f\"");
+	rResponse.AddHeader("ETag", digest);
 	rResponse.SetContentType("");
 	rResponse.AddHeader("Server", "AmazonS3");
 	rResponse.SetResponseCode(HTTPResponse::Code_OK);

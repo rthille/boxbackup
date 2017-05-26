@@ -25,6 +25,7 @@
 #include "HTTPResponse.h"
 #include "HTTPServer.h"
 #include "IOStreamGetLine.h"
+#include "MD5Digest.h"
 #include "S3Client.h"
 #include "S3Simulator.h"
 #include "ServerControl.h"
@@ -128,6 +129,67 @@ void TestWebServer::Handle(HTTPRequest &rRequest, HTTPResponse &rResponse)
 TestWebServer::TestWebServer() {}
 TestWebServer::~TestWebServer() {}
 
+bool exercise_s3client(S3Client& client)
+{
+	bool success = true;
+
+	HTTPResponse response = client.GetObject("/photos/puppy.jpg");
+	TEST_EQUAL_OR(200, response.GetResponseCode(), success = false);
+	std::string response_data((const char *)response.GetBuffer(),
+		response.GetSize());
+	TEST_EQUAL_OR("omgpuppies!\n", response_data, success = false);
+	TEST_THAT_OR(!response.IsKeepAlive(), success = false);
+
+	// make sure that assigning to HTTPResponse does clear stream
+	response = client.GetObject("/photos/puppy.jpg");
+	TEST_EQUAL_OR(200, response.GetResponseCode(), success = false);
+	response_data = std::string((const char *)response.GetBuffer(),
+		response.GetSize());
+	TEST_EQUAL_OR("omgpuppies!\n", response_data, success = false);
+	TEST_THAT_OR(!response.IsKeepAlive(), success = false);
+
+	response = client.GetObject("/nonexist");
+	TEST_EQUAL_OR(404, response.GetResponseCode(), success = false);
+	TEST_THAT_OR(!response.IsKeepAlive(), success = false);
+
+	FileStream fs("testfiles/dsfdsfs98.fd");
+	std::string digest;
+
+	{
+		MD5DigestStream digester;
+		fs.CopyStreamTo(digester);
+		fs.Seek(0, IOStream::SeekType_Absolute);
+		digester.Close();
+		digest = digester.DigestAsString();
+		TEST_EQUAL("dc3b8c5e57e71d31a0a9d7cbeee2e011", digest);
+	}
+
+	response = client.PutObject("/newfile", fs);
+	TEST_EQUAL_OR(200, response.GetResponseCode(), success = false);
+	TEST_THAT_OR(!response.IsKeepAlive(), success = false);
+	TEST_EQUAL_OR("\"" + digest + "\"", response.GetHeaderValue("etag"),
+		success = false);
+
+	response = client.GetObject("/newfile");
+	TEST_EQUAL_OR(200, response.GetResponseCode(), success = false);
+	TEST_THAT_OR(fs.CompareWith(response), success = false);
+	TEST_EQUAL_OR("\"" + digest + "\"", response.GetHeaderValue("etag"),
+		success = false);
+
+	// Try to get it again, with the etag of the existing copy, and check that we get
+	// a 304 Not Modified response.
+	response = client.GetObject("/newfile", digest);
+	TEST_EQUAL_OR(HTTPResponse::Code_NotModified, response.GetResponseCode(),
+		success = false);
+	TEST_EQUAL_OR(0, response.GetContentLength(), success = false);
+	TEST_EQUAL_OR("\"" + digest + "\"", response.GetHeaderValue("etag"),
+		success = false);
+
+	// This will fail if the file was created in the wrong place:
+	TEST_EQUAL_OR(0, ::unlink("testfiles/newfile"), success = false);
+	return success;
+}
+
 int test(int argc, const char *argv[])
 {
 	if(argc >= 2 && ::strcmp(argv[1], "server") == 0)
@@ -147,6 +209,48 @@ int test(int argc, const char *argv[])
 #ifndef WIN32
 	TEST_THAT(system("rm -rf *.memleaks") == 0);
 #endif
+
+	// Test that HTTPResponse can be written to and read from a stream.
+	// TODO FIXME: we should stream the response instead of buffering it, on both
+	// sides (send and receive).
+	{
+		// Stream it to a CollectInBufferStream
+		CollectInBufferStream response_buffer;
+
+		HTTPResponse response(&response_buffer);
+		FileStream fs("testfiles/dsfdsfs98.fd");
+		// Write headers in lower case.
+		response.SetResponseCode(HTTPResponse::Code_OK);
+		response.AddHeader("date", "Wed, 01 Mar  2006 12:00:00 GMT");
+		response.AddHeader("authorization",
+			"AWS 0PN5J17HBGZHT7JJ3X82:XtMYZf0hdOo4TdPYQknZk0Lz7rw=");
+		response.AddHeader("content-type", "text/perl");
+		fs.CopyStreamTo(response);
+		response.Send();
+		response_buffer.SetForReading();
+
+		HTTPResponse response2;
+		response2.Receive(response_buffer);
+
+		TEST_EQUAL(200, response2.GetResponseCode());
+		TEST_EQUAL("text/perl", response2.GetContentType());
+		// Content-Length was not known when the stream was sent, so it should
+		// be unknown in the received stream too (certainly before it has all
+		// been read!)
+		TEST_EQUAL(fs.GetPosition(), response2.GetContentLength());
+		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT",
+			response.GetHeaderValue("Date"));
+		TEST_EQUAL("AWS 0PN5J17HBGZHT7JJ3X82:XtMYZf0hdOo4TdPYQknZk0Lz7rw=",
+			response.GetHeaderValue("Authorization"));
+
+		CollectInBufferStream response_data;
+		// request2.ReadContent(request_data, IOStream::TimeOutInfinite);
+		response2.CopyStreamTo(response_data);
+		TEST_EQUAL(fs.GetPosition(), response_data.GetPosition());
+		response_data.SetForReading();
+		fs.Seek(0, IOStream::SeekType_Absolute);
+		TEST_THAT(fs.CompareWith(response_data, IOStream::TimeOutInfinite));
+	}
 
 	// Start the server
 	int pid = StartDaemon(0, TEST_EXECUTABLE " server testfiles/httpserver.conf",
@@ -345,42 +449,6 @@ int test(int argc, const char *argv[])
 		TEST_EQUAL(0, ::unlink("testfiles/newfile"));
 	}
 
-	{
-		HTTPRequest request(HTTPRequest::Method_PUT, "/newfile");
-		request.SetHostName("quotes.s3.amazonaws.com");
-		request.AddHeader("date", "Wed, 01 Mar  2006 12:00:00 GMT");
-		request.AddHeader("authorization",
-			"AWS 0PN5J17HBGZHT7JJ3X82:XtMYZf0hdOo4TdPYQknZk0Lz7rw=");
-		request.AddHeader("Content-Type", "text/plain");
-
-		FileStream fs("testfiles/testrequests.pl");
-		fs.CopyStreamTo(request);
-		request.SetForReading();
-
-		CollectInBufferStream response_buffer;
-		HTTPResponse response(&response_buffer);
-
-		S3Simulator simulator;
-		simulator.Configure("testfiles/s3simulator.conf");
-		simulator.Handle(request, response);
-
-		TEST_EQUAL(200, response.GetResponseCode());
-		TEST_EQUAL("LriYPLdmOdAiIfgSm/F1YsViT1LW94/xUQxMsF7xiEb1a0wiIOIxl+zbwZ163pt7",
-			response.GetHeaderValue("x-amz-id-2"));
-		TEST_EQUAL("F2A8CCCA26B4B26D", response.GetHeaderValue("x-amz-request-id"));
-		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT", response.GetHeaderValue("Date"));
-		TEST_EQUAL("Sun, 1 Jan 2006 12:00:00 GMT", response.GetHeaderValue("Last-Modified"));
-		TEST_EQUAL("\"828ef3fdfa96f00ad9f27c383fc9ac7f\"", response.GetHeaderValue("ETag"));
-		TEST_EQUAL("", response.GetContentType());
-		TEST_EQUAL("AmazonS3", response.GetHeaderValue("Server"));
-		TEST_EQUAL(0, response.GetSize());
-
-		FileStream f1("testfiles/testrequests.pl");
-		FileStream f2("testfiles/newfile");
-		TEST_THAT(f1.CompareWith(f2));
-		TEST_EQUAL(0, ::unlink("testfiles/newfile"));
-	}
-
 	// Start the S3Simulator server
 	pid = StartDaemon(0, TEST_EXECUTABLE " s3server testfiles/s3simulator.conf",
 		"testfiles/s3simulator.pid");
@@ -431,8 +499,7 @@ int test(int argc, const char *argv[])
 		SocketStream sock;
 		sock.Open(Socket::TypeINET, "localhost", 1080);
 
-		HTTPRequest request(HTTPRequest::Method_GET,
-			"/testrequests.pl");
+		HTTPRequest request(HTTPRequest::Method_GET, "/testrequests.pl");
 		request.SetHostName("quotes.s3.amazonaws.com");
 		request.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
 		request.AddHeader("Authorization", "AWS 0PN5J17HBGZHT7JJ3X82:qc1e8u8TVl2BpIxwZwsursIb8U8=");
@@ -447,7 +514,7 @@ int test(int argc, const char *argv[])
 		TEST_EQUAL("F2A8CCCA26B4B26D", response.GetHeaderValue("x-amz-request-id"));
 		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT", response.GetHeaderValue("Date"));
 		TEST_EQUAL("Sun, 1 Jan 2006 12:00:00 GMT", response.GetHeaderValue("Last-Modified"));
-		TEST_EQUAL("\"828ef3fdfa96f00ad9f27c383fc9ac7f\"", response.GetHeaderValue("ETag"));
+		TEST_EQUAL(34, response.GetHeaderValue("ETag").size());
 		TEST_EQUAL("text/plain", response.GetContentType());
 		TEST_EQUAL("AmazonS3", response.GetHeaderValue("Server"));
 
@@ -465,7 +532,7 @@ int test(int argc, const char *argv[])
 		request.AddHeader("Date", "Wed, 01 Mar  2006 12:00:00 GMT");
 		request.AddHeader("Authorization", "AWS 0PN5J17HBGZHT7JJ3X82:kfY1m6V3zTufRy2kj92FpQGKz4M=");
 		request.AddHeader("Content-Type", "text/plain");
-		FileStream fs("testfiles/testrequests.pl");
+		FileStream fs("testfiles/dsfdsfs98.fd");
 		HTTPResponse response;
 		request.SendWithStream(sock, SHORT_TIMEOUT, &fs, response);
 		std::string value;
@@ -474,12 +541,12 @@ int test(int argc, const char *argv[])
 		TEST_EQUAL("F2A8CCCA26B4B26D", response.GetHeaderValue("x-amz-request-id"));
 		TEST_EQUAL("Wed, 01 Mar  2006 12:00:00 GMT", response.GetHeaderValue("Date"));
 		TEST_EQUAL("Sun, 1 Jan 2006 12:00:00 GMT", response.GetHeaderValue("Last-Modified"));
-		TEST_EQUAL("\"828ef3fdfa96f00ad9f27c383fc9ac7f\"", response.GetHeaderValue("ETag"));
+		TEST_EQUAL("\"dc3b8c5e57e71d31a0a9d7cbeee2e011\"", response.GetHeaderValue("ETag"));
 		TEST_EQUAL("", response.GetContentType());
 		TEST_EQUAL("AmazonS3", response.GetHeaderValue("Server"));
 		TEST_EQUAL(0, response.GetSize());
 
-		FileStream f1("testfiles/testrequests.pl");
+		FileStream f1("testfiles/dsfdsfs98.fd");
 		FileStream f2("testfiles/newfile");
 		TEST_THAT(f1.CompareWith(f2));
 	}
